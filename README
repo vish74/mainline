@@ -1,0 +1,53 @@
+Starting the OBEX-Push service
+==============================
+
+Simply run
+$ obexpushd
+
+It will automatically listen on bluetooth as nothing was specified.
+If you also want tot listen to default IrDA identifier:
+$ obexpushd -B -I
+
+If your remote device sends files with the "OBEX:IrXfer"
+identifier instead of using the "OBEX" identifier, you can
+_additionally_ listen to it:
+$ obexpush -B -IIrXfer
+
+
+Stopping the OBEX-Push service
+==============================
+
+I suggest to run:
+$ pkill -u $USER obexpushd
+
+As an alternative, let obexpushd create a pidfile and use that:
+$ kill $(cat pidfile)
+
+Note that it will not automatically be killed when you log out!
+
+
+Why does another OBEX-Push listener get the files?
+=================================================
+
+This can not be influenced as it depends on the sending entity.
+Usually, the service with the lower channel is contacted.
+Obexpushd uses channel 9 by default but you can change that:
+$ obexpushd -B3
+
+will listen to channel 3 instead of channel 9.
+You can check local service with
+$ sdptool browse local
+
+
+Where does it save the files to?
+================================
+
+The files are stored in the directory where you start it.
+
+
+Some files are not stored, what happens?
+========================================
+
+The file may already exist. Existing files are not overwritten.
+Start obexpushd in non-detached mode (option -n) to see what
+happens.

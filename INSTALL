@@ -1,0 +1,42 @@
+Requirements:
+=============
+
+You need the development files for:
+openobex >= 1.1
+bluez-lib
+
+You also must have installed:
+pkg-config
+xmlto
+
+
+Building:
+=========
+
+Simply run make.
+For special needs, define CFLAGS, LDFLAGS or LIBS.
+
+
+Installing:
+===========
+
+Run:
+$ make install
+You can optionally define DESTDIR and prefix variables.
+
+
+Using:
+======
+
+See "obexpushd -h" for help and take a look at the README file.
+There is also a manpage.
+
+
+Specification documents:
+========================
+
+You can download the spefication document from
+http://www.bluetooth.com/Bluetooth/Learn/Technology/Specifications/
+The OBEX base secification is available seperately from the
+Infrared Data Association.
+
