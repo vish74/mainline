@@ -4,7 +4,7 @@
 /* count the number of used elements (NOT characters)
  * This works independent of byte order.
  */
-size_t ucs2len (uint16_t* s);
+size_t ucs2len (/*@null@*/ uint16_t* s);
 #define utf8len(s) ((s)? strlen((char*)(s)): 0)
 #define utf16len(s) ucs2len(s)
 

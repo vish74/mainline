@@ -70,7 +70,7 @@ int obex_auth_add_challenge (obex_t* handle,
 	*ptr++ = opts;
 
 	/* add realm */
-	if (len) {
+	if (realm != NULL && len != 0) {
 		++len;
 		*ptr++ = 0x02;
 		*ptr++ = 2*len+1;
@@ -82,16 +82,16 @@ int obex_auth_add_challenge (obex_t* handle,
 
 	errno = 0;
 	if (OBEX_ObjectAddHeader(handle,obj,OBEX_HDR_AUTHCHAL,ah,(uint32_t)(ptr-ah.bs),OBEX_FL_FIT_ONE_PACKET) < 0)
-		err = (errno? -errno: -EINVAL);
+		err = ((errno != 0)? -errno: -EINVAL);
 	free((void*)ah.bs);
 	return err;
 }
 
 int obex_auth_unpack_response (obex_headerdata_t h,
 			       uint32_t size,
-			       /* out */ uint8_t digest[16],
-			       /* out */ uint8_t nonce[16],
-			       /* out */ uint8_t user[20])
+			       uint8_t digest[16],
+			       uint8_t nonce[16],
+			       uint8_t user[20])
 {
 	int len = 0;
 	uint32_t i = 0;
@@ -183,7 +183,7 @@ int obex_auth_add_response (obex_t* handle,
 
 	errno = 0;
 	if (OBEX_ObjectAddHeader(handle,obj,OBEX_HDR_AUTHRESP,ah,(uint32_t)(ptr-ah.bs),OBEX_FL_FIT_ONE_PACKET) < 0)
-		err = (errno? -errno: -EINVAL);
+		err = ((errno != 0)? -errno: -EINVAL);
 	free((void*)ah.bs);
 	return err;
 }
@@ -208,7 +208,7 @@ int obex_auth_unpack_challenge (obex_headerdata_t h,
 
 		switch (htype){
 		case 0x00: /* nonce */
-			if (nonce_count)
+			if (nonce_count != 0)
 				return len;
 			if (hlen != 16)
 				return -1;

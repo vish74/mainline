@@ -48,7 +48,7 @@ void byteSwap(uint32_t *buf, unsigned int words)
 		*buf++ = (uint32_t)((uint32_t)p[3] << 8 | p[2]) << 16 |
 			((uint32_t)p[1] << 8 | p[0]);
 		p += 4;
-	} while (--words);
+	} while (--words != 0);
 }
 
 /*

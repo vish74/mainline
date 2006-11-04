@@ -199,10 +199,11 @@ ssize_t get_credentials_for_realm (char* file,
 	/* the format for both files is basicly the same */
 	ret = get_pass_for_user(file,r,utf8len(r),buffer,size);
 	free(r);
+	r = NULL;
 	if (ret > 0) {
 		r = (uint8_t*)strchr((char*)buffer,(int)':');
 		if (r == NULL ||
-		    (usize && (size_t)(r-buffer) > *usize) ||
+		    (usize != 0 && (size_t)(r-buffer) > *usize) ||
 		    (size_t)((buffer+ret)-(r+1)) > *psize) {
 			free(buffer);
 			return -EINVAL;
@@ -240,7 +241,7 @@ int obex_auth_send_response (obex_t* handle,
 	if (len < 0)
 		return -EINVAL;
 	if (get_credentials_for_realm(realm_file,realm,user,&usize,pass,&psize) > 0) {
-		if (opts & OBEX_AUTH_OPT_USER_REQ)
+		if ((opts & OBEX_AUTH_OPT_USER_REQ) != 0)
 			return obex_auth_add_response(handle,obj,nonce,
 						      user,sizeof(user)-1,
 						      pass,sizeof(pass)-1);
@@ -294,10 +295,10 @@ int put_open (obex_t* handle) {
 	
 	if (data->out)
 		err = put_close(handle);
-	if (err)
+	if (err < 0)
 		return err;
 
-	if (script && strlen(script)) {
+	if (script != NULL && strlen(script) > 0) {
 		uint8_t* name = utf16to8(data->name);
 		char* cmd;
 
