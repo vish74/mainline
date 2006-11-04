@@ -25,26 +25,18 @@
 #include <errno.h>
 
 static
-void obex_auth_calc_digest (/* out */ uint8_t digest[16],
+void obex_auth_calc_digest (/*@out@*/ uint8_t digest[16],
 			    const uint8_t nonce[16],
 			    const uint8_t* pass,
 			    size_t len)
 {
-	uint8_t* tmp;
-	size_t tmp_size;
+	struct MD5Context context;
 
-	/* assemble digest cleartext */
-	tmp_size = sizeof(nonce)+1+strlen((char*)pass);
-	tmp = malloc(tmp_size);
-	if (!tmp)
-		return;
-	memcpy(tmp,nonce,sizeof(nonce));
-	tmp[sizeof(nonce)] = ':';
-	memcpy(tmp+sizeof(nonce)+1,pass,len);
-
-	/* calculate digest hash */
-	MD5(digest,tmp,tmp_size);
-	free(tmp);
+	MD5Init(&context);
+	MD5Update(&context, nonce, 16);
+	MD5Update(&context, (uint8_t*)":", 1);
+	MD5Update(&context, pass, len);
+	MD5Final(digest, &context);
 }
 
 
@@ -56,6 +48,7 @@ int obex_auth_add_challenge (obex_t* handle,
 			     uint8_t opts,
 			     uint16_t* realm)
 {
+	int err = 0;
 	obex_headerdata_t ah;
         uint8_t* ptr;
 	size_t len = utf16len(realm);
@@ -86,16 +79,19 @@ int obex_auth_add_challenge (obex_t* handle,
 		ucs2_hton((uint16_t*)ptr,len-1);
 		ptr += 2*len;
 	}
-	OBEX_ObjectAddHeader(handle,obj,OBEX_HDR_AUTHCHAL,ah,ptr-ah.bs,OBEX_FL_FIT_ONE_PACKET);
+
+	errno = 0;
+	if (OBEX_ObjectAddHeader(handle,obj,OBEX_HDR_AUTHCHAL,ah,(uint32_t)(ptr-ah.bs),OBEX_FL_FIT_ONE_PACKET) < 0)
+		err = (errno? -errno: -EINVAL);
 	free((void*)ah.bs);
-	return 0;
+	return err;
 }
 
-ssize_t obex_auth_unpack_response (obex_headerdata_t h,
-				   uint32_t size,
-				   /* out */ uint8_t digest[16],
-				   /* out */ uint8_t nonce[16],
-				   /* out */ uint8_t user[21])
+int obex_auth_unpack_response (obex_headerdata_t h,
+			       uint32_t size,
+			       /* out */ uint8_t digest[16],
+			       /* out */ uint8_t nonce[16],
+			       /* out */ uint8_t user[21])
 {
 	int len = 0;
 	uint32_t i = 0;
@@ -106,22 +102,22 @@ ssize_t obex_auth_unpack_response (obex_headerdata_t h,
 
 		switch (htype){
 		case 0x00: /* digest */
-			if (hlen != sizeof(digest))
+			if (hlen != 16)
 				return -1;
-			memcpy(digest,hdata,sizeof(digest));
+			memcpy(digest,hdata,16);
 			break;
 
 		case 0x01: /* user ID */
-			if ((size_t)hlen > sizeof(user))
+			if ((size_t)hlen > 20)
 				return -1;
-			len = hlen;
+			len = (int)hlen;
 			memcpy(user,hdata,hlen);
 			break;
 
 		case 0x02: /* nonce */
-			if (hlen != sizeof(nonce))
+			if (hlen != 16)
 				return -1;
-			memcpy(nonce,hdata,sizeof(nonce));
+			memcpy(nonce,hdata,16);
 			break;
 
 		default:
@@ -156,6 +152,7 @@ int obex_auth_add_response (obex_t* handle,
 			    const uint8_t* pass,
 			    size_t plen)
 {
+	int err = 0;
 	obex_headerdata_t ah;
         uint8_t* ptr;
 
@@ -184,9 +181,11 @@ int obex_auth_add_response (obex_t* handle,
 	memcpy(ptr,nonce,16);
 	ptr += 16;
 
-	OBEX_ObjectAddHeader(handle,obj,OBEX_HDR_AUTHRESP,ah,ptr-ah.bs,OBEX_FL_FIT_ONE_PACKET);
+	errno = 0;
+	if (OBEX_ObjectAddHeader(handle,obj,OBEX_HDR_AUTHRESP,ah,(uint32_t)(ptr-ah.bs),OBEX_FL_FIT_ONE_PACKET) < 0)
+		err = (errno? -errno: -EINVAL);
 	free((void*)ah.bs);
-	return 0;
+	return err;
 }
 
 int obex_auth_unpack_challenge (obex_headerdata_t h,
@@ -211,9 +210,9 @@ int obex_auth_unpack_challenge (obex_headerdata_t h,
 		case 0x00: /* nonce */
 			if (nonce_count)
 				return len;
-			if (hlen != sizeof(nonce))
+			if (hlen != 16)
 				return -1;
-			memcpy(nonce,hdata,sizeof(nonce));
+			memcpy(nonce,hdata,16);
 			++nonce_count;
 			break;
 
@@ -240,7 +239,7 @@ int obex_auth_unpack_challenge (obex_headerdata_t h,
 				memset(realm,0,realm_size);
 				memcpy(realm,hdata,hlen);
 				ucs2_ntoh(realm,hlen/2);
-				len = utf16len(realm);
+				len = (int)utf16len(realm);
 			}
 			break;
 

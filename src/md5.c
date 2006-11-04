@@ -1,3 +1,4 @@
+#include <string.h>
 #include <strings.h>
 #include <stdio.h>
 #include <fcntl.h>
@@ -32,11 +33,7 @@
  * will fill a supplied 16-byte array with the digest.
  */
 
-struct xMD5Context {
-	uint32_t buf[4];
-	uint32_t bytes[2];
-	uint32_t in[16];
-};
+#include "md5.h"
 
 /*
  * Shuffle the bytes into little-endian order within words, as per the
@@ -48,8 +45,8 @@ void byteSwap(uint32_t *buf, unsigned int words)
 	uint8_t *p = (uint8_t *)buf;
 
 	do {
-		*buf++ = (uint32_t)((unsigned int)p[3] << 8 | p[2]) << 16 |
-			((unsigned int)p[1] << 8 | p[0]);
+		*buf++ = (uint32_t)((uint32_t)p[3] << 8 | p[2]) << 16 |
+			((uint32_t)p[1] << 8 | p[0]);
 		p += 4;
 	} while (--words);
 }
@@ -58,8 +55,7 @@ void byteSwap(uint32_t *buf, unsigned int words)
  * Start MD5 accumulation.  Set bit count to 0 and buffer to mysterious
  * initialization constants.
  */
-static
-void xMD5Init(struct xMD5Context *ctx)
+void MD5Init(/*@out@*/ struct MD5Context *ctx)
 {
 	ctx->buf[0] = 0x67452301;
 	ctx->buf[1] = 0xefcdab89;
@@ -88,7 +84,7 @@ void xMD5Init(struct xMD5Context *ctx)
  * the data and converts bytes into longwords for this routine.
  */
 static
-void xMD5Transform(uint32_t buf[4], uint32_t const in[16])
+void MD5Transform(uint32_t buf[4], uint32_t const in[16])
 {
 	register uint32_t a, b, c, d;
 
@@ -175,8 +171,7 @@ void xMD5Transform(uint32_t buf[4], uint32_t const in[16])
  * Update context to reflect the concatenation of another buffer full
  * of bytes.
  */
-static
-void xMD5Update(struct xMD5Context *ctx, uint8_t const *buf, size_t len)
+void MD5Update(struct MD5Context *ctx, uint8_t const *buf, size_t len)
 {
 	size_t t;
 
@@ -188,37 +183,36 @@ void xMD5Update(struct xMD5Context *ctx, uint8_t const *buf, size_t len)
 
 	t = 64 - (t & 0x3f);	/* Space available in ctx->in (at least 1) */
 	if (t > len) {
-		bcopy(buf, (uint8_t *)ctx->in + 64 - t, len);
+		memcpy((uint8_t *)ctx->in + 64 - t, buf, len);
 		return;
 	}
 	/* First chunk is an odd size */
-	bcopy(buf,(uint8_t *)ctx->in + 64 - t, t);
+	memcpy((uint8_t *)ctx->in + 64 - t, buf, t);
 	byteSwap(ctx->in, 16);
-	xMD5Transform(ctx->buf, ctx->in);
+	MD5Transform(ctx->buf, ctx->in);
 	buf += t;
 	len -= t;
 
 	/* Process data in 64-byte chunks */
 	while (len >= 64) {
-		bcopy(buf, ctx->in, 64);
+		memcpy(ctx->in, buf, 64);
 		byteSwap(ctx->in, 16);
-		xMD5Transform(ctx->buf, ctx->in);
+		MD5Transform(ctx->buf, ctx->in);
 		buf += 64;
 		len -= 64;
 	}
 
 	/* Handle any remaining bytes of data. */
-	bcopy(buf, ctx->in, len);
+	memcpy(ctx->in, buf, len);
 }
 
 /*
  * Final wrapup - pad to 64-byte boundary with the bit pattern 
  * 1 0* (64-bit count of bits processed, MSB-first)
  */
-static
-void xMD5Final(uint8_t digest[16], struct xMD5Context *ctx)
+void MD5Final(/*@out@*/ uint8_t digest[16], struct MD5Context *ctx)
 {
-	int count = (int)(ctx->bytes[0] & 0x3f); /* Bytes in ctx->in */
+	ssize_t count = (ssize_t)(ctx->bytes[0] & 0x3f); /* Bytes in ctx->in */
 	uint8_t *p = (uint8_t *)ctx->in + count; /* First unused byte */
 
 	/* Set the first char of padding to 0x80.  There is always room. */
@@ -228,30 +222,30 @@ void xMD5Final(uint8_t digest[16], struct xMD5Context *ctx)
 	count = 56 - 1 - count;
 
 	if (count < 0) {	/* Padding forces an extra block */
-		bzero(p, count+8);
+		memset(p, 0, (size_t)count+8);
 		byteSwap(ctx->in, 16);
-		xMD5Transform(ctx->buf, ctx->in);
+		MD5Transform(ctx->buf, ctx->in);
 		p = (uint8_t *)ctx->in;
 		count = 56;
 	}
-	bzero(p, count+8);
+	memset(p, 0, (size_t)count+8);
 	byteSwap(ctx->in, 14);
 
 	/* Append length in bits and transform */
 	ctx->in[14] = ctx->bytes[0] << 3;
 	ctx->in[15] = ctx->bytes[1] << 3 | ctx->bytes[0] >> 29;
-	xMD5Transform(ctx->buf, ctx->in);
+	MD5Transform(ctx->buf, ctx->in);
 
 	byteSwap(ctx->buf, 4);
-	bcopy(ctx->buf, digest, 16);
-	bzero(ctx,sizeof(ctx));
+	memcpy(digest, ctx->buf, 16);
+	memset(ctx,0,sizeof(ctx));
 }
 
-void MD5(uint8_t* dest, uint8_t const *orig, size_t len)
+void MD5(/*@out@*/ uint8_t* dest, uint8_t const *orig, size_t len)
 {
-	struct xMD5Context context;
+	struct MD5Context context;
 
-	xMD5Init(&context);
-	xMD5Update(&context, orig, len);
-	xMD5Final(dest, &context);
+	MD5Init(&context);
+	MD5Update(&context, orig, len);
+	MD5Final(dest, &context);
 }

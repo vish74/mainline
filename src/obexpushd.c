@@ -40,10 +40,10 @@
 
 #if __GNUC__ >= 3
 #define __noreturn __attribute__((noreturn))
-#define __unused   __attribute__((unused))
+#define __unused   /*@unused@*/ __attribute__((unused))
 #else
 #define __noreturn
-#define __unused
+#define __unused /*@unused@*/
 #endif
 
 
@@ -77,24 +77,24 @@ struct file_data_t {
 /* global settings */
 static int debug = 0;
 static int id = 0;
-static char* auth_file = NULL;
-static char* realm_file = NULL;
-static char* script = NULL;
+static /*@null@*/ char* auth_file = NULL;
+static /*@null@*/ char* realm_file = NULL;
+static /*@null@*/ char* script = NULL;
 
 #define RANDOM_FILE "/dev/urandom"
-int get_nonce (uint8_t nonce[16]) {
+int get_nonce (/*@out@*/ uint8_t nonce[16]) {
 	int fd = open(RANDOM_FILE,O_RDONLY);
 	uint8_t n[16];
 	int status;
 	if (fd < 0)
 		return -errno;
-	status = read(fd,n,sizeof(n));
+	status = (int)read(fd,n,sizeof(n));
 	if (status < 0)
 		return -errno;
 	if (status == 0)
 		return -EIO;
-	MD5(nonce,n,status);
-	close(fd);
+	MD5(nonce,n,(size_t)status);
+	(void)close(fd);
 	return 0;
 }
 
@@ -103,7 +103,7 @@ int get_nonce (uint8_t nonce[16]) {
 /* return len(> 0), 0 if not found, or err codes(< 0) */
 ssize_t get_pass_for_user (char* file,
 			   uint8_t* user, size_t ulen,
-			   uint8_t* pass, size_t size)
+			   /*@out@*/ uint8_t* pass, size_t size)
 {
 	ssize_t ret = 0;
 	size_t lsize = ulen+1+size+3;
@@ -113,11 +113,13 @@ ssize_t get_pass_for_user (char* file,
 	if (!line)
 		return -ENOMEM;
 	f = fopen(file,"r");
-	if (!f)
-		return -errno;
+	if (!f) {
+		free(line);
+		return (ssize_t)-errno;
+	}
 	while (1) {
 		size_t len = 0;
-		if (fgets(line,sizeof(line),f) == NULL)
+		if (fgets(line,(int)lsize,f) == NULL)
 			break;
 		len = strlen(line);
 
@@ -139,15 +141,16 @@ ssize_t get_pass_for_user (char* file,
 		/* since the above matches the user id and the delimiter
 		 * the rest of the line must be the password
 		 */
-		ret = len-ulen-1;
+		ret = (ssize_t)(len-ulen-1);
 		if ((size_t)ret > size) {
 			ret = -EINVAL; /* password in file too large */
 			break;
 		}
-		memcpy(pass,line+ulen+1,ret);
+		memcpy(pass,line+ulen+1,(size_t)ret);
 	}
 
-	fclose(f);
+	(void)fclose(f);
+	free(line);
 	return ret;
 }
 
@@ -159,7 +162,7 @@ int obex_auth_verify_response (obex_t* handle,
 	uint8_t d[16];
 	uint8_t n[16];
 	uint8_t u[20];
-	ssize_t len = 0;
+	int len = 0;
 	uint8_t pass[1024];
 
 	if (!auth_file)
@@ -173,17 +176,17 @@ int obex_auth_verify_response (obex_t* handle,
 	len = obex_auth_unpack_response(h,size,d,n,u);
 	if (len < 0)
 		return 0;
-	len = get_pass_for_user(auth_file,u,len,pass,sizeof(pass));
+	len = (int)get_pass_for_user(auth_file,u,(size_t)len,pass,sizeof(pass));
 	if (len < 0)
 		return 0;
-	return obex_auth_check_response(d,n,pass,len);
+	return obex_auth_check_response(d,n,pass,(size_t)len);
 }
 
 /* return len(> 0), 0 if not found, or err codes(< 0) */
 ssize_t get_credentials_for_realm (char* file,
 				   uint16_t* realm,
-				   uint8_t* user, size_t* usize,
-				   uint8_t* pass, size_t* psize)
+				   /*@out@*/ uint8_t* user, size_t* usize,
+				   /*@out@*/ uint8_t* pass, size_t* psize)
 {
 	ssize_t ret = 0;
 	size_t size = *usize+1+*psize+1;
@@ -204,12 +207,13 @@ ssize_t get_credentials_for_realm (char* file,
 			free(buffer);
 			return -EINVAL;
 		}
-		if (usize)
-			*usize = r-buffer;
-		if (user)
-			memcpy(user,buffer,*usize);
+		if (usize) {
+			*usize = (size_t)(r-buffer);
+			if (user)
+				memcpy(user,buffer,*usize);
+		}
 
-		*psize = (buffer+ret)-(r+1);
+		*psize = (size_t)((buffer+ret)-(r+1));
 		memcpy(pass,r+1,*psize);
 	}
 	free(buffer);
@@ -219,7 +223,6 @@ ssize_t get_credentials_for_realm (char* file,
 int obex_auth_send_response (obex_t* handle,
 			     obex_object_t* obj,
 			     obex_headerdata_t h,
-
 			     uint32_t size)
 {
 	uint16_t realm[128];
@@ -231,16 +234,20 @@ int obex_auth_send_response (obex_t* handle,
 	uint8_t opts;
 	ssize_t len;
 	
-	len = obex_auth_unpack_challenge(h,size,nonce,&opts,realm,sizeof(realm));
+	if (!realm_file)
+		return -EINVAL;
+	len = (ssize_t)obex_auth_unpack_challenge(h,size,nonce,&opts,realm,sizeof(realm));
+	if (len < 0)
+		return -EINVAL;
 	if (get_credentials_for_realm(realm_file,realm,user,&usize,pass,&psize) > 0) {
 		if (opts & OBEX_AUTH_OPT_USER_REQ)
-			obex_auth_add_response(handle,obj,nonce,
-					       user,sizeof(user)-1,
-					       pass,sizeof(pass)-1);
+			return obex_auth_add_response(handle,obj,nonce,
+						      user,sizeof(user)-1,
+						      pass,sizeof(pass)-1);
 		else
-			obex_auth_add_response(handle,obj,nonce,
-					       NULL,0,
-					       pass,sizeof(pass)-1);
+			return obex_auth_add_response(handle,obj,nonce,
+						      NULL,0,
+						      pass,sizeof(pass)-1);
 	}
 	return 0;
 }
@@ -263,8 +270,32 @@ int create_file (obex_t* handle, int mode) {
 	}
 }
 
-int put_open (obex_t* handle) {
+int put_close (obex_t* handle) {
 	struct file_data_t* data = OBEX_GetUserData(handle);
+	if (script) {
+		if (data->out) {
+			if (pclose(data->out) < 0)
+				return -errno;
+			data->out = NULL;
+		}
+	} else {
+		if (data->out) {
+			if (fclose(data->out) == EOF)
+				return -errno;
+			data->out = NULL;
+		}
+	}
+	return 0;
+}
+
+int put_open (obex_t* handle) {
+	int err = 0;
+	struct file_data_t* data = OBEX_GetUserData(handle);
+	
+	if (data->out)
+		err = put_close(handle);
+	if (err)
+		return err;
 
 	if (script && strlen(script)) {
 		uint8_t* name = utf16to8(data->name);
@@ -279,7 +310,7 @@ int put_open (obex_t* handle) {
 			if (!cmd)
 				return -ENOMEM;
 			memset(cmd,0,size);
-			sprintf(cmd, "%s %s %s",script, name, (data->type? data->type: ""));
+			(void)snprintf(cmd, size, "%s %s %s", script, (char*)name, (data->type? data->type: ""));
 		} else {
 			cmd = strdup(script);
 		}
@@ -287,13 +318,8 @@ int put_open (obex_t* handle) {
 		errno = 0;
 		data->out = popen(cmd,"w");
 		free(cmd);
-		if (!data->out) {
-			if (errno == 0)
-				return -ENOMEM;
-			else
-				return -errno;
-		}
-		return 0;
+		if (!data->out)
+			err = (errno? -errno: -ENOMEM);
 	} else {
 		int status = create_file(handle,O_WRONLY);
 
@@ -311,9 +337,8 @@ int put_open (obex_t* handle) {
 		if (data->type && strlen(data->type))
 			if (debug) printf("%u: file type: %s\n",data->id,data->type);
 		if (debug) printf("%u: total expected size: %zu byte(s)\n",data->id,data->length);
-	
-		return 0;
 	}
+	return err;
 }
 
 int put_write (obex_t* handle, const uint8_t* buf, int len) {
@@ -322,24 +347,12 @@ int put_write (obex_t* handle, const uint8_t* buf, int len) {
 
 	if (!buf)
 		return -EINVAL;
-	fwrite(buf,(size_t)len,1,data->out);
+	(void)fwrite(buf,(size_t)len,1,data->out);
 	err = ferror(data->out);
 	if (err)
 		return -err;
 	printf("%u: wrote %d bytes\n",data->id,len);
 	return 0;
-}
-
-int put_close (obex_t* handle) {
-	struct file_data_t* data = OBEX_GetUserData(handle);
-	if (script) {
-		if (pclose(data->out) < 0)
-			return -errno;
-	} else {
-		if (fclose(data->out) == EOF)
-			return -errno;
-	}
-			return 0;
 }
 
 void obex_object_headers (obex_t* handle, obex_object_t* obj) {
@@ -350,18 +363,21 @@ void obex_object_headers (obex_t* handle, obex_object_t* obj) {
 
 	while (OBEX_ObjectGetNextHeader(handle,obj,&id,&value,&vsize)) {
 		if (debug)
-			printf("%u: Got header 0x%02x with value length %u\n",data->id,id,vsize);
+			printf("%u: Got header 0x%02x with value length %u\n",
+			       data->id,(unsigned int)id,(unsigned int)vsize);
 		if (!vsize)
 			continue;
 		switch (id) {
 		case OBEX_HDR_NAME:
 			if (data) {
 				uint8_t* name;
+				if (data->name)
+					free(data->name);
 				data->name = malloc(vsize+2);
-				if (data->name) {
-					memset(data->name,0,vsize+2);
-					memcpy(data->name,value.bs,vsize);
-				}
+				if (!data->name)
+					return;
+				memset(data->name,0,vsize+2);
+				memcpy(data->name,value.bs,vsize);
 				ucs2_ntoh(data->name,vsize/2);
 				name = utf16to8(data->name);
 
@@ -369,20 +385,22 @@ void obex_object_headers (obex_t* handle, obex_object_t* obj) {
 				if (strchr((char*)name,(int)':') ||
 				    strchr((char*)name,(int)'\\') ||
 				    strchr((char*)name,(int)'/'))
-					OBEX_ObjectSetRsp(obj,
-							  OBEX_RSP_BAD_REQUEST,
-							  OBEX_RSP_BAD_REQUEST);
+					(void)OBEX_ObjectSetRsp(obj,
+								OBEX_RSP_BAD_REQUEST,
+								OBEX_RSP_BAD_REQUEST);
 				free(name);
 			}
 			break;
 
 		case OBEX_HDR_TYPE:
 			if (data) {
+				if (data->type)
+					free(data->type);
 				data->type = malloc(vsize+1);
-				if (data->type) {
-					memcpy(data->type,value.bs,vsize);
-					data->type[vsize] = 0;
-				}
+				if (!data->type)
+					return;
+				memcpy(data->type,value.bs,vsize);
+				data->type[vsize] = '\0';
 			}
 			if (debug) printf("%u: type: \"%s\"\n",data->id,data->type);
 			break;
@@ -391,7 +409,7 @@ void obex_object_headers (obex_t* handle, obex_object_t* obj) {
 			if (data) {
 				data->length = (vsize == 4)? value.bq4: value.bq1;
 			}
-			if (debug) printf("%u: size: %d bytes\n",data->id,(vsize == 4)? value.bq4: value.bq1);
+			if (debug) printf("%u: size: %d bytes\n",data->id,(int)((vsize == 4)? value.bq4: value.bq1));
 			break;
 
 		case OBEX_HDR_TIME:
@@ -411,7 +429,8 @@ void obex_object_headers (obex_t* handle, obex_object_t* obj) {
 
 		case OBEX_HDR_AUTHCHAL:
 			if (realm_file && data->auth_success)
-				obex_auth_send_response(handle,obj,value,vsize);
+				(void)obex_auth_send_response(handle,obj,value,vsize);
+			break;
 
 		case OBEX_HDR_AUTHRESP:
 			data->auth_success = obex_auth_verify_response(handle,value,vsize);
@@ -430,16 +449,22 @@ void obex_action_connect (obex_t* handle, obex_object_t* obj, int event) {
 	case OBEX_EV_REQHINT: /* A new request is coming in */
 		if (auth_file && !data->auth_success) {
 			uint8_t nonce[16];
-			get_nonce(nonce);
+			if (get_nonce(nonce) < 0)
+				(void)OBEX_ObjectSetRsp(obj,
+							OBEX_RSP_SERVICE_UNAVAILABLE,
+							OBEX_RSP_SERVICE_UNAVAILABLE);
 			memcpy(data->nonce,nonce,sizeof(data->nonce));
-			obex_auth_add_challenge(handle,obj,nonce,OBEX_AUTH_OPT_USER_REQ|OBEX_AUTH_OPT_FULL_ACC,NULL);
-			OBEX_ObjectSetRsp(obj,
-					  OBEX_RSP_UNAUTHORIZED,
-					  OBEX_RSP_UNAUTHORIZED);
+			(void)obex_auth_add_challenge(handle,obj,
+						      nonce,
+						      (uint8_t)(OBEX_AUTH_OPT_USER_REQ|OBEX_AUTH_OPT_FULL_ACC),
+						      NULL);
+			(void)OBEX_ObjectSetRsp(obj,
+						OBEX_RSP_UNAUTHORIZED,
+						OBEX_RSP_UNAUTHORIZED);
 		} else
-			OBEX_ObjectSetRsp(obj,
-					  OBEX_RSP_CONTINUE,
-					  OBEX_RSP_SUCCESS);
+			(void)OBEX_ObjectSetRsp(obj,
+						OBEX_RSP_CONTINUE,
+						OBEX_RSP_SUCCESS);
 		
 		break;
 	}
@@ -448,13 +473,13 @@ void obex_action_connect (obex_t* handle, obex_object_t* obj, int event) {
 void obex_action_disconnect (obex_t* handle, obex_object_t* obj, int event) {
 	switch (event) {
 	case OBEX_EV_REQHINT: /* A new request is coming in */
-		OBEX_ObjectSetRsp(obj,
-				  OBEX_RSP_CONTINUE,
-				  OBEX_RSP_SUCCESS);
+		(void)OBEX_ObjectSetRsp(obj,
+					OBEX_RSP_CONTINUE,
+					OBEX_RSP_SUCCESS);
 		break;
 
 	case OBEX_EV_REQDONE:
-		OBEX_TransportDisconnect(handle);
+		(void)OBEX_TransportDisconnect(handle);
 		break;
 	}
 }
@@ -467,17 +492,17 @@ void obex_action_put (obex_t* handle, obex_object_t* obj, int event) {
 	obex_object_headers(handle,obj);
 	switch (event) {
 	case OBEX_EV_REQHINT: /* A new request is coming in */
-		OBEX_ObjectSetRsp(obj,
-				  OBEX_RSP_CONTINUE,
-				  OBEX_RSP_SUCCESS);
-		OBEX_ObjectReadStream(handle,obj,NULL);
+		(void)OBEX_ObjectSetRsp(obj,
+					OBEX_RSP_CONTINUE,
+					OBEX_RSP_SUCCESS);
+		(void)OBEX_ObjectReadStream(handle,obj,NULL);
 		break;
 
 	case OBEX_EV_REQCHECK:
 		if (put_open(handle) < 0)
-			OBEX_ObjectSetRsp(obj,
-					  OBEX_RSP_FORBIDDEN,
-					  OBEX_RSP_FORBIDDEN);
+			(void)OBEX_ObjectSetRsp(obj,
+						OBEX_RSP_FORBIDDEN,
+						OBEX_RSP_FORBIDDEN);
 		break;
 
 	case OBEX_EV_STREAMAVAIL:
@@ -486,13 +511,13 @@ void obex_action_put (obex_t* handle, obex_object_t* obj, int event) {
 		if (debug) printf("%u: got %d bytes of streamed data\n",data->id,len);
 		if (len)
 			if (put_write(handle,buf,len))
-				OBEX_ObjectSetRsp(obj,
-						  OBEX_RSP_FORBIDDEN,
-						  OBEX_RSP_FORBIDDEN);
+				(void)OBEX_ObjectSetRsp(obj,
+							OBEX_RSP_FORBIDDEN,
+							OBEX_RSP_FORBIDDEN);
 		break;
 
 	case OBEX_EV_REQDONE:
-		put_close(handle);
+		(void)put_close(handle);
 		break;
 	}
 }
@@ -502,9 +527,9 @@ void obex_action_get (obex_t* handle, obex_object_t* obj, int event) {
 	switch (event) {
 	case OBEX_EV_REQHINT: /* A new request is coming in */
 		/* There is no default object to get */
-		OBEX_ObjectSetRsp(obj,
-				  OBEX_RSP_NOT_FOUND,
-				  OBEX_RSP_NOT_FOUND);
+		(void)OBEX_ObjectSetRsp(obj,
+					OBEX_RSP_NOT_FOUND,
+					OBEX_RSP_NOT_FOUND);
 		break;
 
 	case OBEX_EV_REQ: /* An incoming request */
@@ -512,17 +537,17 @@ void obex_action_get (obex_t* handle, obex_object_t* obj, int event) {
 		 * is non-empty:
 		 */
 		/* if (data->name) */
-		OBEX_ObjectSetRsp(obj,
-				  OBEX_RSP_FORBIDDEN,
-				  OBEX_RSP_FORBIDDEN);
+		(void)OBEX_ObjectSetRsp(obj,
+					OBEX_RSP_FORBIDDEN,
+					OBEX_RSP_FORBIDDEN);
 		//TODO
 		break;
 	}
 }
 
 void client_eventcb (obex_t* handle, obex_object_t* obj,
-		     int mode __unused, int event,
-		     int obex_cmd, int obex_rsp __unused)
+		     int __unused mode, int event,
+		     int obex_cmd, int __unused obex_rsp)
 {
 	struct file_data_t* data = OBEX_GetUserData(handle);
 	static int last_obex_cmd = 0;
@@ -559,9 +584,9 @@ void client_eventcb (obex_t* handle, obex_object_t* obj,
 		switch (event) {
 		case OBEX_EV_REQHINT: /* A new request is coming in */
 			/* Reject any other commands */                       
-			OBEX_ObjectSetRsp(obj,
-					  OBEX_RSP_NOT_IMPLEMENTED,
-					  OBEX_RSP_NOT_IMPLEMENTED);
+			(void)OBEX_ObjectSetRsp(obj,
+						OBEX_RSP_NOT_IMPLEMENTED,
+						OBEX_RSP_NOT_IMPLEMENTED);
 			break;
 		}
 	}
@@ -569,10 +594,10 @@ void client_eventcb (obex_t* handle, obex_object_t* obj,
 
 void handle_client (obex_t* client) {
 	int status = 0;
+	struct file_data_t* data = malloc(sizeof(*data));
 
 	if (!client)
 		exit(EXIT_FAILURE);
-	struct file_data_t* data = malloc(sizeof(*data));
 	if (data) memset(data,0,sizeof(*data));
 	data->id = id++;
 
@@ -590,9 +615,9 @@ void handle_client (obex_t* client) {
 	exit(EXIT_SUCCESS);
 }
 
-void eventcb (obex_t* handle, obex_object_t* obj __unused,
-	      int mode __unused, int event,
-	      int obex_cmd __unused, int obex_rsp  __unused)
+void eventcb (obex_t* handle, obex_object_t __unused *obj,
+	      int __unused mode, int event,
+	      int __unused obex_cmd, int __unused obex_rsp)
 {
 	if (debug) printf("OBEX_EV_%s, OBEX_CMD_%s\n",
 			  obex_events[event],
@@ -609,27 +634,29 @@ void eventcb (obex_t* handle, obex_object_t* obj __unused,
 	}
 }
 
+/*@null@*/
 obex_t* irda_listen (char* service) {
 	obex_t* handle = OBEX_Init(OBEX_TRANS_IRDA,eventcb,OBEX_FL_KEEPSERVER);
 	
 	if (handle) {
-		IrOBEX_ServerRegister(handle,service);
+		(void)IrOBEX_ServerRegister(handle,service);
 		fprintf(stderr,"Listening on IrDA service \"%s\"\n", service);
 	}
 	return handle;
 }
 
+/*@null@*/
 obex_t* bluetooth_listen (uint8_t* channel) {
 	obex_t* handle = OBEX_Init(OBEX_TRANS_BLUETOOTH,eventcb,OBEX_FL_KEEPSERVER);
   
 	if (handle) {
-		sdp_session_t* session = NULL;
-		BtOBEX_ServerRegister(handle,BDADDR_ANY,*channel);
-		session = bt_sdp_session_open(*channel);
-		fprintf(stderr,"Listening on bluetooth channel %u\n", *channel);
-		if (!session) {
-			OBEX_Cleanup(handle);
-			handle = NULL;
+		if (BtOBEX_ServerRegister(handle,BDADDR_ANY,*channel)) {
+			sdp_session_t* session = bt_sdp_session_open(*channel);
+			fprintf(stderr,"Listening on bluetooth channel %u\n",(unsigned int)*channel);
+			if (!session) {
+				OBEX_Cleanup(handle);
+				handle = NULL;
+			}
 		}
 	}
 	return handle;
@@ -689,7 +716,7 @@ int main (int argc, char** argv) {
 					fprintf(stderr,"Error: %s\n", "bluetooth channel value out of range.");
 					exit(EXIT_FAILURE);
 				}
-				btchan = arg;
+				btchan = (uint8_t)arg;
 			}
 			break;
 
@@ -725,12 +752,10 @@ int main (int argc, char** argv) {
 		case 'h':
 			print_help(PROGRAM_NAME);
 			exit(EXIT_SUCCESS);
-			break;
 
 		case 'v':
 			printf("%s\n",OBEXPUSHD_VERSION);
 			exit(EXIT_SUCCESS);
-			break;
 		}
 	}
 	if (intf == 0) intf |= INTF_BLUETOOTH;
@@ -743,8 +768,8 @@ int main (int argc, char** argv) {
 		if (pidfile) {
 			FILE* p = fopen(pidfile,"w+");
 			if (p) {
-				fprintf(p,"%u\n",getpid());
-				fclose(p);
+				fprintf(p,"%u\n",(unsigned int)getpid());
+				(void)fclose(p);
 			}
 		}
 	} else {
@@ -752,9 +777,10 @@ int main (int argc, char** argv) {
 	}
 	
 	if (intf & INTF_BLUETOOTH) {
-		int fd;
+		int fd = -1;
 		BT_HANDLE = bluetooth_listen(&btchan);
-		fd = OBEX_GetFD(BT_HANDLE);
+		if (BT_HANDLE)
+			fd = OBEX_GetFD(BT_HANDLE);
 		if (fd == -1) {
 			perror("OBEX_GetFD(BT_HANDLE)");
 			exit(EXIT_FAILURE);
@@ -763,9 +789,10 @@ int main (int argc, char** argv) {
 			topfd = fd;
 	}
 	if (intf & INTF_IRDA) {
-		int fd;
+		int fd = -1;
 		IRDA_HANDLE = irda_listen("OBEX");
-		fd = OBEX_GetFD(IRDA_HANDLE);
+		if (IRDA_HANDLE)
+			fd = OBEX_GetFD(IRDA_HANDLE);
 		if (fd == -1) {
 			perror("OBEX_GetFD(IRDA_HANDLE)");
 			exit(EXIT_FAILURE);
@@ -773,11 +800,14 @@ int main (int argc, char** argv) {
 		if (fd > topfd)
 			topfd = fd;
 		if (irda_extra) {
-			char* service = malloc(5+strlen(irda_extra)+1);
+			size_t slen = 5+strlen(irda_extra)+1;
+			char* service = malloc(slen);
 			if (service) {
-				sprintf(service,"OBEX:%s",irda_extra);
+				fd = -1;
+				(void)snprintf(service,slen,"OBEX:%s",irda_extra);
 				IRDA_EXTRA_HANDLE = irda_listen(service);
-				fd = OBEX_GetFD(IRDA_EXTRA_HANDLE);
+				if (IRDA_EXTRA_HANDLE)
+					fd = OBEX_GetFD(IRDA_EXTRA_HANDLE);
 				if (fd == -1) {
 					perror("OBEX_GetFD(IRDA_EXTRA_HANDLE)");
 					exit(EXIT_FAILURE);
@@ -790,7 +820,7 @@ int main (int argc, char** argv) {
 	}
 	++topfd;
 	
-	signal(SIGCLD, SIG_IGN);
+	(void)signal(SIGCLD, SIG_IGN);
 	do {
 		int fd = -1;
 		fd_set fds;
@@ -806,16 +836,16 @@ int main (int argc, char** argv) {
 		if (intf & INTF_BLUETOOTH) {
 			fd = OBEX_GetFD(BT_HANDLE);
 			if (FD_ISSET(fd,&fds))
-				OBEX_HandleInput(BT_HANDLE,1);
+				(void)OBEX_HandleInput(BT_HANDLE,1);
 		}
 		if (intf & INTF_IRDA) {
 			fd = OBEX_GetFD(IRDA_HANDLE);
 			if (FD_ISSET(fd,&fds))
-				OBEX_HandleInput(IRDA_HANDLE,1);
+				(void)OBEX_HandleInput(IRDA_HANDLE,1);
 			if (irda_extra) {
 				fd = OBEX_GetFD(IRDA_EXTRA_HANDLE);
 				if (FD_ISSET(fd,&fds))
-					OBEX_HandleInput(IRDA_EXTRA_HANDLE,1);	  
+					(void)OBEX_HandleInput(IRDA_EXTRA_HANDLE,1);	  
 			}
 		}
 	} while (1);

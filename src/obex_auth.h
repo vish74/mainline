@@ -10,13 +10,13 @@ int obex_auth_add_challenge (obex_t* handle,
 			     obex_object_t* obj,
 			     uint8_t nonce[16],
 			     uint8_t opts,
-			     uint16_t* realm);
+			     /*@null@*/uint16_t* realm);
 
-ssize_t obex_auth_unpack_response (obex_headerdata_t h,
-				   uint32_t size,
-				   /* out */ uint8_t digest[16],
-				   /* out */ uint8_t nonce[16],
-				   /* out */ uint8_t user[20]);
+int obex_auth_unpack_response (obex_headerdata_t h,
+			       uint32_t size,
+			       /*@out@*/ uint8_t digest[16],
+			       /*@out@*/ uint8_t nonce[16],
+			       /*@out@*/ uint8_t user[20]);
 
 int obex_auth_check_response (uint8_t digest[16],
 			      const uint8_t nonce[16],
@@ -26,7 +26,7 @@ int obex_auth_check_response (uint8_t digest[16],
 int obex_auth_add_response (obex_t* handle,
 			    obex_object_t* obj,
 			    uint8_t nonce[16],
-			    const uint8_t* user,
+			    const /*@null@*/ uint8_t* user,
 			    size_t ulen,
 			    const uint8_t* pass,
 			    size_t plen);
@@ -36,7 +36,7 @@ int obex_auth_add_response (obex_t* handle,
  */
 int obex_auth_unpack_challenge (obex_headerdata_t h,
 				uint32_t size,
-				/* out */ uint8_t nonce[16],
-				/* out */ uint8_t* opts,
-				/* out */ uint16_t* realm,
+				/*@out@*/ uint8_t nonce[16],
+				/*@out@*/ uint8_t* opts,
+				/*@out@*/ uint16_t* realm,
 				size_t realm_size);
