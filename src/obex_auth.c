@@ -91,7 +91,7 @@ int obex_auth_unpack_response (obex_headerdata_t h,
 			       uint32_t size,
 			       /* out */ uint8_t digest[16],
 			       /* out */ uint8_t nonce[16],
-			       /* out */ uint8_t user[21])
+			       /* out */ uint8_t user[20])
 {
 	int len = 0;
 	uint32_t i = 0;
