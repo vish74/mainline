@@ -62,6 +62,8 @@ char* obex_commands[] = {
 /* private data for a client connection */
 struct file_data_t {
 	unsigned int id;
+	unsigned int count;
+
 	uint16_t* name;
 	char* type;
 	size_t length;
@@ -114,8 +116,9 @@ ssize_t get_pass_for_user (char* file,
 		return -ENOMEM;
 	f = fopen(file,"r");
 	if (!f) {
+		ret = (ssize_t)-errno;
 		free(line);
-		return (ssize_t)-errno;
+		return ret;
 	}
 	while (1) {
 		size_t len = 0;
@@ -260,7 +263,7 @@ int create_file (obex_t* handle, int mode) {
 	uint8_t* n = utf16to8(data->name);
 
 	if (n) {
-		printf("%u: Creating file \"%s\"\n",data->id,(char*)n);
+		printf("%u.%u: Creating file \"%s\"\n",data->id,data->count,(char*)n);
 		fd = open((char*)n,mode|O_CREAT|O_EXCL,S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH|S_IWOTH);
 		if (fd < 0)
 			err = errno;
@@ -300,27 +303,48 @@ int put_open (obex_t* handle) {
 
 	if (script != NULL && strlen(script) > 0) {
 		uint8_t* name = utf16to8(data->name);
+		char* type = (type? strdup(data->type): NULL);
 		char* cmd;
 
 		if (name) {
+			size_t i;
 			size_t size = strlen(script)+1;
-			size += 1+utf8len(name);
-			if (data->type)
-				size += 1+strlen(data->type);
+			size += 3+utf8len(name);
+			if (type)
+				size += 3+strlen(type);
 			cmd = malloc(size);
-			if (!cmd)
+			if (!cmd) {
+				free(name);
+				free(type);
 				return -ENOMEM;
+			}
 			memset(cmd,0,size);
-			(void)snprintf(cmd, size, "%s %s %s", script, (char*)name, (data->type? data->type: ""));
+
+			/* clean name and type against attacks:
+			 * replace ' with _
+			 */
+			for (i=0; i < strlen(name); ++i)
+				if (name[i] == '\'')
+					name[i] = '_';
+			for (i=0; i < strlen(type); ++i)
+				if (type[i] == '\'')
+					type[i] = '_';			
+
+			if (type)
+				(void)snprintf(cmd, size, "%s '%s'", script, (char*)name);
+			else
+				(void)snprintf(cmd, size, "%s '%s' '%s'", script, (char*)name,type);
 		} else {
 			cmd = strdup(script);
 		}
 
 		errno = 0;
 		data->out = popen(cmd,"w");
-		free(cmd);
 		if (!data->out)
 			err = (errno? -errno: -ENOMEM);
+		free(cmd);
+		free(name);
+		free(type);
 	} else {
 		int status = create_file(handle,O_WRONLY);
 
@@ -330,14 +354,14 @@ int put_open (obex_t* handle) {
 				status = -errno;
 		}
 		if (status < 0) {
-			fprintf(stderr,"%u: Error: cannot create file: %s\n",data->id,strerror(-status));
+			fprintf(stderr,"%u.%u: Error: cannot create file: %s\n",data->id,data->count,strerror(-status));
 			data->out = NULL;
 			return status;
 		}		
 
 		if (data->type && strlen(data->type))
-			if (debug) printf("%u: file type: %s\n",data->id,data->type);
-		if (debug) printf("%u: total expected size: %zu byte(s)\n",data->id,data->length);
+			if (debug) printf("%u.%u: file type: %s\n",data->id,data->count,data->type);
+		if (debug) printf("%u.%u: total expected size: %zu byte(s)\n",data->id,data->count,data->length);
 	}
 	return err;
 }
@@ -352,7 +376,7 @@ int put_write (obex_t* handle, const uint8_t* buf, int len) {
 	err = ferror(data->out);
 	if (err)
 		return -err;
-	printf("%u: wrote %d bytes\n",data->id,len);
+	if (debug) printf("%u.%u: wrote %d bytes\n",data->id,data->count,len);
 	return 0;
 }
 
@@ -364,8 +388,8 @@ void obex_object_headers (obex_t* handle, obex_object_t* obj) {
 
 	while (OBEX_ObjectGetNextHeader(handle,obj,&id,&value,&vsize)) {
 		if (debug)
-			printf("%u: Got header 0x%02x with value length %u\n",
-			       data->id,(unsigned int)id,(unsigned int)vsize);
+			printf("%u.%u: Got header 0x%02x with value length %u\n",
+			       data->id,data->count,(unsigned int)id,(unsigned int)vsize);
 		if (!vsize)
 			continue;
 		switch (id) {
@@ -382,7 +406,7 @@ void obex_object_headers (obex_t* handle, obex_object_t* obj) {
 				ucs2_ntoh(data->name,vsize/2);
 				name = utf16to8(data->name);
 
-				if (debug) printf("%u: name: \"%s\"\n",data->id,(char*)name);
+				if (debug) printf("%u.%u: name: \"%s\"\n",data->id,data->count,(char*)name);
 				if (strchr((char*)name,(int)':') ||
 				    strchr((char*)name,(int)'\\') ||
 				    strchr((char*)name,(int)'/'))
@@ -403,14 +427,13 @@ void obex_object_headers (obex_t* handle, obex_object_t* obj) {
 				memcpy(data->type,value.bs,vsize);
 				data->type[vsize] = '\0';
 			}
-			if (debug) printf("%u: type: \"%s\"\n",data->id,data->type);
+			if (debug) printf("%u.%u: type: \"%s\"\n",data->id,data->count,data->type);
 			break;
 
 		case OBEX_HDR_LENGTH:
-			if (data) {
-				data->length = (vsize == 4)? value.bq4: value.bq1;
-			}
-			if (debug) printf("%u: size: %d bytes\n",data->id,(int)((vsize == 4)? value.bq4: value.bq1));
+			if (data)
+				data->length = value.bq4;
+			if (debug) printf("%u.%u: size: %d bytes\n",data->id,data->count,value.bq4);
 			break;
 
 		case OBEX_HDR_TIME:
@@ -421,8 +444,8 @@ void obex_object_headers (obex_t* handle, obex_object_t* obj) {
 			if (debug) {
 				uint16_t* desc16 = (uint16_t*)value.bs;
 				if (desc16[vsize/2] == 0x0000) {
-					uint8_t* desc8 = utf16to8((uint16_t*)(value.bs));;
-					printf("%u: description: \"%s\"\n",data->id,(char*)desc8);
+					uint8_t* desc8 = utf16to8(desc16);
+					printf("%u.%u: description: \"%s\"\n",data->id,data->count,(char*)desc8);
 					free(desc8);
 				}
 			}
@@ -497,6 +520,9 @@ void obex_action_put (obex_t* handle, obex_object_t* obj, int event) {
 					OBEX_RSP_CONTINUE,
 					OBEX_RSP_SUCCESS);
 		(void)OBEX_ObjectReadStream(handle,obj,NULL);
+		data->count += 1;
+		data->length = 0;
+		data->time = 0;
 		break;
 
 	case OBEX_EV_REQCHECK:
@@ -509,7 +535,7 @@ void obex_action_put (obex_t* handle, obex_object_t* obj, int event) {
 	case OBEX_EV_STREAMAVAIL:
 		len = OBEX_ObjectReadStream(handle,obj,&buf);
 
-		if (debug) printf("%u: got %d bytes of streamed data\n",data->id,len);
+		if (debug) printf("%u.%u: got %d bytes of streamed data\n",data->id,data->count,len);
 		if (len)
 			if (put_write(handle,buf,len))
 				(void)OBEX_ObjectSetRsp(obj,
