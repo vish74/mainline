@@ -256,8 +256,8 @@ int obex_auth_send_response (obex_t* handle,
 	return 0;
 }
 
-int create_file (obex_t* handle, int mode) {
-	struct file_data_t* data = OBEX_GetUserData(handle);
+static
+int create_file (struct file_data_t* data, int mode) {
 	int fd;
 	int err = 0;
 	uint8_t* n = utf16to8(data->name);
@@ -292,6 +292,71 @@ int put_close (obex_t* handle) {
 	return 0;
 }
 
+static
+int put_open_pipe (struct file_data_t* data) {
+	int err = 0;
+	uint8_t* name = utf16to8(data->name);
+	char* type = (type? strdup(data->type): NULL);
+	char* cmd;
+	
+	if (name) {
+		size_t i;
+		size_t size = strlen(script)+1;
+		size += 3+utf8len(name);
+		if (type)
+			size += 3+strlen(type);
+		cmd = malloc(size);
+		if (!cmd) {
+			free(name);
+			free(type);
+			return -ENOMEM;
+		}
+		memset(cmd,0,size);
+		
+		/* clean name and type against attacks:
+		 * replace ' with _
+		 */
+		for (i=0; i < utf8len(name); ++i)
+			if (name[i] == '\'')
+				name[i] = '_';
+		if (type == NULL) {
+			(void)snprintf(cmd, size, "%s '%s'", script, (char*)name);
+		} else {
+			for (i=0; i < strlen(type); ++i)
+				if (type[i] == '\'')
+					type[i] = '_';			
+			(void)snprintf(cmd, size, "%s '%s' '%s'", script, (char*)name,type);
+		}
+	} else {
+		cmd = strdup(script);
+	}
+
+	errno = 0;
+	data->out = popen(cmd,"w");
+	if (!data->out)
+		err = (errno? -errno: -ENOMEM);
+	free(cmd);
+	free(name);
+	free(type);
+	return err;
+}
+
+int put_open_file (struct file_data_t* data) {
+	int status = create_file(data,O_WRONLY);
+	
+	if (status >= 0) {
+		data->out = fdopen(status,"w");
+		if (!data->out)
+			status = -errno;
+	}
+	if (status < 0) {
+		fprintf(stderr,"%u.%u: Error: cannot create file: %s\n",data->id,data->count,strerror(-status));
+		data->out = NULL;
+		return status;
+	}		
+	return 0;
+}
+
 int put_open (obex_t* handle) {
 	int err = 0;
 	struct file_data_t* data = OBEX_GetUserData(handle);
@@ -301,69 +366,10 @@ int put_open (obex_t* handle) {
 	if (err < 0)
 		return err;
 
-	if (script != NULL && strlen(script) > 0) {
-		uint8_t* name = utf16to8(data->name);
-		char* type = (type? strdup(data->type): NULL);
-		char* cmd;
-
-		if (name) {
-			size_t i;
-			size_t size = strlen(script)+1;
-			size += 3+utf8len(name);
-			if (type)
-				size += 3+strlen(type);
-			cmd = malloc(size);
-			if (!cmd) {
-				free(name);
-				free(type);
-				return -ENOMEM;
-			}
-			memset(cmd,0,size);
-
-			/* clean name and type against attacks:
-			 * replace ' with _
-			 */
-			for (i=0; i < strlen(name); ++i)
-				if (name[i] == '\'')
-					name[i] = '_';
-			for (i=0; i < strlen(type); ++i)
-				if (type[i] == '\'')
-					type[i] = '_';			
-
-			if (type)
-				(void)snprintf(cmd, size, "%s '%s'", script, (char*)name);
-			else
-				(void)snprintf(cmd, size, "%s '%s' '%s'", script, (char*)name,type);
-		} else {
-			cmd = strdup(script);
-		}
-
-		errno = 0;
-		data->out = popen(cmd,"w");
-		if (!data->out)
-			err = (errno? -errno: -ENOMEM);
-		free(cmd);
-		free(name);
-		free(type);
-	} else {
-		int status = create_file(handle,O_WRONLY);
-
-		if (status >= 0) {
-			data->out = fdopen(status,"w");
-			if (!data->out)
-				status = -errno;
-		}
-		if (status < 0) {
-			fprintf(stderr,"%u.%u: Error: cannot create file: %s\n",data->id,data->count,strerror(-status));
-			data->out = NULL;
-			return status;
-		}		
-
-		if (data->type && strlen(data->type))
-			if (debug) printf("%u.%u: file type: %s\n",data->id,data->count,data->type);
-		if (debug) printf("%u.%u: total expected size: %zu byte(s)\n",data->id,data->count,data->length);
-	}
-	return err;
+	if (script != NULL && strlen(script) > 0)
+		return put_open_pipe(data);
+	else
+		return put_open_file(data);
 }
 
 int put_write (obex_t* handle, const uint8_t* buf, int len) {
