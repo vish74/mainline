@@ -276,77 +276,95 @@ int create_file (struct file_data_t* data, int mode) {
 
 int put_close (obex_t* handle) {
 	struct file_data_t* data = OBEX_GetUserData(handle);
+	if (data->out) {
+		if (fclose(data->out) == EOF)
+			return -errno;
+		data->out = NULL;
+	}
 	if (script) {
-		if (data->out) {
-			if (pclose(data->out) < 0)
-				return -errno;
-			data->out = NULL;
-		}
-	} else {
-		if (data->out) {
-			if (fclose(data->out) == EOF)
-				return -errno;
-			data->out = NULL;
-		}
+		int status;
+		(void)wait(&status);
 	}
 	return 0;
+}
+
+static
+int pipe_open (const char* command, char** args, int w) {
+	int err = 0;
+	int fds[2] = { -1, -1 };
+#define PIPE_FD_READ  fds[0]
+#define PIPE_FD_WRITE fds[1]
+
+	if (pipe(fds) == -1)
+		return -errno;
+
+	switch(fork()) {
+	case -1:
+		err = errno;
+		close(fds[0]);
+		close(fds[1]);
+		return -err;
+
+	case 0: /* child */
+		if (w) { /* keep read open */
+			close(PIPE_FD_WRITE);
+			if (PIPE_FD_READ != STDIN_FILENO) {
+				if (dup2(PIPE_FD_READ,STDIN_FILENO) < 0) {
+					perror("dup2");
+					exit(EXIT_FAILURE);
+				}
+				close(PIPE_FD_READ);
+			}
+		} else { /* keep write open */
+			close(PIPE_FD_READ);
+			if (PIPE_FD_WRITE != STDOUT_FILENO) {
+				if (dup2(PIPE_FD_WRITE,STDOUT_FILENO) < 0) {
+					perror("dup2");
+					exit(EXIT_FAILURE);
+				}
+				close(PIPE_FD_WRITE);
+			}
+		}
+		execvp(command,args);
+		perror("execvp");
+		exit(EXIT_FAILURE);
+		
+	default: /* parent */
+		if (w) {
+			close(PIPE_FD_READ);
+			return PIPE_FD_WRITE;
+		} else {
+			close(PIPE_FD_WRITE);
+			return PIPE_FD_READ;
+		}
+	}
 }
 
 static
 int put_open_pipe (struct file_data_t* data) {
 	int err = 0;
 	uint8_t* name = utf16to8(data->name);
-	char* type = (type? strdup(data->type): NULL);
-	char* cmd;
-	
-	if (name) {
-		size_t i;
-		size_t size = strlen(script)+1;
-		size += 3+utf8len(name);
-		if (type)
-			size += 3+strlen(type);
-		cmd = malloc(size);
-		if (!cmd) {
-			free(name);
-			free(type);
-			return -ENOMEM;
-		}
-		memset(cmd,0,size);
-		
-		/* clean name and type against attacks:
-		 * replace ' with _
-		 */
-		for (i=0; i < utf8len(name); ++i)
-			if (name[i] == '\'')
-				name[i] = '_';
-		if (type == NULL) {
-			(void)snprintf(cmd, size, "%s '%s'", script, (char*)name);
-		} else {
-			for (i=0; i < strlen(type); ++i)
-				if (type[i] == '\'')
-					type[i] = '_';			
-			(void)snprintf(cmd, size, "%s '%s' '%s'", script, (char*)name,type);
-		}
-	} else {
-		cmd = strdup(script);
-	}
+	char* args[4] = { script, (char*)name, data->type, NULL };
 
-	errno = 0;
-	data->out = popen(cmd,"w");
-	if (!data->out)
-		err = (errno? -errno: -ENOMEM);
-	free(cmd);
+	if (!name)
+		return -EINVAL;
+	err = pipe_open(script,args,1);
+	if (err >= 0) {
+		data->out = fdopen(err,"w");
+		if (data->out == NULL)
+			err = -errno;
+	}
 	free(name);
-	free(type);
 	return err;
 }
 
+static
 int put_open_file (struct file_data_t* data) {
 	int status = create_file(data,O_WRONLY);
 	
 	if (status >= 0) {
 		data->out = fdopen(status,"w");
-		if (!data->out)
+		if (data->out == NULL)
 			status = -errno;
 	}
 	if (status < 0) {
