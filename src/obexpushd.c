@@ -16,6 +16,14 @@
  */
    
 #define _GNU_SOURCE
+
+#include "obexpush-sdp.h"
+#include "obex_auth.h"
+#include "obexpushd.h"
+#include "data_io.h"
+#include "utf.h"
+#include "md5.h"
+
 #include <unistd.h>
 #include <stdlib.h>
 #include <sys/select.h>
@@ -28,12 +36,6 @@
 #include <unistd.h>
 #include <errno.h>
 #include <string.h>
-
-#include "obexpush-sdp.h"
-#include "obex_auth.h"
-#include "utf.h"
-#include "md5.h"
-#include <openobex/obex.h>
 
 #define PROGRAM_NAME "obexpushd"
 #include "version.h"
@@ -58,26 +60,9 @@ char* obex_commands[] = {
 	"SETPATH", "SESSION", "ABORT", "FINAL",
 };
 
-
-/* private data for a client connection */
-struct file_data_t {
-	unsigned int id;
-	unsigned int count;
-
-	uint16_t* name;
-	char* type;
-	size_t length;
-	time_t time;
-
-	FILE* out;
-
-	/* auth */
-	uint8_t nonce[16];
-	int auth_success;
-};
-
 /* global settings */
 static int debug = 0;
+static int nofork = 0;
 static int id = 0;
 static /*@null@*/ char* auth_file = NULL;
 static /*@null@*/ char* realm_file = NULL;
@@ -110,11 +95,22 @@ ssize_t get_pass_for_user (char* file,
 	ssize_t ret = 0;
 	size_t lsize = ulen+1+size+3;
 	char* line = malloc(lsize);
+	int status;
 	FILE* f;
 	
 	if (!line)
 		return -ENOMEM;
-	f = fopen(file,"r");
+	if (file[0] == '|') {
+		char* args[2] = { file+1, (char*)user };
+		status = pipe_open(args[0],args,O_RDONLY);
+	} else {
+		status = file_open(file,O_RDONLY);
+	}
+	if (status < 0) {
+		free(line);
+		return status;
+	}
+	f = fdopen(status,"r");
 	if (!f) {
 		ret = (ssize_t)-errno;
 		free(line);
@@ -127,14 +123,14 @@ ssize_t get_pass_for_user (char* file,
 		len = strlen(line);
 
 		/* test that we read a whole line */
-		if (!EOL(line[len])) {
+		if (!EOL(line[len-1])) {
 			ret = -EINVAL; /* password in file too large */
 			break;
 		}
 
-		if (line[len] == '\n')
+		if (line[len-1] == '\n')
 			--len;
-		if (line[len] == '\r')
+		if (line[len-1] == '\r')
 			--len;
 
 		if (ulen > len ||
@@ -253,154 +249,6 @@ int obex_auth_send_response (obex_t* handle,
 						      NULL,0,
 						      pass,sizeof(pass)-1);
 	}
-	return 0;
-}
-
-static
-int create_file (struct file_data_t* data, int mode) {
-	int fd;
-	int err = 0;
-	uint8_t* n = utf16to8(data->name);
-
-	if (n) {
-		printf("%u.%u: Creating file \"%s\"\n",data->id,data->count,(char*)n);
-		fd = open((char*)n,mode|O_CREAT|O_EXCL,S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH|S_IWOTH);
-		if (fd < 0)
-			err = errno;
-		free(n);
-		return (fd < 0)? -err: fd;
-	} else {
-		return -EINVAL;
-	}
-}
-
-int put_close (obex_t* handle) {
-	struct file_data_t* data = OBEX_GetUserData(handle);
-	if (data->out) {
-		if (fclose(data->out) == EOF)
-			return -errno;
-		data->out = NULL;
-	}
-	if (script) {
-		int status;
-		(void)wait(&status);
-	}
-	return 0;
-}
-
-static
-int pipe_open (const char* command, char** args, int w) {
-	int err = 0;
-	int fds[2] = { -1, -1 };
-#define PIPE_FD_READ  fds[0]
-#define PIPE_FD_WRITE fds[1]
-
-	if (pipe(fds) == -1)
-		return -errno;
-
-	switch(fork()) {
-	case -1:
-		err = errno;
-		close(fds[0]);
-		close(fds[1]);
-		return -err;
-
-	case 0: /* child */
-		if (w) { /* keep read open */
-			close(PIPE_FD_WRITE);
-			if (PIPE_FD_READ != STDIN_FILENO) {
-				if (dup2(PIPE_FD_READ,STDIN_FILENO) < 0) {
-					perror("dup2");
-					exit(EXIT_FAILURE);
-				}
-				close(PIPE_FD_READ);
-			}
-		} else { /* keep write open */
-			close(PIPE_FD_READ);
-			if (PIPE_FD_WRITE != STDOUT_FILENO) {
-				if (dup2(PIPE_FD_WRITE,STDOUT_FILENO) < 0) {
-					perror("dup2");
-					exit(EXIT_FAILURE);
-				}
-				close(PIPE_FD_WRITE);
-			}
-		}
-		execvp(command,args);
-		perror("execvp");
-		exit(EXIT_FAILURE);
-		
-	default: /* parent */
-		if (w) {
-			close(PIPE_FD_READ);
-			return PIPE_FD_WRITE;
-		} else {
-			close(PIPE_FD_WRITE);
-			return PIPE_FD_READ;
-		}
-	}
-}
-
-static
-int put_open_pipe (struct file_data_t* data) {
-	int err = 0;
-	uint8_t* name = utf16to8(data->name);
-	char* args[4] = { script, (char*)name, data->type, NULL };
-
-	if (!name)
-		return -EINVAL;
-	err = pipe_open(script,args,1);
-	if (err >= 0) {
-		data->out = fdopen(err,"w");
-		if (data->out == NULL)
-			err = -errno;
-	}
-	free(name);
-	return err;
-}
-
-static
-int put_open_file (struct file_data_t* data) {
-	int status = create_file(data,O_WRONLY);
-	
-	if (status >= 0) {
-		data->out = fdopen(status,"w");
-		if (data->out == NULL)
-			status = -errno;
-	}
-	if (status < 0) {
-		fprintf(stderr,"%u.%u: Error: cannot create file: %s\n",data->id,data->count,strerror(-status));
-		data->out = NULL;
-		return status;
-	}		
-	return 0;
-}
-
-int put_open (obex_t* handle) {
-	int err = 0;
-	struct file_data_t* data = OBEX_GetUserData(handle);
-	
-	if (data->out)
-		err = put_close(handle);
-	if (err < 0)
-		return err;
-
-	if (script != NULL && strlen(script) > 0)
-		return put_open_pipe(data);
-	else
-		return put_open_file(data);
-}
-
-int put_write (obex_t* handle, const uint8_t* buf, int len) {
-	struct file_data_t* data = OBEX_GetUserData(handle);
-	int err;
-
-	if (!buf)
-		return -EINVAL;
-	(void)fwrite(buf,(size_t)len,1,data->out);
-	err = ferror(data->out);
-	if (err)
-		return -err;
-	if (debug) printf("%u.%u: wrote %d bytes\n",data->id,data->count,len);
 	return 0;
 }
 
@@ -534,8 +382,6 @@ void obex_action_disconnect (obex_t* handle, obex_object_t* obj, int event) {
 
 void obex_action_put (obex_t* handle, obex_object_t* obj, int event) {
 	struct file_data_t* data = OBEX_GetUserData(handle);
-	const uint8_t* buf = NULL;
-	int len = 0;
 
 	obex_object_headers(handle,obj);
 	switch (event) {
@@ -544,54 +390,166 @@ void obex_action_put (obex_t* handle, obex_object_t* obj, int event) {
 					OBEX_RSP_CONTINUE,
 					OBEX_RSP_SUCCESS);
 		(void)OBEX_ObjectReadStream(handle,obj,NULL);
+		if (data->name) {
+			free(data->name);
+			data->name = NULL;
+		}
+		if (data->type) {
+			free(data->type);
+			data->type = NULL;
+		}
 		data->count += 1;
 		data->length = 0;
 		data->time = 0;
+		data->out = NULL;
 		break;
 
 	case OBEX_EV_REQCHECK:
-		if (put_open(handle) < 0)
+		if (data->out == NULL &&
+		    put_open(handle,script) < 0)
 			(void)OBEX_ObjectSetRsp(obj,
 						OBEX_RSP_FORBIDDEN,
 						OBEX_RSP_FORBIDDEN);
 		break;
 
 	case OBEX_EV_STREAMAVAIL:
-		len = OBEX_ObjectReadStream(handle,obj,&buf);
+	{
+		const uint8_t* buf = NULL;
+		int len = OBEX_ObjectReadStream(handle,obj,&buf);
 
 		if (debug) printf("%u.%u: got %d bytes of streamed data\n",data->id,data->count,len);
 		if (len)
-			if (put_write(handle,buf,len))
+			if (/* (data == NULL && put_open(handle,script) < 0) || */
+			    put_write(handle,buf,len))
 				(void)OBEX_ObjectSetRsp(obj,
 							OBEX_RSP_FORBIDDEN,
 							OBEX_RSP_FORBIDDEN);
 		break;
+	}
 
 	case OBEX_EV_REQDONE:
-		(void)put_close(handle);
+		(void)put_close(handle,(script != NULL));
+		if (data->name) {
+			free(data->name);
+			data->name = NULL;
+		}
+		if (data->type) {
+			free(data->type);
+			data->type = NULL;
+		}
+		data->length = 0;
+		data->time = 0;
 		break;
 	}
 }
 
 void obex_action_get (obex_t* handle, obex_object_t* obj, int event) {
+	struct file_data_t* data = OBEX_GetUserData(handle);
+	int len = 0;
+
 	obex_object_headers(handle,obj);
 	switch (event) {
 	case OBEX_EV_REQHINT: /* A new request is coming in */
-		/* There is no default object to get */
-		(void)OBEX_ObjectSetRsp(obj,
-					OBEX_RSP_NOT_FOUND,
-					OBEX_RSP_NOT_FOUND);
+		if (!script) {
+			/* There is no default object to get */
+			(void)OBEX_ObjectSetRsp(obj,
+						OBEX_RSP_NOT_FOUND,
+						OBEX_RSP_NOT_FOUND);
+			break;
+		}
+		if (data->name) {
+			free(data->name);
+			data->name = NULL;
+		}
+		/* in case that there is no TYPE header */
+		data->type = strdup("text/x-vcard");
+		data->count += 1;
+		data->length = 0;
+		data->time = 0;
 		break;
 
-	case OBEX_EV_REQ: /* An incoming request */
+	case OBEX_EV_REQCHECK:
 		/* If there is a default object but the name header
 		 * is non-empty:
 		 */
-		/* if (data->name) */
+		if (data->name)
+			(void)OBEX_ObjectSetRsp(obj,
+						OBEX_RSP_FORBIDDEN,
+						OBEX_RSP_FORBIDDEN);
+
+		if (get_open(handle,script) < 0 ||
+		    data->length == 0) {
+			(void)OBEX_ObjectSetRsp(obj,
+						OBEX_RSP_INTERNAL_SERVER_ERROR,
+						OBEX_RSP_INTERNAL_SERVER_ERROR);
+		} else {
+		}
+		break;
+
+	case OBEX_EV_REQ: {
+		obex_headerdata_t hv;
 		(void)OBEX_ObjectSetRsp(obj,
-					OBEX_RSP_FORBIDDEN,
-					OBEX_RSP_FORBIDDEN);
-		//TODO
+					OBEX_RSP_CONTINUE,
+					OBEX_RSP_SUCCESS);
+		if (data->name) {
+			size_t size = utf16len(data->name);
+			if (size) {
+				size += 2;
+				hv.bs = malloc(size);
+				if (hv.bs) {
+					memcpy((char*)hv.bs,data->name,size);
+					ucs2_hton((uint16_t*)hv.bs,size);
+					(void)OBEX_ObjectAddHeader(handle,obj,OBEX_HDR_NAME,
+								   hv,size,0);
+					free((uint8_t*)hv.bs);
+				}
+			}
+		}
+		hv.bs = (const uint8_t*)data->type;
+		(void)OBEX_ObjectAddHeader(handle,obj,OBEX_HDR_TYPE,
+					   hv,strlen((char*)hv.bs),0);
+		hv.bq4 = data->length;
+		(void)OBEX_ObjectAddHeader(handle,obj,OBEX_HDR_LENGTH,
+					   hv,sizeof(hv.bq4),0);
+		hv.bs = NULL;
+		(void)OBEX_ObjectAddHeader(handle,obj,OBEX_HDR_BODY,
+					   hv,0,
+					   OBEX_FL_STREAM_START);
+	}
+		break;
+
+	case OBEX_EV_STREAMEMPTY:
+		len = get_read(handle,data->buffer,sizeof(data->buffer));
+		if (len >= 0) {
+			obex_headerdata_t hv;
+			hv.bs = data->buffer;
+			if (len > 0)
+				(void)OBEX_ObjectAddHeader(handle,obj,OBEX_HDR_BODY,
+							   hv,len,
+							   OBEX_FL_STREAM_DATA);
+			else
+				(void)OBEX_ObjectAddHeader(handle,obj,OBEX_HDR_BODY,
+							   hv,len,
+							   OBEX_FL_STREAM_DATAEND);			
+		} else {			
+			(void)OBEX_ObjectSetRsp(obj,
+						OBEX_RSP_INTERNAL_SERVER_ERROR,
+						OBEX_RSP_INTERNAL_SERVER_ERROR);
+		}
+		break;
+
+	case OBEX_EV_REQDONE:
+		(void)get_close(handle,(script != NULL));
+		if (data->name) {
+			free(data->name);
+			data->name = NULL;
+		}
+		if (data->type) {
+			free(data->type);
+			data->type = NULL;
+		}
+		data->length = 0;
+		data->time = 0;
 		break;
 	}
 }
@@ -604,7 +562,8 @@ void client_eventcb (obex_t* handle, obex_object_t* obj,
 	static int last_obex_cmd = 0;
 
 	/* work-around for openobex bug */
-	if (event == OBEX_EV_STREAMAVAIL)
+	if (event == OBEX_EV_STREAMAVAIL ||
+	    event == OBEX_EV_STREAMEMPTY)
 		obex_cmd = last_obex_cmd;
 	else
 		last_obex_cmd = obex_cmd;
@@ -663,7 +622,8 @@ void handle_client (obex_t* client) {
 		free(data);
 	}
 	OBEX_Cleanup(client);
-	exit(EXIT_SUCCESS);
+	if (nofork < 2)
+		exit(EXIT_SUCCESS);
 }
 
 void eventcb (obex_t* handle, obex_object_t __unused *obj,
@@ -678,7 +638,7 @@ void eventcb (obex_t* handle, obex_object_t __unused *obj,
 	case OBEX_EV_ACCEPTHINT:
 	{
 		obex_t* client = OBEX_ServerAccept(handle,client_eventcb,NULL);
-		if (client && fork() == 0)
+		if (client && (nofork >= 2 || fork() == 0))
 			handle_client(client);
 	}
 	break;
@@ -745,7 +705,6 @@ void print_help (char* me) {
 int main (int argc, char** argv) {
 	int retval = EXIT_SUCCESS;
 	int c;
-	int n = 1;
 	int intf = 0;
 	uint8_t btchan = 9;
 	char* irda_extra = NULL;
@@ -781,7 +740,8 @@ int main (int argc, char** argv) {
 			/* no break */
 
 		case 'n':
-			n = 0;
+			if (nofork)
+				++nofork;
 			break;
 
 		case 'p':
@@ -811,7 +771,7 @@ int main (int argc, char** argv) {
 	}
 	if (intf == 0) intf |= INTF_BLUETOOTH;
 	
-	if (n) {
+	if (nofork < 1) {
 		if (daemon(1,0) < 0) {
 			perror("daemon()");
 			exit(EXIT_FAILURE);

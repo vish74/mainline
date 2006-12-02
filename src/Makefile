@@ -6,9 +6,12 @@ bindir=${prefix}/bin
 
 MYCFLAGS=-g -W -Wall -pedantic -std=c99
 
+SOURCES=$(wildcard *.c)
+HEADERS=$(wildcard *.h)
+
 obexpushd_CFLAGS=$(shell $(PKGCONFIG) --cflags openobex bluez)
 obexpushd_LIBS=$(shell $(PKGCONFIG) --libs openobex bluez)
-obexpushd_OBJECTS=obexpush-sdp.o obexpushd.o obex_auth.o md5.o utf.o
+obexpushd_OBJECTS=$(patsubst %.c, %.o,$(SOURCES))
 
 BINARY=obexpushd
 
@@ -23,8 +26,6 @@ endif
 depend:
 	$(CC) $(CFLAGS) -MM $(SOURCES) >.dependencies
 
-SOURCES=$(wildcard *.c)
-HEADERS=$(wildcard *.h)
 .dependencies: $(SOURCES) $(HEADERS)
 	$(CC) $(CFLAGS) -MM $(SOURCES) >$@
 
