@@ -18,6 +18,7 @@
 #define _GNU_SOURCE
 
 #include "obex-folder-listing.h"
+#include "xml_simple.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -85,13 +86,14 @@ void print_filename (FILE* fd, const char* filename, mode_t st_parent, int flags
 	if (name[0] == '.' && !(flags & OFL_FLAG_HIDDEN))
 		return;
   
+	xml_indent(fd,1);
 	switch(filetype(s.st_mode)) {
 	case FT_FILE:
-		fprintf(fd,"  <file");
+		fprintf(fd,"<file");
 		break;
 
 	case FT_FOLDER:
-		fprintf(fd,"  <folder");
+		fprintf(fd,"<folder");
 		break;
 
 	default:
@@ -172,8 +174,8 @@ int obex_folder_listing (FILE* fd, char* name, int flags)
 
 	fprintf(fd,
 		"<?xml version=\"1.0\"?>\n"
-		"<!DOCTYPE folder-listing SYSTEM \"obex-folder-listing.dtd\">\n"
-		"<folder-listing version=\"1.0\">\n");
+		"<!DOCTYPE folder-listing SYSTEM \"obex-folder-listing.dtd\">\n");
+	xml_open(fd,0,"folder-listing version=\"1.0\"");
   
 	if (flags & OFL_FLAG_PARENT) {
 		char* p = strdup(name);
@@ -187,7 +189,7 @@ int obex_folder_listing (FILE* fd, char* name, int flags)
 		} while (tmp[1] == 0 || strcmp(tmp+1,".") == 0);
 
 		if (tmp != NULL) {
-			fprintf(fd,"  <parent-folder/>\n");
+			xml_print(fd,1,"parent-folder",NULL,0);
 			if (p)
 				m = filemode(p);
 		}
@@ -209,7 +211,7 @@ int obex_folder_listing (FILE* fd, char* name, int flags)
 	}
 
 out:
-	fprintf(fd,"</folder-listing>\n");
+	xml_close(fd,0,"folder-listing");
 	return err;
 
 }

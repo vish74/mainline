@@ -6,7 +6,7 @@ struct obex_caps_general {
 };
 
 struct obex_capability {
-	struct obex_caps_general* general;
+	struct obex_caps_general general;
 };
 
 int obex_capability (FILE* fd, struct obex_capability* caps);

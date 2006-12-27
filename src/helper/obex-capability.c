@@ -18,6 +18,7 @@
 #define _GNU_SOURCE
 
 #include "obex-capability.h"
+#include "xml_simple.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -35,24 +36,28 @@
 #define PROGRAM_VERSION "0.1"
 #endif
 
+static
+void obex_caps_general (FILE* fd, struct obex_caps_general* caps)
+{
+	if (caps) {
+		xml_open(fd,1,"General");
+		xml_print(fd,2,"Manufacturer","%s",
+			  (caps->vendor? caps->vendor: "dummy vendor"));
+		xml_print(fd,2,"Model","%s",
+			  (caps->model? caps->model: "dummy model"));
+		xml_close(fd,1,"General");
+	}
+}
+
 int obex_capability (FILE* fd, struct obex_capability* caps)
 {
 	int err = 0;
 	fprintf(fd,
 		"<?xml version=\"1.0\"?>\n"
-		"<!DOCTYPE folder-listing SYSTEM \"obex-capability.dtd\">\n"
-		"<Capability Version=\"1.0\">\n");
-
-	if (caps->general) {
-		fprintf(fd,"  <General>\n");
-		if (caps->general->vendor)
-			fprintf(fd,"    <Manufacturer>%s</Manufacturer>\n",caps->general->vendor);
-		if (caps->general->model)
-			fprintf(fd,"    <Model>%s</Model>\n",caps->general->model);
-		fprintf(fd,"  </General>\n");
-	}
-
-	fprintf(fd,"</Capability>\n");
+		"<!DOCTYPE folder-listing SYSTEM \"obex-capability.dtd\">\n");
+	xml_open(fd,0,"Capability Version=\"1.0\"");
+	obex_caps_general(fd,&caps->general);
+	xml_close(fd,0,"Capability");
 	return err;
 }
 
@@ -80,13 +85,11 @@ void print_help () {
 
 int main (int argc, char** argv)
 {
-	struct obex_caps_general general = {
-		.vendor = "dummy vendor",
-		.model = "dummy model",
-	};
-
 	struct obex_capability caps = {
-		.general = &general,
+		.general = {
+			.vendor = NULL,
+			.model = NULL,
+		},
 	};
 
 	int err = 0;
@@ -97,11 +100,11 @@ int main (int argc, char** argv)
 		switch (c) {
 		case 'V':
 			if (optarg)
-				general.vendor = optarg;
+				caps.general.vendor = optarg;
 			break;
 		case 'M':
 			if (optarg)
-				general.model = optarg;
+				caps.general.model = optarg;
 			break;
 		case 'h':
 			print_help();
