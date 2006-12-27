@@ -98,6 +98,9 @@
 	  Note that no encoding is used, the plain byte sequence will be matched.
 	  The user identifier must not be longer than 20 bytes and
 	  the password must not be longer than 128 bytes.
+	  If <replaceable>file</replaceable> start with a pipe symbol, the file after the pipe
+	  symbol will be executed with one argument, the user name. The output shall be the
+	  same as a file line.
 	</para></listitem>
       </varlistentry>
       <varlistentry>
@@ -111,6 +114,9 @@
 	  The values for user and password to not have any encoding, the plain byte sequence will be used.
 	  The user identifier must not be longer than 20 bytes and
 	  the password must not be longer than 128 bytes.
+	  If <replaceable>file</replaceable> start with a pipe symbol, the file after the pipe
+	  symbol will be executed with one argument, the realm. The output shall be the
+	  same as a file line.
 	</para></listitem>
       </varlistentry>
       <varlistentry>
