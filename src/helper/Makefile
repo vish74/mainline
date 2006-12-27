@@ -8,7 +8,11 @@ APP_FLAG=-DAPP
 MYCFLAGS=-g -W -Wall -pedantic -std=c99
 OBJEXT=o
 
-BINARY=obex-folder-listing obex-capability
+#Windows:
+#LIBS=-lshlwapi
+#EXEEXT=.exe
+
+BINARY=obex-folder-listing$(EXEEXT) obex-capability$(EXEEXT)
 
 .PHONY: all
 all: $(BINARY)
@@ -27,7 +31,7 @@ depend:
 %.$(OBJEXT): %.c
 	$(CC) $(MYCFLAGS) $(CFLAGS) $(APP_FLAG) -c -o $@ $<
 
-%: %.$(OBJEXT)
+%$(EXEEXT): %.$(OBJEXT)
 	$(CC) $(MYCFLAGS) $(CFLAGS) -o $@ $^ $(LDFLAGS) $(LIBS)
 
 .PHONY: %-create

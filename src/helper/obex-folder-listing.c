@@ -31,6 +31,12 @@
 #include <unistd.h>
 #include <errno.h>
 
+#ifdef _WIN32
+#include <windows.h>
+#include <shlwapi.h>
+#define strdup(s) StrDup(s)
+#endif
+
 #if defined(APP)
 #define PROGRAM_NAME "obex-folder-listing"
 #define PROGRAM_VERSION "0.1"
@@ -116,6 +122,7 @@ void print_filename (FILE* fd, const char* filename, mode_t st_parent, int flags
 			(s.st_mode&S_IRUSR)?"R":"",
 			(s.st_mode&S_IWUSR)?"W":"",
 			(st_parent&S_IWUSR)?"D":"");
+#ifndef _WIN32
 		fprintf(fd," group-perm=\"%s%s%s\"",
 			(s.st_mode&S_IRGRP)?"R":"",
 			(s.st_mode&S_IWGRP)?"W":"",
@@ -124,6 +131,7 @@ void print_filename (FILE* fd, const char* filename, mode_t st_parent, int flags
 			(s.st_mode&S_IROTH)?"R":"",
 			(s.st_mode&S_IWOTH)?"W":"",
 			(st_parent&S_IWOTH)?"D":"");
+#endif
 	}
 
 	fprintf(fd," />\n");
