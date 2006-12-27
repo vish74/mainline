@@ -161,6 +161,14 @@ int obex_folder_listing (FILE* fd, char* name, int flags)
 {
 	mode_t m = 0;
 	int err = 0;
+	size_t namelen = (name? strlen(name): 0);
+
+	if (strncmp(name,"../", 3) == 0 || strcmp(name, "..") == 0
+	    || strstr(name,"/../") != NULL
+	    || (namelen > 3 &&  strncmp(name+namelen-3,"/..",3) == 0)) {
+		return -EINVAL;
+	}
+	    
 
 	fprintf(fd,
 		"<?xml version=\"1.0\"?>\n"
@@ -179,18 +187,9 @@ int obex_folder_listing (FILE* fd, char* name, int flags)
 		} while (tmp[1] == 0 || strcmp(tmp+1,".") == 0);
 
 		if (tmp != NULL) {
-			if (strcmp(tmp+1,"..") == 0) {
-				err = -EINVAL;
-				goto out;
-			}
 			fprintf(fd,"  <parent-folder/>\n");
 			if (p)
 				m = filemode(p);
-		} else {
-			if (strcmp(p,"..") == 0) {
-				err = -EINVAL;
-				goto out;
-			}
 		}
 		free(p);
 	}
