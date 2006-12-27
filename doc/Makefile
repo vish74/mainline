@@ -1,5 +1,5 @@
 INSTALL=install
-XMLTO=xmlto
+XMLTO=xmlto -vv
 
 prefix=/usr/local
 mandir=${prefix}/share/man
