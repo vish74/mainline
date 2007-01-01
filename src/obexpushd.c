@@ -463,9 +463,16 @@ void obex_action_get (obex_t* handle, obex_object_t* obj, int event) {
 
 	case OBEX_EV_REQCHECK:
 		/* If there is a default object but the name header
-		 * is non-empty:
+		 * is non-empty. Special case is that
+		 * type == x-obex/object-profile, then name contains the
+		 * real type
 		 */
-		if (data->name)
+		/* TODO: allowing x-obex/folder-listing would essentially implement
+		 * obexftp. However, this requires the FBS-UUID and secure directory
+		 * traversal. That's not implemented, yet.
+		 */
+		if ((strcmp(data->type,"x-obex/object-profile") != 0 && data->name)
+		    || strcmp(data->type,"x-obex/folder-listing") == 0)
 			(void)OBEX_ObjectSetRsp(obj,
 						OBEX_RSP_FORBIDDEN,
 						OBEX_RSP_FORBIDDEN);
@@ -475,7 +482,6 @@ void obex_action_get (obex_t* handle, obex_object_t* obj, int event) {
 			(void)OBEX_ObjectSetRsp(obj,
 						OBEX_RSP_INTERNAL_SERVER_ERROR,
 						OBEX_RSP_INTERNAL_SERVER_ERROR);
-		} else {
 		}
 		break;
 
@@ -516,7 +522,7 @@ void obex_action_get (obex_t* handle, obex_object_t* obj, int event) {
 		if (len >= 0) {
 			obex_headerdata_t hv;
 			hv.bs = data->buffer;
-			if (len > 0)
+			if (len == sizeof(data->buffer))
 				(void)OBEX_ObjectAddHeader(handle,obj,OBEX_HDR_BODY,
 							   hv,len,
 							   OBEX_FL_STREAM_DATA);
