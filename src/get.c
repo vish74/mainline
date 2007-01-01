@@ -80,7 +80,14 @@ int get_close (obex_t* handle, int w) {
 int get_open (obex_t* handle, char* script) {
 	struct file_data_t* data = OBEX_GetUserData(handle);
 	int err = 0;
-	char* args[4] = { script, "get", data->type, NULL };
+	uint8_t* name = utf16to8(data->name);
+	char* args[5] = {
+		script,
+		"get",
+		(name? (char*)name: ""),
+		data->type,
+		NULL
+	};
 
 	if (data->out) {
 		int err = get_close(handle,(script != NULL));

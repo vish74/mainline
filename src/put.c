@@ -31,10 +31,17 @@ static
 int put_open_pipe (struct file_data_t* data, char* script) {
 	int err = 0;
 	uint8_t* name = utf16to8(data->name);
-	char* args[5] = { script, "put", (char*)name, data->type, NULL };
+	char* args[5] = {
+		script,
+		"put",
+		(char*)name,
+		data->type,
+		NULL
+	};
 
 	if (!name)
 		return -EINVAL;
+
 	err = pipe_open(script,args,O_WRONLY);
 	if (err >= 0) {
 		data->out = fdopen(err,"w");
