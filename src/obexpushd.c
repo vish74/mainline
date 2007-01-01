@@ -89,7 +89,7 @@ int get_nonce (/*@out@*/ uint8_t nonce[16]) {
 
 /* return len(> 0), 0 if not found, or err codes(< 0) */
 ssize_t get_pass_for_user (char* file,
-			   uint8_t* user, size_t ulen,
+			   const uint8_t* user, size_t ulen,
 			   /*@out@*/ uint8_t* pass, size_t size)
 {
 	ssize_t ret = 0;
@@ -153,52 +153,44 @@ ssize_t get_pass_for_user (char* file,
 	return ret;
 }
 
-int obex_auth_verify_response (obex_t* handle,
+int obex_auth_verify_response (obex_t __unused *handle,
 			       obex_headerdata_t h,
 			       uint32_t size)
 {
-	struct file_data_t* data = OBEX_GetUserData(handle);
-	uint8_t d[16];
-	uint8_t n[16];
-	uint8_t u[20];
-	int len = 0;
+	struct obex_auth_response resp;
 	uint8_t pass[1024];
+	int len;
 
 	if (!auth_file)
 		return 0;
 
-	memset(d,0,sizeof(d));
-	memset(u,0,sizeof(u));
-	memcpy(n,data->nonce,sizeof(n));
+	memset(&resp,0,sizeof(resp));
 	memset(pass,0,sizeof(pass));
 
-	len = obex_auth_unpack_response(h,size,d,n,u);
+	if (obex_auth_unpack_response(h,size,&resp) < 0)
+		return 0;
+	len = (int)get_pass_for_user(auth_file,resp.user,resp.ulen,pass,sizeof(pass));
 	if (len < 0)
 		return 0;
-	len = (int)get_pass_for_user(auth_file,u,(size_t)len,pass,sizeof(pass));
-	if (len < 0)
-		return 0;
-	return obex_auth_check_response(d,n,pass,(size_t)len);
+	return obex_auth_check_response(&resp,pass,(size_t)len);
 }
 
 /* return len(> 0), 0 if not found, or err codes(< 0) */
 ssize_t get_credentials_for_realm (char* file,
-				   uint16_t* realm,
+				   const uint8_t* realm,
 				   /*@out@*/ uint8_t* user, size_t* usize,
 				   /*@out@*/ uint8_t* pass, size_t* psize)
 {
 	ssize_t ret = 0;
 	size_t size = *usize+1+*psize+1;
 	uint8_t* buffer = malloc(size);
-	uint8_t* r;
+	uint8_t* r = NULL;
 	
 	if (!buffer)
 		return -ENOMEM;
-	r = utf16to8(realm);
 	/* the format for both files is basicly the same */
-	ret = get_pass_for_user(file,r,utf8len(r),buffer,size);
-	free(r);
-	r = NULL;
+	ret = get_pass_for_user(file,realm,utf8len(r),buffer,size);
+
 	if (ret > 0) {
 		r = (uint8_t*)strchr((char*)buffer,(int)':');
 		if (r == NULL ||
@@ -220,36 +212,38 @@ ssize_t get_credentials_for_realm (char* file,
 	return ret;
 }
 
+static
+void get_creds (obex_t __unused *handle,
+		const char* realm, /* UTF-8 */
+		/*out*/ char* user,
+		size_t* ulen,
+		/*out*/ char* pass,
+		size_t* plen)
+{
+	get_credentials_for_realm(realm_file,
+				  (const uint8_t*)realm,
+				  (uint8_t*)user,ulen,
+				  (uint8_t*)pass,plen);
+}
+
 int obex_auth_send_response (obex_t* handle,
 			     obex_object_t* obj,
 			     obex_headerdata_t h,
 			     uint32_t size)
 {
-	uint16_t realm[128];
-	uint8_t user[20];
-	uint8_t pass[128];
-	uint8_t nonce[16];
-	size_t usize = sizeof(user);
-	size_t psize = sizeof(pass);
-	uint8_t opts;
+	struct obex_auth_challenge chal;
+	struct obex_auth_response resp;
 	ssize_t len;
 	
 	if (!realm_file)
 		return -EINVAL;
-	len = (ssize_t)obex_auth_unpack_challenge(h,size,nonce,&opts,realm,sizeof(realm));
+	memset(&chal,0,sizeof(chal));
+	len = (ssize_t)obex_auth_unpack_challenge(h,size,&chal,1);
 	if (len < 0)
 		return -EINVAL;
-	if (get_credentials_for_realm(realm_file,realm,user,&usize,pass,&psize) > 0) {
-		if ((opts & OBEX_AUTH_OPT_USER_REQ) != 0)
-			return obex_auth_add_response(handle,obj,nonce,
-						      user,sizeof(user)-1,
-						      pass,sizeof(pass)-1);
-		else
-			return obex_auth_add_response(handle,obj,nonce,
-						      NULL,0,
-						      pass,sizeof(pass)-1);
-	}
-	return 0;
+	obex_auth_challenge2response(handle,&chal,&resp,get_creds);
+	free(chal.realm);
+	return obex_auth_add_response(handle,obj,&resp);
 }
 
 void obex_object_headers (obex_t* handle, obex_object_t* obj) {
@@ -344,16 +338,15 @@ void obex_action_connect (obex_t* handle, obex_object_t* obj, int event) {
 	switch (event) {
 	case OBEX_EV_REQHINT: /* A new request is coming in */
 		if (auth_file && !data->auth_success) {
-			uint8_t nonce[16];
-			if (get_nonce(nonce) < 0)
+			struct obex_auth_challenge chal;
+			if (get_nonce(chal.nonce) < 0)
 				(void)OBEX_ObjectSetRsp(obj,
 							OBEX_RSP_SERVICE_UNAVAILABLE,
 							OBEX_RSP_SERVICE_UNAVAILABLE);
-			memcpy(data->nonce,nonce,sizeof(data->nonce));
-			(void)obex_auth_add_challenge(handle,obj,
-						      nonce,
-						      (uint8_t)(OBEX_AUTH_OPT_USER_REQ|OBEX_AUTH_OPT_FULL_ACC),
-						      NULL);
+			memcpy(data->nonce,chal.nonce,sizeof(data->nonce));
+			chal.opts = OBEX_AUTH_OPT_USER_REQ|OBEX_AUTH_OPT_FULL_ACC;
+			chal.realm = NULL;
+			(void)obex_auth_add_challenge(handle,obj,&chal);
 			(void)OBEX_ObjectSetRsp(obj,
 						OBEX_RSP_UNAUTHORIZED,
 						OBEX_RSP_UNAUTHORIZED);

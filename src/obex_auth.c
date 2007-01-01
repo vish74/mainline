@@ -44,38 +44,36 @@ void obex_auth_calc_digest (/*@out@*/ uint8_t digest[16],
  */
 int obex_auth_add_challenge (obex_t* handle,
 			     obex_object_t* obj,
-			     uint8_t nonce[16],
-			     uint8_t opts,
-			     uint16_t* realm)
+			     struct obex_auth_challenge* chal)
 {
 	int err = 0;
 	obex_headerdata_t ah;
         uint8_t* ptr;
-	size_t len = utf16len(realm);
+	size_t len = utf16len(chal->realm);
 
-	ah.bs = malloc(2+16 + 3 + 2+2*(len+1));
+	ah.bs = malloc(2+sizeof(chal->nonce) + 3 + 2+2*(len+1));
 	if (!ah.bs)
 		return -ENOMEM;
 	ptr = (uint8_t*)ah.bs;
 
 	/* add nonce */
 	*ptr++ = 0x00;
-	*ptr++ = 16;
-	memcpy(ptr,nonce,16);
-	ptr += 16;
+	*ptr++ = sizeof(chal->nonce);
+	memcpy(ptr,chal->nonce,sizeof(chal->nonce));
+	ptr += sizeof(chal->nonce);
 
 	/* add flags */
 	*ptr++ = 0x01;
 	*ptr++ = 0x01;
-	*ptr++ = opts;
+	*ptr++ = chal->opts;
 
 	/* add realm */
-	if (realm != NULL && len != 0) {
+	if (chal->realm != NULL && len != 0) {
 		++len;
 		*ptr++ = 0x02;
 		*ptr++ = 2*len+1;
 		*ptr++ = 0xFF;
-		memcpy(ptr,realm,2*len);
+		memcpy(ptr,chal->realm,2*len);
 		ucs2_hton((uint16_t*)ptr,len-1);
 		ptr += 2*len;
 	}
@@ -89,11 +87,8 @@ int obex_auth_add_challenge (obex_t* handle,
 
 int obex_auth_unpack_response (obex_headerdata_t h,
 			       uint32_t size,
-			       uint8_t digest[16],
-			       uint8_t nonce[16],
-			       uint8_t user[20])
+			       struct obex_auth_response* resp)
 {
-	int len = 0;
 	uint32_t i = 0;
 	for (; i < size; i += h.bs[i+1]) {
 		uint8_t htype = h.bs[i];
@@ -102,150 +97,164 @@ int obex_auth_unpack_response (obex_headerdata_t h,
 
 		switch (htype){
 		case 0x00: /* digest */
-			if (hlen != 16)
+			if (hlen != sizeof(resp->digest))
 				return -1;
-			memcpy(digest,hdata,16);
+			memcpy(resp->digest,hdata,sizeof(resp->digest));
 			break;
 
 		case 0x01: /* user ID */
-			if ((size_t)hlen > 20)
+			if ((size_t)hlen > sizeof(resp->user))
 				return -1;
-			len = (int)hlen;
-			memcpy(user,hdata,hlen);
+			memcpy(resp->user,hdata,hlen);
+			resp->ulen = (size_t)hlen;
 			break;
 
 		case 0x02: /* nonce */
-			if (hlen != 16)
+			if (hlen != sizeof(resp->nonce))
 				return -1;
-			memcpy(nonce,hdata,16);
+			memcpy(resp->nonce,hdata,sizeof(resp->nonce));
 			break;
 
 		default:
 			return -1;
 		}
 	}
-	return len;
+	return 0;
 }
 
-int obex_auth_check_response (uint8_t digest[16],
-			      const uint8_t nonce[16],
+int obex_auth_check_response (struct obex_auth_response* resp,
  			      const uint8_t* pass,
 			      size_t len)
 {
 	uint8_t d[16];
 
 	memset(d,0,sizeof(d));
-	obex_auth_calc_digest(d,nonce,pass,len);
-	if (memcmp(d,digest,sizeof(d)) != 0)
+	obex_auth_calc_digest(d,resp->nonce,pass,len);
+	if (memcmp(d,resp->digest,sizeof(d)) != 0)
 		return 0;
 
 	return 1;
 }
 
-/* Function for an OBEX client.
+
+/* Functions for an OBEX client.
  */
-int obex_auth_add_response (obex_t* handle,
-			    obex_object_t* obj,
-			    uint8_t nonce[16],
-			    const uint8_t* user,
-			    size_t ulen,
-			    const uint8_t* pass,
-			    size_t plen)
-{
-	int err = 0;
-	obex_headerdata_t ah;
-        uint8_t* ptr;
-
-	ah.bs = malloc(2+16 + 2+ulen + 2+16);
-	if (!ah.bs)
-		return -ENOMEM;
-	ptr = (uint8_t*)ah.bs;
-
-	/* add digest */
-	*ptr++ = 0x00;
-	*ptr++ = 16;
-	obex_auth_calc_digest(ptr,nonce,pass,plen);
-	ptr += 16;
-
-	/* add user */
-	if (user) {
-		*ptr++ = 0x01;
-		*ptr++ = ulen;
-		memcpy(ptr,user,ulen);
-		ptr += ulen;
-	}
-
-	/* add nonce */
-	*ptr++ = 0x00;
-	*ptr++ = 16;
-	memcpy(ptr,nonce,16);
-	ptr += 16;
-
-	errno = 0;
-	if (OBEX_ObjectAddHeader(handle,obj,OBEX_HDR_AUTHRESP,ah,(uint32_t)(ptr-ah.bs),OBEX_FL_FIT_ONE_PACKET) < 0)
-		err = ((errno != 0)? -errno: -EINVAL);
-	free((void*)ah.bs);
-	return err;
-}
-
 int obex_auth_unpack_challenge (obex_headerdata_t h,
-				uint32_t size,
-				/* out */ uint8_t nonce[16],
-				/* out */ uint8_t* opts,
-				/* out */ uint16_t* realm,
-				size_t realm_size)
+				uint32_t hsize,
+				struct obex_auth_challenge* chal,
+				size_t csize)
 {
-	/* Note: there may be more than one challenge set,
-	 *       this will only unpack the first one
-	 */
-	int len = 0;
 	uint32_t i = 0;
-	int nonce_count = 0;
-	for (; i < size; i += h.bs[i+1]) {
+	size_t k = 0;
+	size_t rsize = 0;
+
+	for (; i < hsize; i += h.bs[i+1]) {
 		uint8_t htype = h.bs[i];
 		uint8_t hlen = h.bs[i+1];
 		const uint8_t* hdata = h.bs+i+2;
 
 		switch (htype){
 		case 0x00: /* nonce */
-			if (nonce_count != 0)
-				return len;
+			if (k >= csize)
+				return k;
 			if (hlen != 16)
 				return -1;
-			memcpy(nonce,hdata,16);
-			++nonce_count;
+			++k;
+			memcpy(chal[k].nonce,hdata,16);
 			break;
 
 		case 0x01: /* options */
-			if (opts) {
-				if ((size_t)hlen != 1)
-					return -1;
-				*opts = *hdata;
-			}
+			if ((size_t)hlen != 1)
+				return -1;
+			chal[k].opts = *hdata;
 			break;
 
 		case 0x02: /* realm */
-			if (realm) {
-				if (*hdata != 0xFF) /* only support unicode */
-					return -1;
-				--hlen;
-				++hdata;
-
-				if (hdata[hlen] != 0x00 ||
-				    hdata[hlen-1] != 0x00)
-					realm_size -= 2;
-				if (hlen > realm_size)
-					return -1;
-				memset(realm,0,realm_size);
-				memcpy(realm,hdata,hlen);
-				ucs2_ntoh(realm,hlen/2);
-				len = (int)utf16len(realm);
-			}
+			if (*hdata != 0xFF) /* only support unicode */
+				return -1;
+			--hlen;
+			++hdata;
+			
+			rsize = hlen;
+			if (hdata[hlen] != 0x00 ||
+			    hdata[hlen-1] != 0x00)
+				rsize += 2;
+			if (chal[k].realm != NULL)
+				return -1;
+			chal[k].realm = malloc(rsize);
+			memset(chal[k].realm,0,rsize);
+			memcpy(chal[k].realm,hdata,hlen);
+			ucs2_ntoh(chal[k].realm,hlen/2);
 			break;
 
 		default:
 			return -1;
 		}
 	}
-	return len;
+	return k;
+}
+
+int obex_auth_challenge2response (obex_t* handle,
+				  struct obex_auth_challenge* c,
+				  struct obex_auth_response* r,
+				  obex_auth_pass_t get_pass)
+{
+	uint8_t* realm = utf16to8(c->realm);
+	uint8_t pass[32];
+	size_t plen;
+
+	if (!realm)
+		return 0;
+	memcpy(r->nonce,c->nonce,sizeof(r->nonce));
+	get_pass(handle,(char*)realm,(char*)r->user,&r->ulen,(char*)pass,&plen);
+	free(realm);
+	if (r->ulen > sizeof(r->user) ||
+	    plen > sizeof(pass))
+		return 0;
+	obex_auth_calc_digest(r->digest,r->nonce,pass,plen);
+	memset(pass,0,sizeof(pass));
+	if ((c->opts & OBEX_AUTH_OPT_USER_REQ) != 0)
+		r->ulen = 0;
+
+	return 1;
+}
+
+int obex_auth_add_response (obex_t* handle,
+			    obex_object_t* obj,
+			    struct obex_auth_response* resp)
+{
+	int err = 0;
+	obex_headerdata_t ah;
+        uint8_t* ptr;
+
+	ah.bs = malloc(2+sizeof(resp->digest) + 2+resp->ulen + 2+sizeof(resp->nonce));
+	if (!ah.bs)
+		return -ENOMEM;
+	ptr = (uint8_t*)ah.bs;
+
+	/* add digest */
+	*ptr++ = 0x00;
+	*ptr++ = sizeof(resp->digest);
+	memcpy(ptr,resp->digest,sizeof(resp->digest));
+	ptr += sizeof(resp->digest);
+
+	/* add user */
+	if (resp->ulen) {
+		*ptr++ = 0x01;
+		*ptr++ = resp->ulen;
+		memcpy(ptr,resp->user,resp->ulen);
+		ptr += resp->ulen;
+	}
+
+	/* add nonce */
+	*ptr++ = 0x00;
+	*ptr++ = sizeof(resp->nonce);
+	memcpy(ptr,resp->nonce,sizeof(resp->nonce));
+	ptr += sizeof(resp->nonce);
+
+	errno = 0;
+	if (OBEX_ObjectAddHeader(handle,obj,OBEX_HDR_AUTHRESP,ah,(uint32_t)(ptr-ah.bs),OBEX_FL_FIT_ONE_PACKET) < 0)
+		err = ((errno != 0)? -errno: -EINVAL);
+	free((void*)ah.bs);
+	return err;
 }
