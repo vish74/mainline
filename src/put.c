@@ -14,7 +14,7 @@
 #include <string.h>
 
 int put_close (obex_t* handle, int w) {
-	struct file_data_t* data = OBEX_GetUserData(handle);
+	file_data_t* data = OBEX_GetUserData(handle);
 	if (data->out) {
 		if (fclose(data->out) == EOF)
 			return -errno;
@@ -28,7 +28,7 @@ int put_close (obex_t* handle, int w) {
 }
 
 static
-int put_open_pipe (struct file_data_t* data, char* script) {
+int put_open_pipe (file_data_t* data, char* script) {
 	int err = 0;
 	uint8_t* name = utf16to8(data->name);
 	char* args[5] = {
@@ -56,7 +56,7 @@ int put_open_pipe (struct file_data_t* data, char* script) {
 }
 
 static
-int put_open_file (struct file_data_t* data) {
+int put_open_file (file_data_t* data) {
 	uint8_t* n = utf16to8(data->name);
 	int status;
 
@@ -80,7 +80,7 @@ int put_open_file (struct file_data_t* data) {
 }
 
 int put_open (obex_t* handle, char* script) {
-	struct file_data_t* data = OBEX_GetUserData(handle);
+	file_data_t* data = OBEX_GetUserData(handle);
 	
 	if (data->out) {
 		int err = put_close(handle,(script != NULL));
@@ -94,7 +94,7 @@ int put_open (obex_t* handle, char* script) {
 }
 
 int put_write (obex_t* handle, const uint8_t* buf, int len) {
-	struct file_data_t* data = OBEX_GetUserData(handle);
+	file_data_t* data = OBEX_GetUserData(handle);
 	int err;
 
 	if (!buf)

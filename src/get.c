@@ -17,7 +17,7 @@
 
 static
 int get_parse_headers (obex_t* handle) {
-	struct file_data_t* data = OBEX_GetUserData(handle);
+	file_data_t* data = OBEX_GetUserData(handle);
 	char buffer[512+1];
 
 	while (1) {
@@ -64,7 +64,7 @@ int get_parse_headers (obex_t* handle) {
 }
 
 int get_close (obex_t* handle, int w) {
-	struct file_data_t* data = OBEX_GetUserData(handle);
+	file_data_t* data = OBEX_GetUserData(handle);
 	if (data->out) {
 		if (fclose(data->out) == EOF)
 			return -errno;
@@ -78,7 +78,7 @@ int get_close (obex_t* handle, int w) {
 }
 
 int get_open (obex_t* handle, char* script) {
-	struct file_data_t* data = OBEX_GetUserData(handle);
+	file_data_t* data = OBEX_GetUserData(handle);
 	int err = 0;
 	uint8_t* name = utf16to8(data->name);
 	char* args[5] = {
@@ -109,7 +109,7 @@ int get_open (obex_t* handle, char* script) {
 }
 
 int get_read (obex_t* handle, uint8_t* buf, size_t size) {
-	struct file_data_t* data = OBEX_GetUserData(handle);
+	file_data_t* data = OBEX_GetUserData(handle);
 	size_t status = fread(buf,1,size,data->out);
 	
 	if (status < size && !feof(data->out))		

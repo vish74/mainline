@@ -3,8 +3,19 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+typedef enum {
+	INTF_BLUETOOTH = 0,
+	INTF_IRDA = 1,
+	INTF_INET = 2,
+} intf_t;
+
+typedef struct {
+	intf_t intf;
+} listener_data_t;
+
 /* private data for a client connection */
-struct file_data_t {
+typedef struct {
+	intf_t intf;
 	unsigned int id;
 	unsigned int count;
 
@@ -19,7 +30,7 @@ struct file_data_t {
 	/* auth */
 	uint8_t nonce[16];
 	int auth_success;
-};
+} file_data_t;
 
 /* file input */
 int put_open (obex_t* handle, char* script);
