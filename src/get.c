@@ -12,6 +12,7 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <fcntl.h>
+#include <ctype.h>
 
 #define EOL(n) ((n) == '\n' || (n) == '\r')
 
@@ -57,6 +58,22 @@ int get_parse_headers (obex_t* handle) {
 			if (len > (long)UINT32_MAX || len == LONG_MAX)
 				return -ERANGE;
 			data->length = (uint32_t)len;
+
+		} else if (strncasecmp(buffer,"Type: ",6) == 0) {
+			char* type = buffer+6;
+			size_t len = strlen(type);
+			size_t i = 0;
+			size_t k = 0;
+			for (; i < len; ++i) {
+				if (type[i] == '/')
+					++k;
+				if (!isascii((int)type[i])
+				    || isspace((int)type[i])
+				    || iscntrl((int)type[i])
+				    || k > 1)
+					return -EINVAL;
+			}
+			data->type = strdup(type);
 		} else
 			continue;
 	}
