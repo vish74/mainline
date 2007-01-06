@@ -102,7 +102,7 @@ ssize_t get_pass_for_user (char* file,
 		return -ENOMEM;
 	if (file[0] == '|') {
 		char* args[2] = { file+1, (char*)user };
-		status = pipe_open(args[0],args,O_RDONLY);
+		status = pipe_open(args[0],args,O_RDONLY,NULL);
 	} else {
 		status = file_open(file,O_RDONLY);
 	}
@@ -433,6 +433,10 @@ void obex_action_put (obex_t* handle, obex_object_t* obj, int event) {
 		data->length = 0;
 		data->time = 0;
 		break;
+
+	case OBEX_EV_ABORT:
+		(void)put_revert(handle);
+		break;
 	}
 }
 
@@ -589,6 +593,19 @@ void client_eventcb (obex_t* handle, obex_object_t* obj,
 		obex_action_disconnect(handle,obj,event);
 		break;
 
+	case OBEX_EV_LINKERR:
+	case OBEX_EV_PARSEERR:
+	case OBEX_EV_ABORT:
+		switch (last_obex_cmd) {
+		case OBEX_CMD_PUT:
+			obex_action_put(handle,NULL,OBEX_EV_ABORT);
+			break;
+
+		default:
+			break;
+		}
+		break;
+
 	default:
 		switch (event) {
 		case OBEX_EV_REQHINT: /* A new request is coming in */
@@ -610,6 +627,7 @@ void handle_client (obex_t* client, listener_data_t* l) {
 	if (data) memset(data,0,sizeof(*data));
 	data->id = id++;
 	data->intf = l->intf;
+	data->child = -1;
 	OBEX_SetUserData(client,data);
 	while (status != -1) {
 		status = OBEX_HandleInput(client,10);

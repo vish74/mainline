@@ -2,6 +2,7 @@
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/types.h>
 
 typedef enum {
 	INTF_BLUETOOTH = 0,
@@ -25,6 +26,7 @@ typedef struct {
 	time_t time;
 
 	FILE* out;
+	pid_t child;
 	uint8_t buffer[1000];
 
 	/* auth */
@@ -36,6 +38,7 @@ typedef struct {
 int put_open (obex_t* handle, char* script);
 int put_write (obex_t* handle, const uint8_t* buf, int len);
 int put_close (obex_t* handle, int wait);
+int put_revert (obex_t* handle);
 
 /* file output */
 int get_open (obex_t* handle, char* script);

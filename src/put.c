@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <string.h>
+#include <signal.h>
 
 int put_close (obex_t* handle, int w) {
 	file_data_t* data = OBEX_GetUserData(handle);
@@ -21,8 +22,8 @@ int put_close (obex_t* handle, int w) {
 		data->out = NULL;
 	}
 	if (w) {
-		int status;
-		(void)wait(&status);
+		(void)waitpid(data->child,NULL,0);
+		data->child = 0;
 	}
 	return 0;
 }
@@ -43,7 +44,7 @@ int put_open_pipe (file_data_t* data, char* script) {
 	if (!name)
 		return -EINVAL;
 
-	p = pipe_open(script,args,O_WRONLY);
+	p = pipe_open(script,args,O_WRONLY,&data->child);
 	if (p >= 0) {
 		data->out = fdopen(p,"w");
 		if (data->out == NULL)
@@ -53,7 +54,7 @@ int put_open_pipe (file_data_t* data, char* script) {
 
 	/* headers can be written here */
 	fprintf(data->out,"Name: %s\r\n",name);
-	fprintf(data->out,"Length: %u\r\n",type->length);
+	fprintf(data->out,"Length: %u\r\n",data->length);
 	if (data->type)
 		fprintf(data->out,"Type: %s\r\n",data->type);
 	
@@ -111,5 +112,23 @@ int put_write (obex_t* handle, const uint8_t* buf, int len) {
 	err = ferror(data->out);
 	if (err)
 		return -err;
+	return 0;
+}
+
+int put_revert (obex_t* handle) {
+	file_data_t* data = OBEX_GetUserData(handle);
+	if (data->child >= 0) {
+		if (!data->child)
+			return -ECHILD;
+		kill(data->child,SIGTERM); /* tell it to clean up */
+		sleep(3);
+		kill(data->child,SIGKILL); /* kill it */
+		return put_close(handle,1); /* clean up our side */
+	} else {
+		uint8_t* n = utf16to8(data->name);		
+		if (unlink((char*)n) == -1) /* remove the file */
+			return -errno;
+		return put_close(handle,0);
+	}
 	return 0;
 }

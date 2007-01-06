@@ -19,12 +19,13 @@ int file_open (char* name, int mode) {
 }
 
 
-int pipe_open (const char* command, char** args, int mode) {
+int pipe_open (const char* command, char** args, int mode, pid_t* pid) {
 	int err = 0;
 	int fds[2] = { -1, -1 };
 #define PIPE_FD_READ  fds[0]
 #define PIPE_FD_WRITE fds[1]
 	int w;
+	pid_t p;
 
 	if (mode == O_RDONLY)
 		w = 0;
@@ -36,7 +37,8 @@ int pipe_open (const char* command, char** args, int mode) {
 	if (pipe(fds) == -1)
 		return -errno;
 
-	switch(fork()) {
+	p = fork();
+	switch(p) {
 	case -1:
 		err = errno;
 		close(fds[0]);
@@ -68,6 +70,8 @@ int pipe_open (const char* command, char** args, int mode) {
 		exit(EXIT_FAILURE);
 		
 	default: /* parent */
+		if (*pid)
+			*pid = p;
 		if (w) {
 			close(PIPE_FD_READ);
 			return PIPE_FD_WRITE;

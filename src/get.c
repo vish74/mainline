@@ -112,7 +112,7 @@ int get_open (obex_t* handle, char* script) {
 			return err;
 	}
 
-	err = pipe_open(script,args,O_WRONLY);
+	err = pipe_open(script,args,O_WRONLY,&data->child);
 	if (err >= 0) {
 		data->out = fdopen(err,"w");
 		if (data->out == NULL)
