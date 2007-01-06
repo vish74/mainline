@@ -30,6 +30,7 @@ int put_close (obex_t* handle, int w) {
 static
 int put_open_pipe (file_data_t* data, char* script) {
 	int err = 0;
+	int p = 0;
 	uint8_t* name = utf16to8(data->name);
 	char* args[5] = {
 		script,
@@ -42,17 +43,24 @@ int put_open_pipe (file_data_t* data, char* script) {
 	if (!name)
 		return -EINVAL;
 
-	err = pipe_open(script,args,O_WRONLY);
-	if (err >= 0) {
-		data->out = fdopen(err,"w");
+	p = pipe_open(script,args,O_WRONLY);
+	if (p >= 0) {
+		data->out = fdopen(p,"w");
 		if (data->out == NULL)
 			err = -errno;
 	}
 	free(name);
+
 	/* headers can be written here */
+	fprintf(data->out,"Name: %s\r\n",name);
+	fprintf(data->out,"Length: %u\r\n",type->length);
+	if (data->type)
+		fprintf(data->out,"Type: %s\r\n",data->type);
+	
 	/* empty line signals that data follows */
-	(void)write(err,"\n",1);
-	return err;
+	(void)fprintf(data->out,"\r\n");
+
+	return (err? err: p);
 }
 
 static
