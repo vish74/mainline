@@ -670,70 +670,85 @@ void eventcb (obex_t* handle, obex_object_t __unused *obj,
 /*@null@*/
 obex_t* inet_listen (void) {
 	obex_t* handle = OBEX_Init(OBEX_TRANS_INET,eventcb,OBEX_FL_KEEPSERVER);
+	listener_data_t* l;
 	
-	if (handle) {
-		(void)InOBEX_ServerRegister(handle);
+	if (!handle)
+		return NULL;
+
+	if (InOBEX_ServerRegister(handle) == -1) {
+		perror("InOBEX_ServerRegister");
+		exit(EXIT_FAILURE);
 	}
-	if (handle) {
-		listener_data_t* l = malloc(sizeof(*l));
-		if (l == NULL) {
-			perror("OBEX_GetFD(BT_HANDLE)");
-			exit(EXIT_FAILURE);
-		}
-		l->intf = INTF_INET;
-		OBEX_SetCustomData(handle,l);
+	fprintf(stderr,"Listening on TCP/*:650\n");
+
+	l = malloc(sizeof(*l));
+	if (l == NULL) {
+		perror("OBEX_GetFD(INET_HANDLE)");
+		exit(EXIT_FAILURE);
 	}
+	l->intf = INTF_INET;
+	OBEX_SetCustomData(handle,l);
 	return handle;
 }
 
 /*@null@*/
 obex_t* irda_listen (char* service) {
 	obex_t* handle = OBEX_Init(OBEX_TRANS_IRDA,eventcb,OBEX_FL_KEEPSERVER);
+	listener_data_t* l;
 	
-	if (handle) {
-		(void)IrOBEX_ServerRegister(handle,service);
-		fprintf(stderr,"Listening on IrDA service \"%s\"\n", service);
+	if (!handle)
+		return NULL;
+
+	if (IrOBEX_ServerRegister(handle,service) == -1) {
+		perror("IrOBEX_ServerRegister");
+		exit(EXIT_FAILURE);
 	}
-	if (handle) {
-		listener_data_t* l = malloc(sizeof(*l));
-		if (l == NULL) {
-			perror("OBEX_GetFD(BT_HANDLE)");
-			exit(EXIT_FAILURE);
-		}
-		l->intf = INTF_IRDA;
-		OBEX_SetCustomData(handle,l);
+	fprintf(stderr,"Listening on IrDA service \"%s\"\n", service);
+
+	l = malloc(sizeof(*l));
+	if (l == NULL) {
+		perror("OBEX_GetFD(IRDA_HANDLE)");
+		exit(EXIT_FAILURE);
 	}
+	l->intf = INTF_IRDA;
+	OBEX_SetCustomData(handle,l);
 	return handle;
 }
 
 /*@null@*/
 obex_t* bluetooth_listen (uint8_t channel) {
 	obex_t* handle = OBEX_Init(OBEX_TRANS_BLUETOOTH,eventcb,OBEX_FL_KEEPSERVER);
+	sdp_session_t* session;
+	listener_data_t* l;
   
-	if (handle) {
-		if (BtOBEX_ServerRegister(handle,BDADDR_ANY,channel)) {
-			sdp_session_t* session = bt_sdp_session_open(channel);
-			fprintf(stderr,"Listening on bluetooth channel %u\n",(unsigned int)channel);
-			if (!session) {
-				OBEX_Cleanup(handle);
-				handle = NULL;
-			}
-		}
+	if (!handle)
+		return NULL;
+
+	if (BtOBEX_ServerRegister(handle,BDADDR_ANY,channel) == -1) {
+		perror("BtOBEX_ServerRegister");
+		exit(EXIT_FAILURE);
 	}
-	if (handle) {
-		listener_data_t* l = malloc(sizeof(*l));
-		if (l == NULL) {
-			perror("OBEX_GetFD(BT_HANDLE)");
-			exit(EXIT_FAILURE);
-		}
-		l->intf = INTF_BLUETOOTH;
-		OBEX_SetCustomData(handle,l);
+	fprintf(stderr,"Listening on bluetooth channel %u\n",(unsigned int)channel);
+
+	session = bt_sdp_session_open(channel);
+	if (!session) {
+		fprintf(stderr,"SDP session setup failed, disabling bluetooth\n");
+		OBEX_Cleanup(handle);
+		return NULL;
 	}
+
+	l = malloc(sizeof(*l));
+	if (l == NULL) {
+		perror("OBEX_GetFD(BT_HANDLE)");
+		exit(EXIT_FAILURE);
+	}
+	l->intf = INTF_BLUETOOTH;
+	OBEX_SetCustomData(handle,l);
 	return handle;
 }
 
 void print_disclaimer () {
-	printf(PROGRAM_NAME " " OBEXPUSHD_VERSION " Copyright (C) 2006 Hendrik Sattler\n"
+	printf(PROGRAM_NAME " " OBEXPUSHD_VERSION " Copyright (C) 2006,2007 Hendrik Sattler\n"
 	       "This software comes with ABSOLUTELY NO WARRANTY.\n"
 	       "This is free software, and you are welcome to redistribute it\n"
 	       "under certain conditions.\n");
@@ -755,9 +770,11 @@ void print_help (char* me) {
 	       " -p <file>      write pid to file when getting detached\n"
 	       " -a <file>      authenticate against credentials from file (EXPERIMENTAL)\n"
 	       " -r <file>      use realm credentials from file (EXPERIMENTAL)\n"
-	       " -s <file>      run script or program file and pipe incoming data to it\n"
+	       " -s <file>      define script/program for input/output\n"
 	       " -h             this help message\n"
 	       " -v             show version\n");
+	printf("\n"
+	       "See manual page %s(1) for details.\n",me);
 }
 
 int main (int argc, char** argv) {
@@ -803,8 +820,7 @@ int main (int argc, char** argv) {
 			/* no break */
 
 		case 'n':
-			if (nofork)
-				++nofork;
+			++nofork;
 			break;
 
 		case 'p':
@@ -833,7 +849,8 @@ int main (int argc, char** argv) {
 		}
 	}
 	if (intf == 0) intf |= (1 << INTF_BLUETOOTH);
-	
+
+	printf("%d\n",nofork);
 	if (nofork < 1) {
 		if (daemon(1,0) < 0) {
 			perror("daemon()");
