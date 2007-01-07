@@ -44,3 +44,6 @@ int put_revert (obex_t* handle);
 int get_open (obex_t* handle, char* script);
 int get_read (obex_t* handle, uint8_t* buf, size_t size);
 int get_close (obex_t* handle, int wait);
+
+int check_name (uint16_t* name);
+int check_type (char* type);

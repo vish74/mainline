@@ -52,27 +52,29 @@ int get_parse_headers (obex_t* handle) {
 		 * and ignore unknown ones
 		 */
 		if (strncasecmp(buffer,"Name: ",6) == 0) {
-			data->name = utf8to16((uint8_t*)(buffer+6));
+			uint16_t* name = utf8to16((uint8_t*)(buffer+6));
+			if (!check_name(name)) {
+				free(name);
+				return -EINVAL;
+			}
+			if (data->name)
+				free(data->name);
+			data->name = name;
+
 		} else if (strncasecmp(buffer,"Length: ",8) == 0) {
 			long len = strtol(buffer+8,NULL,10);
-			if (len > (long)UINT32_MAX || len == LONG_MAX)
+			if (len > (long)UINT32_MAX ||
+			    len == LONG_MAX ||
+			    len < 0)
 				return -ERANGE;
 			data->length = (uint32_t)len;
 
 		} else if (strncasecmp(buffer,"Type: ",6) == 0) {
 			char* type = buffer+6;
-			size_t len = strlen(type);
-			size_t i = 0;
-			size_t k = 0;
-			for (; i < len; ++i) {
-				if (type[i] == '/')
-					++k;
-				if (!isascii((int)type[i])
-				    || isspace((int)type[i])
-				    || iscntrl((int)type[i])
-				    || k > 1)
-					return -EINVAL;
-			}
+			if (!check_type(type))
+				return -EINVAL;
+			if (data->type)
+				free(data->type);
 			data->type = strdup(type);
 		} else
 			continue;

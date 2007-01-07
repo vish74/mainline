@@ -36,6 +36,7 @@
 #include <unistd.h>
 #include <errno.h>
 #include <string.h>
+#include <ctype.h>
 
 #define PROGRAM_NAME "obexpushd"
 #include "version.h"
@@ -261,7 +262,6 @@ void obex_object_headers (obex_t* handle, obex_object_t* obj) {
 		switch (id) {
 		case OBEX_HDR_NAME:
 			if (data) {
-				uint8_t* name;
 				if (data->name)
 					free(data->name);
 				data->name = malloc(vsize+2);
@@ -270,16 +270,15 @@ void obex_object_headers (obex_t* handle, obex_object_t* obj) {
 				memset(data->name,0,vsize+2);
 				memcpy(data->name,value.bs,vsize);
 				ucs2_ntoh(data->name,vsize/2);
-				name = utf16to8(data->name);
-
-				if (debug) printf("%u.%u: name: \"%s\"\n",data->id,data->count,(char*)name);
-				if (strchr((char*)name,(int)':') ||
-				    strchr((char*)name,(int)'\\') ||
-				    strchr((char*)name,(int)'/'))
+				if (debug) {
+					uint8_t* n = utf16to8(data->name);
+					printf("%u.%u: name: \"%s\"\n",data->id,data->count,(char*)n);
+					free(n);
+				}
+				if (!check_name(data->name))
 					(void)OBEX_ObjectSetRsp(obj,
 								OBEX_RSP_BAD_REQUEST,
 								OBEX_RSP_BAD_REQUEST);
-				free(name);
 			}
 			break;
 
@@ -292,8 +291,13 @@ void obex_object_headers (obex_t* handle, obex_object_t* obj) {
 					return;
 				memcpy(data->type,value.bs,vsize);
 				data->type[vsize] = '\0';
+				if (debug)
+					printf("%u.%u: type: \"%s\"\n",data->id,data->count,data->type);
+				if (!check_type(data->type))
+					(void)OBEX_ObjectSetRsp(obj,
+								OBEX_RSP_BAD_REQUEST,
+								OBEX_RSP_BAD_REQUEST);
 			}
-			if (debug) printf("%u.%u: type: \"%s\"\n",data->id,data->count,data->type);
 			break;
 
 		case OBEX_HDR_LENGTH:
