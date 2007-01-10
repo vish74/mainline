@@ -117,18 +117,20 @@ int put_write (obex_t* handle, const uint8_t* buf, int len) {
 
 int put_revert (obex_t* handle) {
 	file_data_t* data = OBEX_GetUserData(handle);
-	if (data->child >= 0) {
-		if (!data->child)
-			return -ECHILD;
-		kill(data->child,SIGTERM); /* tell it to clean up */
-		sleep(3);
-		kill(data->child,SIGKILL); /* kill it */
-		return put_close(handle,1); /* clean up our side */
-	} else {
-		uint8_t* n = utf16to8(data->name);		
-		if (unlink((char*)n) == -1) /* remove the file */
-			return -errno;
-		return put_close(handle,0);
+	if (data->out) {
+		if (data->child >= 0) {
+			if (!data->child)
+				return -ECHILD;
+			kill(data->child,SIGTERM); /* tell it to clean up */
+			sleep(3);
+			kill(data->child,SIGKILL); /* kill it */
+			return put_close(handle,1); /* clean up our side */
+		} else {
+			uint8_t* n = utf16to8(data->name);		
+			if (unlink((char*)n) == -1) /* remove the file */
+				return -errno;
+			return put_close(handle,0);
+		}
 	}
 	return 0;
 }
