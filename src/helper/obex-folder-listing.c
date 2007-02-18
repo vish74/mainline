@@ -117,6 +117,14 @@ void print_filename (FILE* fd, const char* filename, mode_t st_parent, int flags
 			fprintf(fd," accessed=\"%s\"",acc_time);
 	}
 
+	if (flags & OFL_FLAG_OWNER) {
+		fprintf(fd, " owner=\"%d\"", s.st_uid);
+	}
+
+	if (flags & OFL_FLAG_GROUP) {
+		fprintf(fd, " group=\"%d\"", s.st_gid);
+	}
+
 	if (flags & OFL_FLAG_PERMS) {	
 		fprintf(fd," user-perm=\"%s%s%s\"",
 			(s.st_mode&S_IRUSR)?"R":"",
@@ -167,21 +175,40 @@ void print_dir (FILE* fd, const char* dir, int flags)
 	closedir(d);
 }
 
+#include <locale.h>
+#include <langinfo.h>
+static
+char* get_system_charset ()
+{
+	return nl_langinfo(CODESET);
+}
+
 int obex_folder_listing (FILE* fd, char* name, int flags)
 {
 	mode_t m = 0;
 	int err = 0;
 	size_t namelen = (name? strlen(name): 0);
 
+#if _WIN32
+	/* backslash dir seperator must be converted to unix format*/
+	unsigned int i = 0;
+	for (; i < namelen; ++)
+		if (name[i] == '\\')
+			name[i] = '/';
+#endif
+
 	if (strncmp(name,"../", 3) == 0 || strcmp(name, "..") == 0
-	    || strstr(name,"/../") != NULL
-	    || (namelen > 3 &&  strncmp(name+namelen-3,"/..",3) == 0)) {
+	    || (namelen > 3 &&
+		(strstr(name,"/../") != NULL
+		 || strncmp(name+namelen-3,"/..",3) == 0)))
+	{
 		return -EINVAL;
 	}
-	    
 
 	fprintf(fd,
-		"<?xml version=\"1.0\"?>\n"
+		"<?xml version=\"1.0\" charset=\"%s\"?>\n",
+		get_system_charset());
+	fprintf(fd,
 		"<!DOCTYPE folder-listing SYSTEM \"obex-folder-listing.dtd\">\n");
 	xml_open(fd,0,"folder-listing version=\"1.0\"");
   
@@ -245,10 +272,8 @@ void print_help () {
 		" -H  also list hidden files/directories\n"
 		" -t  show time attributes\n"
 		" -p  show permission attributes\n"
-#if 0
 		" -o  show file owner attribute\n"
 		" -g  show file group attribute\n"
-#endif
 		" -h  this help message\n");
 }
 
@@ -260,7 +285,7 @@ int main (int argc, char** argv)
 	int c;
 	int flags = 0;
 
-	while ((c = getopt(argc,argv,"PHtph")) != -1) {
+	while ((c = getopt(argc,argv,"PHtpogh")) != -1) {
 		switch (c) {
 		case 'P':
 			flags |= OFL_FLAG_PARENT;
@@ -274,14 +299,12 @@ int main (int argc, char** argv)
 		case 'p':
 			flags |= OFL_FLAG_PERMS;
 			break;
-#if 0
 		case 'o':
 			flags |= OFL_FLAG_OWNER;
 			break;
 		case 'g':
 			flags |= OFL_FLAG_GROUP;
 			break;
-#endif
 		case 'h':
 			print_help();
 			exit(EXIT_SUCCESS);
@@ -292,7 +315,9 @@ int main (int argc, char** argv)
 		name = argv[optind];
 
 	print_disclaimer();
-	err = obex_folder_listing(fd,name,flags);
+	
+	setlocale(LC_ALL, "");
+	err = obex_folder_listing(fd, name, flags);
 
 	if (err) {
 		fprintf(stderr,"%s\n",strerror(-err));
