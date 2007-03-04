@@ -39,6 +39,7 @@
 #include <string.h>
 #include <ctype.h>
 #include <arpa/inet.h>
+#include <net/if.h>
 
 #define PROGRAM_NAME "obexpushd"
 #include "version.h"
@@ -670,7 +671,17 @@ void eventcb (obex_t* handle, obex_object_t __unused *obj,
 }
 
 /*@null@*/
-obex_t* inet_listen (const char* address, uint16_t port, const char* intf) {
+#if OPENOBEX_TCPOBEX
+#define __inobex_unused
+#else
+#define __inobex_unused __unused
+#endif
+obex_t* inet_listen (
+	const char* address __inobex_unused,
+	uint16_t port __inobex_unused,
+	const char* intf __inobex_unused
+)
+{
 	obex_t* handle = OBEX_Init(OBEX_TRANS_INET,eventcb,OBEX_FL_KEEPSERVER);
 	listener_data_t* l;
 	
@@ -821,12 +832,13 @@ int main (int argc, char** argv) {
 	intf_t intf = 0;
 	uint8_t btchan = 9;
 	char* irda_extra = NULL;
+/*
 	struct {
 		char* address;
 		uint16_t port;
 		char* intf;
 	} inet_params;
-
+*/
 	char* pidfile = NULL;
 
 	
