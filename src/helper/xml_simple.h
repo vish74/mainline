@@ -14,10 +14,16 @@
 	fprintf(fd,"%s",i);\
 }
 
-#define xml_open(fd,level,attr) {\
-	xml_indent(fd,level);\
-	fprintf(fd,"<%s>\n",attr);\
+#define xml_el_open(fd,level,el,close,args,...) {\
+	xml_indent(fd, level);\
+	fprintf(fd, "<%s", el);\
+        if (args) { const char* a = args; fprintf(fd, a, __VA_ARGS__); }\
+        if (close) { fprintf(fd, " /"); }\
+        fprintf(fd, ">");\
 }
+
+#define xml_open(fd,level,attr)\
+        xml_el_open(fd,level,attr,0,NULL,0);
 
 #define xml_close(fd,level,attr) {\
 	xml_indent(fd,level);\
@@ -36,5 +42,4 @@
 		fprintf(fd," />");\
         }\
 }
-
 #endif /* XML_SIMPLE_H */
