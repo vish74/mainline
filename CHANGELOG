@@ -1,4 +1,16 @@
-0.4 (2006-10-25)
+0.5 (2007-03-04)
+    - fix SECURITY issue with script output call
+    - fix compilation issue with 64bit machines
+    - fix many bugs found with splint
+    - show file count in debug output
+    - add x-obex helpers to ease future work (not compiled by default)
+    - change script options
+    - add get support (_requires_ a script)
+    - add script header support and base script headers
+    - add TCP support
+    - update manpage
+
+0.4 (2006-10-25) (REVOKED)
     - fix manpage install directory
     - use streaming mode
     - add option to write daemon PID to a file
