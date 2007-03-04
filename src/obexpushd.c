@@ -1,4 +1,4 @@
-/* Copyright (C) 2006 Hendrik Sattler <post@hendrik-sattler.de>
+/* Copyright (C) 2006-2007 Hendrik Sattler <post@hendrik-sattler.de>
  *       
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -23,6 +23,7 @@
 #include "data_io.h"
 #include "utf.h"
 #include "md5.h"
+#include "../config.h"
 
 #include <unistd.h>
 #include <stdlib.h>
@@ -37,6 +38,7 @@
 #include <errno.h>
 #include <string.h>
 #include <ctype.h>
+#include <arpa/inet.h>
 
 #define PROGRAM_NAME "obexpushd"
 #include "version.h"
@@ -668,18 +670,53 @@ void eventcb (obex_t* handle, obex_object_t __unused *obj,
 }
 
 /*@null@*/
-obex_t* inet_listen (void) {
+obex_t* inet_listen (const char* address, uint16_t port, const char* intf) {
 	obex_t* handle = OBEX_Init(OBEX_TRANS_INET,eventcb,OBEX_FL_KEEPSERVER);
 	listener_data_t* l;
 	
 	if (!handle)
 		return NULL;
 
-	if (InOBEX_ServerRegister(handle) == -1) {
-		perror("InOBEX_ServerRegister");
-		exit(EXIT_FAILURE);
+#if OPENOBEX_TCPOBEX
+	{
+		union {
+			struct sockaddr     raw;
+			struct sockaddr_in  in4;
+			struct sockaddr_in6 in6;
+		} addr;
+
+		if (inet_pton(AF_INET6,address,&addr.in6.sin6_addr) == 1) {
+			addr.raw.sa_family = AF_INET6;
+			addr.in6.sin6_port = htons(port);
+			addr.in6.sin6_flowinfo = 0;
+			addr.in6.sin6_scope_id = 0;
+			if (IN6_IS_ADDR_LINKLOCAL(&addr.in6.sin6_addr) && intf) {
+				addr.in6.sin6_scope_id = if_nametoindex(intf);
+			}
+		} else if (inet_pton(AF_INET,address,&addr.in4.sin_addr) == 1) {
+			addr.raw.sa_family = AF_INET;
+			addr.in4.sin_port = htons(port);
+		} else {
+			return NULL;
+		}
+
+		if (TcpOBEX_ServerRegister(handle,&addr.raw,sizeof(addr)) == -1) {
+			perror("TcpOBEX_ServerRegister");
+			exit(EXIT_FAILURE);
+		} else {
+			fprintf(stderr,"Listening on TCP/%s:%d",address,port);
+		}
 	}
-	fprintf(stderr,"Listening on TCP/*:650\n");
+#else
+	{
+		if (InOBEX_ServerRegister(handle) == -1) {
+			perror("InOBEX_ServerRegister");
+			exit(EXIT_FAILURE);
+		} else {
+			fprintf(stderr,"Listening on TCP/*:650\n");
+		}
+	}
+#endif
 
 	l = malloc(sizeof(*l));
 	if (l == NULL) {
@@ -780,10 +817,19 @@ void print_help (char* me) {
 int main (int argc, char** argv) {
 	int retval = EXIT_SUCCESS;
 	int c;
+
 	intf_t intf = 0;
 	uint8_t btchan = 9;
 	char* irda_extra = NULL;
+	struct {
+		char* address;
+		uint16_t port;
+		char* intf;
+	} inet_params;
+
 	char* pidfile = NULL;
+
+	
 	
 	obex_t* handle[4] = { NULL, NULL, NULL, NULL };
 #define BT_HANDLE         handle[0]
@@ -792,7 +838,7 @@ int main (int argc, char** argv) {
 #define INET_HANDLE       handle[3]
 	int topfd = 0;
 	
-	while ((c = getopt(argc,argv,"B::I::Na:dhnp:r:s:v")) != -1) {
+	while ((c = getopt(argc,argv,"B::I::N::a:dhnp:r:s:v")) != -1) {
 		switch (c) {
 		case 'B':
 			intf |= (1 << INTF_BLUETOOTH);
@@ -813,6 +859,19 @@ int main (int argc, char** argv) {
 
 		case 'N':
 			intf |= (1 << INTF_INET);
+			if (optarg) {
+				/* The following types are valid:
+				 * PARAM = ADDRESS ":" PORT
+				 * ADDRESS = ADDR4 | "[" ADDR6 "]"
+				 * ADDR4 = aaa.bbb.ccc.ddd
+				 * ADDR6 = ADDR6PART | ADDR6PART "%" INTERFACE
+				 *
+				 * "%d.%d.%d.%d"
+				 * "%d.%d.%d.%d"
+				 * "[%s]"
+				 * "[%s%%%s]"
+				 */				
+			}
 			break;
 
 		case 'd':
@@ -911,7 +970,7 @@ int main (int argc, char** argv) {
 	}
 	if (intf & (1 << INTF_INET)) {
 		int fd = -1;
-		INET_HANDLE = inet_listen();
+		INET_HANDLE = inet_listen("*",650,NULL);
 		if (INET_HANDLE)
 			fd = OBEX_GetFD(INET_HANDLE);
 		if (fd == -1) {
