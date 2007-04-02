@@ -124,6 +124,8 @@ int put_write (obex_t* handle, const uint8_t* buf, int len) {
 
 	if (!buf)
 		return -EINVAL;
+	if (!data->out)
+		return -EBADF;
 	(void)fwrite(buf,(size_t)len,1,data->out);
 	err = ferror(data->out);
 	if (err)

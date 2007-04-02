@@ -405,8 +405,8 @@ void obex_action_put (obex_t* handle, obex_object_t* obj, int event) {
 		break;
 
 	case OBEX_EV_REQCHECK:
-		if (data->out == NULL &&
-		    put_open(handle,script) < 0)
+		if (data->out == NULL
+		    && put_open(handle,script) < 0)
 			(void)OBEX_ObjectSetRsp(obj,
 						OBEX_RSP_FORBIDDEN,
 						OBEX_RSP_FORBIDDEN);
@@ -418,12 +418,14 @@ void obex_action_put (obex_t* handle, obex_object_t* obj, int event) {
 		int len = OBEX_ObjectReadStream(handle,obj,&buf);
 
 		if (debug) printf("%u.%u: got %d bytes of streamed data\n",data->id,data->count,len);
-		if (len)
-			if (/* (data == NULL && put_open(handle,script) < 0) || */
-			    put_write(handle,buf,len))
+		if (len) {
+			if ((data->out == NULL
+			     && put_open(handle,script) < 0)
+			    || put_write(handle,buf,len))
 				(void)OBEX_ObjectSetRsp(obj,
 							OBEX_RSP_FORBIDDEN,
 							OBEX_RSP_FORBIDDEN);
+		}
 		break;
 	}
 
