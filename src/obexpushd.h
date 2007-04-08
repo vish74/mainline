@@ -1,22 +1,12 @@
+#include <bluetooth/bluetooth.h>
 #include <openobex/obex.h>
 #include <inttypes.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/types.h>
 
-typedef enum {
-	INTF_BLUETOOTH = 0,
-	INTF_IRDA = 1,
-	INTF_INET = 2,
-} intf_t;
-
-typedef struct {
-	intf_t intf;
-} listener_data_t;
-
 /* private data for a client connection */
 typedef struct {
-	intf_t intf;
 	unsigned int id;
 	unsigned int count;
 

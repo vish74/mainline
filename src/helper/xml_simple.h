@@ -17,13 +17,17 @@
 #define xml_el_open(fd,level,el,close,args,...) {\
 	xml_indent(fd, level);\
 	fprintf(fd, "<%s", el);\
-        if (args) { const char* a = args; fprintf(fd, a, __VA_ARGS__); }\
-        if (close) { fprintf(fd, " /"); }\
-        fprintf(fd, ">");\
+        if (args) {\
+		const char* a = args;\
+		fprintf(fd, a, __VA_ARGS__);\
+	}\
+        if (close) fprintf(fd, " />\n");\
+        else fprintf(fd, ">");\
 }
 
 #define xml_open(fd,level,attr)\
-        xml_el_open(fd,level,attr,0,NULL,0);
+        xml_el_open(fd,level,attr,0,NULL,0); \
+	fprintf(fd, "\n");
 
 #define xml_close(fd,level,attr) {\
 	xml_indent(fd,level);\
@@ -39,7 +43,7 @@
                 fprintf(fd,f, __VA_ARGS__ );\
 	        fprintf(fd,"</%s>\n",attr);\
         } else {\
-		fprintf(fd," />");\
+		fprintf(fd," />\n");\
         }\
 }
 #endif /* XML_SIMPLE_H */

@@ -4,10 +4,10 @@ PKGCONFIG=pkg-config
 prefix=/usr/local
 bindir=${prefix}/bin
 
-MYCFLAGS=-g -W -Wall -pedantic -std=c99
-
-SOURCES=$(wildcard *.c)
-HEADERS=$(wildcard *.h)
+MYCFLAGS=-g -W -Wall -pedantic -std=c99 -I$(shell pwd)
+NET_SOURCES=core btobex irobex inobex
+SOURCES=$(wildcard *.c) $(patsubst %, net/%.c, $(NET_SOURCES))
+HEADERS=$(wildcard *.h net/*.h)
 
 obexpushd_CFLAGS=$(shell $(PKGCONFIG) --cflags openobex bluez)
 obexpushd_LIBS=$(shell $(PKGCONFIG) --libs openobex bluez)
@@ -24,10 +24,10 @@ endif
 
 .PHONY: depend
 depend:
-	$(CC) $(CFLAGS) -MM $(SOURCES) >.dependencies
+	$(CC) $(CFLAGS) $(MYCFLAGS) -MM $(SOURCES) >.dependencies
 
 .dependencies: $(SOURCES) $(HEADERS)
-	$(CC) $(CFLAGS) -MM $(SOURCES) >$@
+	$(CC) $(CFLAGS) $(MYCFLAGS) -MM $(SOURCES) >$@
 
 %.o: %.c
 	$(CC) $(MYCFLAGS) $(CFLAGS) -c -o $@ $<
@@ -43,3 +43,4 @@ install:
 .PHONY: clean
 clean:
 	rm -f $(BINARY) *.o *~ .dependencies
+	rm -f net/*.o net/*~

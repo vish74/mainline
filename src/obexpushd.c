@@ -17,12 +17,12 @@
    
 #define _GNU_SOURCE
 
-#include "obexpush-sdp.h"
 #include "obex_auth.h"
 #include "obexpushd.h"
 #include "data_io.h"
 #include "utf.h"
 #include "md5.h"
+#include "net.h"
 #include "../config.h"
 
 #include <unistd.h>
@@ -38,8 +38,6 @@
 #include <errno.h>
 #include <string.h>
 #include <ctype.h>
-#include <arpa/inet.h>
-#include <net/if.h>
 
 #define PROGRAM_NAME "obexpushd"
 #include "version.h"
@@ -627,7 +625,7 @@ void client_eventcb (obex_t* handle, obex_object_t* obj,
 	}
 }
 
-void handle_client (obex_t* client, listener_data_t* l) {
+void handle_client (obex_t* client) {
 	int status = 0;
 	file_data_t* data = malloc(sizeof(*data));
 
@@ -635,7 +633,6 @@ void handle_client (obex_t* client, listener_data_t* l) {
 		exit(EXIT_FAILURE);
 	if (data) memset(data,0,sizeof(*data));
 	data->id = id++;
-	data->intf = l->intf;
 	data->child = -1;
 	OBEX_SetUserData(client,data);
 	while (status != -1) {
@@ -656,7 +653,6 @@ void eventcb (obex_t* handle, obex_object_t __unused *obj,
 	      int __unused mode, int event,
 	      int __unused obex_cmd, int __unused obex_rsp)
 {
-	listener_data_t* l = OBEX_GetCustomData(handle);
 	if (debug) printf("OBEX_EV_%s, OBEX_CMD_%s\n",
 			  obex_events[event],
 			  obex_commands[obex_cmd]);
@@ -666,135 +662,10 @@ void eventcb (obex_t* handle, obex_object_t __unused *obj,
 	{
 		obex_t* client = OBEX_ServerAccept(handle,client_eventcb,NULL);
 		if (client && (nofork >= 2 || fork() == 0))
-			handle_client(client,l);
+			handle_client(client);
 	}
 	break;
 	}
-}
-
-/*@null@*/
-#if OPENOBEX_TCPOBEX
-#define __inobex_unused
-#else
-#define __inobex_unused __unused
-#endif
-obex_t* inet_listen (
-	const char* address __inobex_unused,
-	uint16_t port __inobex_unused,
-	const char* intf __inobex_unused
-)
-{
-	obex_t* handle = OBEX_Init(OBEX_TRANS_INET,eventcb,OBEX_FL_KEEPSERVER);
-	listener_data_t* l;
-	
-	if (!handle)
-		return NULL;
-
-#if OPENOBEX_TCPOBEX
-	{
-		union {
-			struct sockaddr     raw;
-			struct sockaddr_in  in4;
-			struct sockaddr_in6 in6;
-		} addr;
-
-		if (inet_pton(AF_INET6,address,&addr.in6.sin6_addr) == 1) {
-			addr.raw.sa_family = AF_INET6;
-			addr.in6.sin6_port = htons(port);
-			addr.in6.sin6_flowinfo = 0;
-			addr.in6.sin6_scope_id = 0;
-			if (IN6_IS_ADDR_LINKLOCAL(&addr.in6.sin6_addr) && intf) {
-				addr.in6.sin6_scope_id = if_nametoindex(intf);
-			}
-		} else if (inet_pton(AF_INET,address,&addr.in4.sin_addr) == 1) {
-			addr.raw.sa_family = AF_INET;
-			addr.in4.sin_port = htons(port);
-		} else {
-			return NULL;
-		}
-
-		if (TcpOBEX_ServerRegister(handle,&addr.raw,sizeof(addr)) == -1) {
-			perror("TcpOBEX_ServerRegister");
-			exit(EXIT_FAILURE);
-		} else {
-			fprintf(stderr,"Listening on TCP/%s:%d",address,port);
-		}
-	}
-#else
-	{
-		if (InOBEX_ServerRegister(handle) == -1) {
-			perror("InOBEX_ServerRegister");
-			exit(EXIT_FAILURE);
-		} else {
-			fprintf(stderr,"Listening on TCP/*:650\n");
-		}
-	}
-#endif
-
-	l = malloc(sizeof(*l));
-	if (l == NULL) {
-		perror("OBEX_GetFD(INET_HANDLE)");
-		exit(EXIT_FAILURE);
-	}
-	l->intf = INTF_INET;
-	OBEX_SetCustomData(handle,l);
-	return handle;
-}
-
-/*@null@*/
-obex_t* irda_listen (char* service) {
-	obex_t* handle = OBEX_Init(OBEX_TRANS_IRDA,eventcb,OBEX_FL_KEEPSERVER);
-	listener_data_t* l;
-	
-	if (!handle)
-		return NULL;
-
-	if (IrOBEX_ServerRegister(handle,service) == -1) {
-		perror("IrOBEX_ServerRegister");
-		exit(EXIT_FAILURE);
-	}
-	fprintf(stderr,"Listening on IrDA service \"%s\"\n", service);
-
-	l = malloc(sizeof(*l));
-	if (l == NULL) {
-		perror("OBEX_GetFD(IRDA_HANDLE)");
-		exit(EXIT_FAILURE);
-	}
-	l->intf = INTF_IRDA;
-	OBEX_SetCustomData(handle,l);
-	return handle;
-}
-
-/*@null@*/
-obex_t* bluetooth_listen (uint8_t channel) {
-	obex_t* handle = OBEX_Init(OBEX_TRANS_BLUETOOTH,eventcb,OBEX_FL_KEEPSERVER);
-	sdp_session_t* session;
-	listener_data_t* l;
-  
-	if (!handle)
-		return NULL;
-
-	if (BtOBEX_ServerRegister(handle,BDADDR_ANY,channel) == -1) {
-		perror("BtOBEX_ServerRegister");
-		exit(EXIT_FAILURE);
-	}
-	fprintf(stderr,"Listening on bluetooth channel %u\n",(unsigned int)channel);
-
-	session = bt_sdp_session_open(channel);
-	if (!session) {
-		fprintf(stderr,"SDP session setup failed, disabling bluetooth\n");
-		OBEX_Cleanup(handle);
-		return NULL;
-	}
-
-	l = malloc(sizeof(*l));
-	if (l == NULL) {
-		perror("OBEX_GetFD(BT_HANDLE)");
-		exit(EXIT_FAILURE);
-	}
-	l->intf = INTF_BLUETOOTH;
-	OBEX_SetCustomData(handle,l);
-	return handle;
 }
 
 void print_disclaimer () {
@@ -828,34 +699,25 @@ void print_help (char* me) {
 }
 
 int main (int argc, char** argv) {
-	int retval = EXIT_SUCCESS;
-	int c;
-
-	intf_t intf = 0;
-	uint8_t btchan = 9;
-	char* irda_extra = NULL;
-/*
-	struct {
-		char* address;
-		uint16_t port;
-		char* intf;
-	} inet_params;
-*/
+	size_t i;
+	int topfd = 0;
 	char* pidfile = NULL;
 
-	
-	
-	obex_t* handle[4] = { NULL, NULL, NULL, NULL };
+	struct net_data* handle[4] = {
+		NULL, NULL, NULL, NULL
+	};
 #define BT_HANDLE         handle[0]
 #define IRDA_HANDLE       handle[1]
 #define IRDA_EXTRA_HANDLE handle[2]  
 #define INET_HANDLE       handle[3]
-	int topfd = 0;
-	
+
+	int c;
 	while ((c = getopt(argc,argv,"B::I::N::a:dhnp:r:s:v")) != -1) {
 		switch (c) {
 		case 'B':
-			intf |= (1 << INTF_BLUETOOTH);
+		{
+			uint8_t btchan = 9;
+			BT_HANDLE = net_data_new();
 			if (optarg) {
 				int arg = atoi(optarg);
 				if (arg < 0x00 || arg > 0xFF) {
@@ -864,15 +726,33 @@ int main (int argc, char** argv) {
 				}
 				btchan = (uint8_t)arg;
 			}
+			if (bluetooth_setup(BT_HANDLE, btchan)) {
+				net_cleanup(BT_HANDLE);
+				BT_HANDLE = NULL;
+			}
 			break;
+		}
 
 		case 'I':
-			intf |= (1 << INTF_IRDA);
-			irda_extra = optarg;
+			IRDA_HANDLE = net_data_new();
+			if (irda_setup(IRDA_HANDLE, NULL)) {
+				net_cleanup(IRDA_HANDLE);
+				IRDA_HANDLE = NULL;
+			}
+			if (optarg) {
+				IRDA_EXTRA_HANDLE = net_data_new();
+				if (irda_setup(IRDA_EXTRA_HANDLE, optarg)) {
+					net_cleanup(IRDA_EXTRA_HANDLE);
+					IRDA_EXTRA_HANDLE = NULL;
+				}
+			}
 			break;
 
 		case 'N':
-			intf |= (1 << INTF_INET);
+		{
+			char* address = "*";
+			uint16_t port = 650;
+			char* intf = NULL;
 			if (optarg) {
 				/* The following types are valid:
 				 * PARAM = ADDRESS ":" PORT
@@ -886,7 +766,13 @@ int main (int argc, char** argv) {
 				 * "[%s%%%s]"
 				 */				
 			}
+			INET_HANDLE = net_data_new();
+			if (tcp_setup(INET_HANDLE, address, port, intf)) {
+				net_cleanup(IRDA_HANDLE);
+				IRDA_HANDLE = NULL;
+			}
 			break;
+		}
 
 		case 'd':
 			debug = 1;
@@ -921,9 +807,21 @@ int main (int argc, char** argv) {
 			exit(EXIT_SUCCESS);
 		}
 	}
-	if (intf == 0) intf |= (1 << INTF_BLUETOOTH);
 
-	printf("%d\n",nofork);
+	/* check that at least one listener was enabled */
+	for (i = 0; i < sizeof(handle)/sizeof(*handle); ++i) {
+		if (handle[i])
+			break;
+	}
+	if (i == sizeof(handle)/sizeof(*handle)) {
+		BT_HANDLE = net_data_new();
+		if (bluetooth_setup(BT_HANDLE, 9)) {
+			net_cleanup(BT_HANDLE);
+			exit(EXIT_FAILURE);
+		}
+	}
+		
+	/* fork if allowed (detach from terminal) */
 	if (nofork < 1) {
 		if (daemon(1,0) < 0) {
 			perror("daemon()");
@@ -940,99 +838,47 @@ int main (int argc, char** argv) {
 		print_disclaimer();
 	}
 	
-	if (intf & (1 << INTF_BLUETOOTH)) {
+	/* initialize all enabled listeners */
+	(void)signal(SIGCLD, SIG_IGN);
+	for (i = 0; i < sizeof(handle)/sizeof(*handle); ++i) {
 		int fd = -1;
-		BT_HANDLE = bluetooth_listen(btchan);
-		if (BT_HANDLE)
-			fd = OBEX_GetFD(BT_HANDLE);
+		if (!handle[i])
+			continue;
+		net_init(handle[i], eventcb);
+		if (handle[i]->obex)
+			fd = OBEX_GetFD(handle[i]->obex);
 		if (fd == -1) {
-			perror("OBEX_GetFD(BT_HANDLE)");
+			perror("OBEX_GetFD()");
 			exit(EXIT_FAILURE);
 		}
 		if (fd > topfd)
 			topfd = fd;
 	}
-	if (intf & (1 << INTF_IRDA)) {
-		int fd = -1;
-		IRDA_HANDLE = irda_listen("OBEX");
-		if (IRDA_HANDLE)
-			fd = OBEX_GetFD(IRDA_HANDLE);
-		if (fd == -1) {
-			perror("OBEX_GetFD(IRDA_HANDLE)");
-			exit(EXIT_FAILURE);
-		}
-		if (fd > topfd)
-			topfd = fd;
-		if (irda_extra) {
-			size_t slen = 5+strlen(irda_extra)+1;
-			char* service = malloc(slen);
-			if (service) {
-				fd = -1;
-				(void)snprintf(service,slen,"OBEX:%s",irda_extra);
-				IRDA_EXTRA_HANDLE = irda_listen(service);
-				if (IRDA_EXTRA_HANDLE)
-					fd = OBEX_GetFD(IRDA_EXTRA_HANDLE);
-				if (fd == -1) {
-					perror("OBEX_GetFD(IRDA_EXTRA_HANDLE)");
-					exit(EXIT_FAILURE);
-				}
-				if (fd > topfd)
-					topfd = fd;
-				free(service);
-			}
-		}
-	}
-	if (intf & (1 << INTF_INET)) {
-		int fd = -1;
-		INET_HANDLE = inet_listen("*",650,NULL);
-		if (INET_HANDLE)
-			fd = OBEX_GetFD(INET_HANDLE);
-		if (fd == -1) {
-			perror("OBEX_GetFD(INET_HANDLE)");
-			exit(EXIT_FAILURE);
-		}
-		if (fd > topfd)
-			topfd = fd;
-	}
-
 	++topfd;
 	
-	(void)signal(SIGCLD, SIG_IGN);
+	/* run the multiplexer */
 	do {
-		int fd = -1;
 		fd_set fds;
 		FD_ZERO(&fds);
-		if (intf & (1 << INTF_BLUETOOTH))
-			FD_SET(OBEX_GetFD(BT_HANDLE),&fds);
-		if (intf & (1 << INTF_IRDA)) {
-			FD_SET(OBEX_GetFD(IRDA_HANDLE),&fds);
-			if (irda_extra)
-				FD_SET(OBEX_GetFD(IRDA_EXTRA_HANDLE),&fds);
+		for (i = 0; i < sizeof(handle)/sizeof(*handle); ++i) {
+			if (!handle[i])
+				continue;
+			if (handle[i]->obex)
+				FD_SET(OBEX_GetFD(handle[i]->obex), &fds);
 		}
-		if (intf & (1 << INTF_INET))
-			FD_SET(OBEX_GetFD(INET_HANDLE),&fds);
 		select(topfd,&fds,NULL,NULL,NULL);
-		if (intf & (1 << INTF_BLUETOOTH)) {
-			fd = OBEX_GetFD(BT_HANDLE);
+		for (i = 0; i < sizeof(handle)/sizeof(*handle); ++i) {
+			int fd = -1;
+			if (!handle[i])
+				continue;
+			if (!handle[i]->obex)
+				continue;
+			fd = OBEX_GetFD(handle[i]->obex);
 			if (FD_ISSET(fd,&fds))
-				(void)OBEX_HandleInput(BT_HANDLE,1);
-		}
-		if (intf & (1 << INTF_IRDA)) {
-			fd = OBEX_GetFD(IRDA_HANDLE);
-			if (FD_ISSET(fd,&fds))
-				(void)OBEX_HandleInput(IRDA_HANDLE,1);
-			if (irda_extra) {
-				fd = OBEX_GetFD(IRDA_EXTRA_HANDLE);
-				if (FD_ISSET(fd,&fds))
-					(void)OBEX_HandleInput(IRDA_EXTRA_HANDLE,1);	  
-			}
-		}
-		if (intf & (1 << INTF_INET)) {
-			fd = OBEX_GetFD(INET_HANDLE);
-			if (FD_ISSET(fd,&fds))
-				(void)OBEX_HandleInput(INET_HANDLE,1);
-		}
+				(void)OBEX_HandleInput(handle[i]->obex,1);
+		}			
 	} while (1);
-	
-	return retval;
+
+	/* never reached */
+	return EXIT_FAILURE;
 }

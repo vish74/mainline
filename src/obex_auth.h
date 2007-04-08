@@ -1,4 +1,6 @@
 #include <inttypes.h>
+/* not needed here but needed if you ever need bluetooth elsewhere */
+#include <bluetooth/bluetooth.h>
 #include <openobex/obex.h>
 
 #define OBEX_AUTH_OPT_USER_REQ (1 << 0) /* request user identifier */
