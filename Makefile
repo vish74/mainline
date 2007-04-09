@@ -13,3 +13,4 @@ install: src-install doc-install
 
 .PHONY: clean
 clean: src-clean doc-clean
+	rm -f *~
