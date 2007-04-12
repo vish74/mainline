@@ -58,3 +58,11 @@ add_executable ( obexpushd
 set_target_properties ( obexpushd PROPERTIES
   LINK_FLAGS "${OPENOBEX_LINK_FLAGS} ${BLUEZ_LINK_FLAGS}"
 )
+
+INSTALL (
+  TARGETS obexpushd
+  RUNTIME DESTINATION bin
+  PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE
+              GROUP_READ             GROUP_EXECUTE
+	      WORLD_READ             WORLD_EXECUTE
+)

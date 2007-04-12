@@ -10,3 +10,22 @@ xmlto (
   MODES man html
   ALL
 )
+
+foreach ( file ${XMLTO_FILES_man} )
+  get_filename_component ( fileExt ${file} EXT )
+  string ( REGEX REPLACE "^[.]" "" fileExt ${fileExt} )
+  INSTALL (
+    FILES ${file}
+    DESTINATION share/man/man${fileExt}
+    PERMISSIONS OWNER_READ OWNER_WRITE
+                GROUP_READ
+                WORLD_READ
+  )
+endforeach ( file ${XMLTO_FILES_man} )
+INSTALL (
+  FILES ${XMLTO_FILES_html}
+  DESTINATION share/doc
+  PERMISSIONS OWNER_READ OWNER_WRITE
+              GROUP_READ
+              WORLD_READ
+)
