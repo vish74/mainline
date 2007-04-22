@@ -23,7 +23,6 @@
 #include "utf.h"
 #include "md5.h"
 #include "net.h"
-#include "../config.h"
 
 #include <unistd.h>
 #include <stdlib.h>
