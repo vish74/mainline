@@ -6,6 +6,7 @@ openobex >= 1.1
 bluez-lib
 
 You also must have installed:
+cmake (>= 2.4.5)
 pkg-config
 xmlto
 
@@ -13,8 +14,9 @@ xmlto
 Building:
 =========
 
-Simply run make.
-For special needs, define CFLAGS, LDFLAGS or LIBS.
+Run the configure script (either locally or from any other dir).
+If you ran configure locally, change to the build/ directory.
+Run make.
 
 
 Installing:
@@ -22,7 +24,7 @@ Installing:
 
 Run:
 $ make install
-You can optionally define DESTDIR and prefix variables.
+You can optionally define the DESTDIR variable.
 
 
 Using:
