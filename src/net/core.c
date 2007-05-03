@@ -23,6 +23,9 @@ void net_init (
 			OBEX_Cleanup(data->obex);
 		data->obex = data->funcs->init(data->arg, eventcb);
 	}
+	if (data->obex) {
+		OBEX_SetUserData(data->obex, data);
+	}
 }
 
 void net_security_init (struct net_data* data)
@@ -35,6 +38,12 @@ void net_security_cleanup (struct net_data* data)
 {
 	if (data->funcs && data->funcs->security_cleanup)
 		data->funcs->security_cleanup(data->arg);
+}
+
+void net_get_peer (struct net_data* data, char* buffer, size_t bufsiz)
+{
+	if (data->funcs && data->funcs->get_peer)
+		data->funcs->get_peer(data->obex, buffer, bufsiz);	
 }
 
 void net_cleanup (struct net_data* data)

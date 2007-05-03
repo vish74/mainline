@@ -624,13 +624,21 @@ void client_eventcb (obex_t* handle, obex_object_t* obj,
 	}
 }
 
-void handle_client (obex_t* client) {
+void handle_client (obex_t* client, struct net_data* net_data) {
 	int status = 0;
 	file_data_t* data = malloc(sizeof(*data));
+	char buffer[256];
 
 	if (!client)
 		exit(EXIT_FAILURE);
-	if (data) memset(data,0,sizeof(*data));
+
+	memset(buffer, 0, sizeof(buffer));
+	net_data->obex = client;
+	net_get_peer(net_data, buffer, sizeof(buffer));
+	fprintf(stderr,"Connection from \"%s\"\n", buffer);
+
+	if (data)
+		memset(data,0,sizeof(*data));
 	data->id = id++;
 	data->child = -1;
 	OBEX_SetUserData(client,data);
@@ -661,7 +669,7 @@ void eventcb (obex_t* handle, obex_object_t __unused *obj,
 	{
 		obex_t* client = OBEX_ServerAccept(handle,client_eventcb,NULL);
 		if (client && (nofork >= 2 || fork() == 0))
-			handle_client(client);
+			handle_client(client, OBEX_GetUserData(handle));
 	}
 	break;
 	}

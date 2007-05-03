@@ -5,6 +5,10 @@
 #include <stdlib.h>
 #include <errno.h>
 
+#include <bluetooth/bluetooth.h>
+#include <bluetooth/rfcomm.h>
+#include <sys/socket.h>
+
 struct bluetooth_args {
 	uint8_t channel;
 };
@@ -48,8 +52,42 @@ obex_t* bluetooth_init(
 }
 
 static
+int bluetooth_get_peer(
+	obex_t* handle,
+	char* buffer,
+	size_t bufsiz
+)
+{
+	struct sockaddr_rc addr;
+	socklen_t addrlen = sizeof(addr);
+	char addrstr[128];
+	char tmp[256];
+
+	int status;
+	int sock = OBEX_GetFD(handle);
+
+	if (sock == -1)
+		return -EBADF;
+	status = getpeername(sock, (struct sockaddr*) &addr, &addrlen);
+	if (status == -1)
+		return -errno;
+	if (addr.rc_family != AF_BLUETOOTH)
+		return -EBADF;
+
+	memset(addrstr, 0, sizeof(addrstr));
+	ba2str(&addr.rc_bdaddr, addrstr);
+	status = snprintf(tmp, sizeof(tmp), "bluetooth/[%s]:%u", addrstr, addr.rc_channel);
+
+	if (buffer)
+		strncpy(buffer, tmp, bufsiz);
+
+	return status;
+}
+
+static
 struct net_funcs bluetooth_funcs = {
-	.init = bluetooth_init
+	.init = bluetooth_init,
+	.get_peer = bluetooth_get_peer
 };
 
 int bluetooth_setup(
