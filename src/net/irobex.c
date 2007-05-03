@@ -6,6 +6,9 @@
 #include <errno.h>
 #include <string.h>
 
+#include <linux/types.h>
+#include <linux/irda.h>
+
 struct irda_args {
 	char* service;
 };
@@ -40,8 +43,40 @@ obex_t* irda_init(
 }
 
 static
+int irda_get_peer(
+	obex_t* handle,
+	char* buffer,
+	size_t bufsiz
+)
+{
+	struct sockaddr_irda addr;
+	socklen_t addrlen = sizeof(addr);
+	char tmp[256];
+
+	int status;
+	int sock = OBEX_GetFD(handle);
+
+	if (sock == -1)
+		return -EBADF;
+	status = getpeername(sock, (struct sockaddr*) &addr, &addrlen);
+	if (status == -1)
+		return -errno;
+	if (addr.sir_family != AF_IRDA)
+		return -EBADF;
+
+	status = snprintf(tmp, sizeof(tmp), "irda/[%8X]%s%s", addr.sir_addr,
+			  (strlen(addr.sir_name)? ":": ""), addr.sir_name);
+
+	if (buffer)
+		strncpy(buffer, tmp, bufsiz);
+
+	return status;
+}
+
+static
 struct net_funcs irda_funcs = {
-	.init = irda_init
+	.init = irda_init,
+	.get_peer = irda_get_peer
 };
 
 int irda_setup(
