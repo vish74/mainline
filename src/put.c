@@ -48,6 +48,7 @@ static
 int put_open_pipe (file_data_t* data, char* script) {
 	int err = 0;
 	int p = 0;
+	char from[256];
 	uint8_t* name = utf16to8(data->name);
 	char* args[5] = {
 		script,
@@ -68,14 +69,18 @@ int put_open_pipe (file_data_t* data, char* script) {
 	}
 	free(name);
 
+	memset(from, 0, sizeof(from));
+	net_get_peer(data->net_data, from, sizeof(from));
+
 	/* headers can be written here */
-	fprintf(data->out,"Name: %s\r\n",name);
-	fprintf(data->out,"Length: %u\r\n",data->length);
+	fprintf(data->out, "From: %s\r\n", (strlen(from)? from: "unknown"));
+	fprintf(data->out, "Name: %s\r\n", name);
+	fprintf(data->out, "Length: %u\r\n", data->length);
 	if (data->type)
-		fprintf(data->out,"Type: %s\r\n",data->type);
+		fprintf(data->out, "Type: %s\r\n", data->type);
 	
 	/* empty line signals that data follows */
-	(void)fprintf(data->out,"\r\n");
+	fprintf(data->out, "\r\n");
 
 	return (err? err: p);
 }

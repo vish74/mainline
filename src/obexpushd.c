@@ -632,16 +632,18 @@ void handle_client (obex_t* client, struct net_data* net_data) {
 	if (!client)
 		exit(EXIT_FAILURE);
 
+	if (data)
+		memset(data,0,sizeof(*data));
+	data->id = id++;
+	data->child = -1;
+	data->net_data = net_data;
+	OBEX_SetUserData(client,data);
+
 	memset(buffer, 0, sizeof(buffer));
 	net_data->obex = client;
 	net_get_peer(net_data, buffer, sizeof(buffer));
 	fprintf(stderr,"Connection from \"%s\"\n", buffer);
 
-	if (data)
-		memset(data,0,sizeof(*data));
-	data->id = id++;
-	data->child = -1;
-	OBEX_SetUserData(client,data);
 	while (status != -1) {
 		status = OBEX_HandleInput(client,10);
 	}
