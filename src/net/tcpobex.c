@@ -66,8 +66,44 @@ obex_t* tcp_init(
 }
 
 static
+int tcp_get_peer(
+	obex_t* handle,
+	char* buffer,
+	size_t bufsiz
+)
+{
+	struct sockaddr_in6 addr;
+	socklen_t addrlen = sizeof(addr);
+	char addrstr[INET6_ADDRSTRLEN];
+	char tmp[256];
+
+	int status;
+	int sock = OBEX_GetFD(handle);
+
+	if (sock == -1)
+		return -EBADF;
+	status = getpeername(sock, (struct sockaddr*) &addr, &addrlen);
+	if (status == -1)
+		return -errno;
+
+	if (addr.sin6_family != AF_INET6)
+		return -EBADF;
+
+	memset(addrstr, 0, sizeof(addrstr));
+	if (inet_ntop(AF_INET6, &addr.sin6_addr, addrstr, sizeof(addrstr)) == NULL)
+		return -errno;
+	status = snprintf(tmp, sizeof(tmp), "tcp/[%s]:%u", addrstr, addr.sin6_port);
+
+	if (buffer)
+		strncpy(buffer, tmp, bufsiz);
+
+	return status;
+}
+
+static
 struct net_funcs tcp_funcs = {
-	.init = tcp_init
+	.init = tcp_init,
+	.get_peer = tcp_get_peer
 };
 
 int tcp_setup(
