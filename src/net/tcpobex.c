@@ -30,27 +30,33 @@ obex_t* _tcp_init (
 			struct sockaddr_in  in4;
 			struct sockaddr_in6 in6;
 		} addr;
+		char* addrstr = args->address;
 
-		if (inet_pton(AF_INET6,args->address,&addr.in6.sin6_addr) == 1) {
+		if (strcmp(args->address, "*") == 0)
+			addrstr = "::";
+			
+		if (inet_pton(AF_INET6, addrstr, &addr.in6.sin6_addr) == 1) {
 			addr.raw.sa_family = AF_INET6;
 			addr.in6.sin6_port = htons(args->port);
 			addr.in6.sin6_flowinfo = 0;
 			addr.in6.sin6_scope_id = 0;
-			if (IN6_IS_ADDR_LINKLOCAL(&addr.in6.sin6_addr) && args->intf) {
+			if (IN6_IS_ADDR_LINKLOCAL(&addr.in6.sin6_addr) && args->intf)
 				addr.in6.sin6_scope_id = if_nametoindex(args->intf);
-			}
-		} else if (inet_pton(AF_INET,args->address,&addr.in4.sin_addr) == 1) {
+
+		} else if (inet_pton(AF_INET, args->address, &addr.in4.sin_addr) == 1) {
 			addr.raw.sa_family = AF_INET;
 			addr.in4.sin_port = htons(args->port);
+
 		} else {
 			return NULL;
 		}
 
-		if (TcpOBEX_ServerRegister(handle,&addr.raw,sizeof(addr)) == -1) {
+		if (TcpOBEX_ServerRegister(handle, &addr.raw, sizeof(addr)) == -1) {
 			perror("TcpOBEX_ServerRegister");
 			return NULL;
+
 		} else {
-			fprintf(stderr,"Listening on TCP/%s:%d",args->address,args->port);
+			fprintf(stderr, "Listening on TCP/%s:%d\n", args->address, args->port);
 		}
 	}
 	return handle;

@@ -763,17 +763,9 @@ int main (int argc, char** argv) {
 			uint16_t port = 650;
 			char* intf = NULL;
 			if (optarg) {
-				/* The following types are valid:
-				 * PARAM = ADDRESS ":" PORT
-				 * ADDRESS = ADDR4 | "[" ADDR6 "]"
-				 * ADDR4 = aaa.bbb.ccc.ddd
-				 * ADDR6 = ADDR6PART | ADDR6PART "%" INTERFACE
-				 *
-				 * "%d.%d.%d.%d"
-				 * "%d.%d.%d.%d"
-				 * "[%s]"
-				 * "[%s%%%s]"
-				 */				
+				long portnum = strtol(optarg, NULL, 10);
+				if (portnum > 0 && portnum < (1 << 16))
+					port = portnum;
 			}
 			INET_HANDLE = net_data_new();
 			if (tcp_setup(INET_HANDLE, address, port, intf)) {
