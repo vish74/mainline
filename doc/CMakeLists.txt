@@ -24,7 +24,7 @@ foreach ( file ${XMLTO_FILES_man} )
 endforeach ( file ${XMLTO_FILES_man} )
 INSTALL (
   FILES ${XMLTO_FILES_html}
-  DESTINATION share/doc
+  DESTINATION share/doc/${PROJECT_NAME}
   PERMISSIONS OWNER_READ OWNER_WRITE
               GROUP_READ
               WORLD_READ
