@@ -117,6 +117,7 @@ int get_close (obex_t* handle, int w) {
 int get_open (obex_t* handle, char* script) {
 	file_data_t* data = OBEX_GetUserData(handle);
 	int err = 0;
+	int p[2] = { -1, -1};
 	uint8_t* name = utf16to8(data->name);
 	char* args[5] = {
 		script,
@@ -127,17 +128,22 @@ int get_open (obex_t* handle, char* script) {
 	};
 
 	if (data->out) {
-		int err = get_close(handle,(script != NULL));
+	        err = get_close(handle,(script != NULL));
 		if (err < 0)
 			return err;
 	}
 
-	err = pipe_open(script,args,O_WRONLY,&data->child);
-	if (err >= 0) {
-		data->out = fdopen(err,"w");
-		if (data->out == NULL)
-			err = -errno;
+	data->child = pipe_open(script, args, p);
+	if (p[0] >= 0) {
+		data->out = fdopen(p[1], "r");
+		if (data->out == NULL) {
+			err = errno;
+			pipe_close(p);
+			return -err;
+		}
 	}
+	//TODO: get needs the From-Header, too
+	close(p[1]);
 
 	if (err == 0)
 		err = get_parse_headers(handle);

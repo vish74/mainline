@@ -45,44 +45,61 @@ int put_close (obex_t* handle, int w) {
 }
 
 static
+int put_wait_for_ok (int fd)
+{
+	char ret[3+1];
+	memset(ret, 0, sizeof(ret));
+	read(fd, ret, 3);
+	if (strncmp(ret, "OK\n", 3) != 0)
+		return -EPERM;
+	return 0;
+}
+
+static
 int put_open_pipe (file_data_t* data, char* script) {
 	int err = 0;
-	int p = 0;
+	int p[2] = { -1, -1};
 	char from[256];
 	uint8_t* name = utf16to8(data->name);
 	char* args[5] = {
 		script,
 		"put",
-		(char*)name,
-		data->type,
 		NULL
 	};
 
 	if (!name)
 		return -EINVAL;
 
-	p = pipe_open(script,args,O_WRONLY,&data->child);
-	if (p >= 0) {
-		data->out = fdopen(p,"w");
-		if (data->out == NULL)
-			err = -errno;
+	data->child = pipe_open(script, args, p);
+	if (p[1] >= 0) {
+		data->out = fdopen(p[1], "w");
+		if (data->out == NULL) {
+			err = errno;
+			pipe_close(p);
+			return -err;
+		}
 	}
-	free(name);
 
 	memset(from, 0, sizeof(from));
 	net_get_peer(data->net_data, from, sizeof(from));
 
 	/* headers can be written here */
-	fprintf(data->out, "From: %s\r\n", (strlen(from)? from: "unknown"));
-	fprintf(data->out, "Name: %s\r\n", name);
-	fprintf(data->out, "Length: %u\r\n", data->length);
+	fprintf(data->out, "From: %s\n", (strlen(from)? from: "unknown"));
+	fprintf(data->out, "Name: %s\n", name);
+	fprintf(data->out, "Length: %u\n", data->length);
 	if (data->type)
-		fprintf(data->out, "Type: %s\r\n", data->type);
+		fprintf(data->out, "Type: %s\n", data->type);
+
+	free(name);
 	
 	/* empty line signals that data follows */
-	fprintf(data->out, "\r\n");
+	fprintf(data->out, "\n");
+	fflush(data->out);
 
-	return (err? err: p);
+	err = put_wait_for_ok(p[0]);
+	close(p[0]);
+
+	return err;
 }
 
 static
@@ -102,7 +119,8 @@ int put_open_file (file_data_t* data) {
 	}
 	free(n);
 	if (status < 0) {
-		fprintf(stderr,"%u.%u: Error: cannot create file: %s\n",data->id,data->count,strerror(-status));
+		fprintf(stderr, "%u.%u: Error: cannot create file: %s\n",
+			data->id, data->count, strerror(-status));
 		data->out = NULL;
 		return status;
 	}		

@@ -96,14 +96,17 @@ ssize_t get_pass_for_user (char* file,
 	ssize_t ret = 0;
 	size_t lsize = ulen+1+size+3;
 	char* line = malloc(lsize);
-	int status;
+	int status = 0;
 	FILE* f;
 	
 	if (!line)
 		return -ENOMEM;
 	if (file[0] == '|') {
 		char* args[2] = { file+1, (char*)user };
-		status = pipe_open(args[0],args,O_RDONLY,NULL);
+		int fds[2];
+		(void)pipe_open(args[0],args,fds);
+		close(fds[1]);
+		status = fds[0];
 	} else {
 		status = file_open(file,O_RDONLY);
 	}
