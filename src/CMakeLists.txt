@@ -2,25 +2,18 @@
 #      in a CMake release
 
 include ( UsePkgConfig )
-
-pkgconfig ( openobex
-  OPENOBEX_INCLUDE_DIR
-  OPENOBEX_LINK_DIR
-  OPENOBEX_LINK_FLAGS
-  OPENOBEX_CFLAGS
-)
-pkgconfig ( bluez
-  BLUEZ_INCLUDE_DIR
-  BLUEZ_LINK_DIR
-  BLUEZ_LINK_FLAGS
-  BLUEZ_CFLAGS
-)
-foreach ( i OPENOBEX BLUEZ )
+foreach ( i openobex bluez )
+  pkgconfig ( ${i}
+    ${i}_INCLUDE_DIR
+    ${i}_LINK_DIR
+    ${i}_LINK_FLAGS
+    ${i}_CFLAGS
+  )
   #hack around buggy CMake module: remove newlines
-  foreach ( k  INCLUDE_DIR LINK_DIR LINK_FLAGS CFLAGS )
+  foreach ( k INCLUDE_DIR LINK_DIR LINK_FLAGS CFLAGS )
     string ( REGEX REPLACE "[\r\n]" "" ${i}_${k} ${${i}_${k}} )
-  endforeach ( k  INCLUDE_DIR LINK_DIR LINK_FLAGS CFLAGS )
-  include_directories ( ${${i}_INCLUDE_DIR} ) 
+  endforeach ( k INCLUDE_DIR LINK_DIR LINK_FLAGS CFLAGS )
+  include_directories ( ${${i}_INCLUDE_DIR} )
   link_directories ( ${${i}_LINK_DIR} )
   add_definitions ( ${${i}_CFLAGS} )
 endforeach ( i OPENOBEX BLUEZ )
@@ -40,12 +33,6 @@ if ( USE_TCPOBEX )
 else ( USE_TCPOBEX )
   set ( SOURCES ${SOURCES} net/inobex.c )
 endif ( USE_TCPOBEX )
-
-#if that ever makes it to upstream
-check_function_exists ( OBEX_DebugSet OBEX_NEWDEBUG )
-if ( OBEX_NEWDEBUG )
-  add_definitions ( -DOPENOBEX_NEWDEBUG=1 )
-endif ( OBEX_NEWDEBUG )
 
 set ( SOURCES
   obexpushd.c
@@ -68,7 +55,7 @@ add_executable ( obexpushd
 )
 
 set_target_properties ( obexpushd PROPERTIES
-  LINK_FLAGS "${OPENOBEX_LINK_FLAGS} ${BLUEZ_LINK_FLAGS}"
+  LINK_FLAGS "${openobex_LINK_FLAGS} ${bluez_LINK_FLAGS}"
 )
 
 install (
