@@ -135,15 +135,41 @@ int get_open (obex_t* handle, char* script) {
 
 	data->child = pipe_open(script, args, p);
 	if (p[0] >= 0) {
-		data->out = fdopen(p[1], "r");
+		data->out = fdopen(p[0], "r");
 		if (data->out == NULL) {
 			err = errno;
 			pipe_close(p);
 			return -err;
 		}
 	}
-	//TODO: get needs the From-Header, too
-	close(p[1]);
+
+	if (p[1] >= 0) {
+		char from[256];
+		FILE* ctrl = fdopen(p[1], "w");
+
+		if (ctrl == NULL) {
+			err = errno;
+			pipe_close(p);
+			return -err;
+		}
+
+		memset(from, 0, sizeof(from));
+		net_get_peer(data->net_data, from, sizeof(from));
+
+		/* headers can be written here */
+		fprintf(ctrl, "From: %s\n", (strlen(from)? from: "unknown"));
+		if (strlen(name))
+			fprintf(ctrl, "Name: %s\n", name);
+		if (data->type)
+			fprintf(ctrl, "Type: %s\n", data->type);
+
+		/* empty line signals that data follows */
+		fprintf(ctrl, "\n");
+		fflush(ctrl);
+
+		close(p[1]);
+	}
+	free(name);
 
 	if (err == 0)
 		err = get_parse_headers(handle);
