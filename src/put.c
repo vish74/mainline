@@ -86,7 +86,7 @@ int put_open_pipe (file_data_t* data, char* script) {
 	/* headers can be written here */
 	fprintf(data->out, "From: %s\n", (strlen(from)? from: "unknown"));
 	fprintf(data->out, "Name: %s\n", name);
-	fprintf(data->out, "Length: %u\n", data->length);
+	fprintf(data->out, "Length: %zu\n", data->length);
 	if (data->type)
 		fprintf(data->out, "Type: %s\n", data->type);
 
