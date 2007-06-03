@@ -681,7 +681,7 @@ void eventcb (obex_t* handle, obex_object_t __unused *obj,
 }
 
 void print_disclaimer () {
-	printf(PROGRAM_NAME " " OBEXPUSHD_VERSION " Copyright (C) 2006,2007 Hendrik Sattler\n"
+	printf(PROGRAM_NAME " " OBEXPUSHD_VERSION " Copyright (C) 2006-2007 Hendrik Sattler\n"
 	       "This software comes with ABSOLUTELY NO WARRANTY.\n"
 	       "This is free software, and you are welcome to redistribute it\n"
 	       "under certain conditions.\n");
@@ -693,9 +693,9 @@ void print_help (char* me) {
 	printf("Usage: %s [<interfaces>] [<options>]\n", me);
 	printf("\n"
 	       "Interfaces:\n"
-	       " -B[<channel>]  listen to bluetooth connections (default with channel 9)\n"
+	       " -B[<channel>]  listen to bluetooth connections (default: channel 9)\n"
 	       " -I[<app>]      listen to IrDA connections (app example: IrXfer)\n"
-	       " -N             listen to IP Network connections\n"
+	       " -N[<port>]     listen to IP Network connections (default: port 650)\n"
 	       "\n"
 	       "Options:\n"
 	       " -n             do not detach from terminal\n"
