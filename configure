@@ -1,4 +1,5 @@
 #!/bin/sh
+generator="Unix Makefiles"
 projectPath=$(dirname $0)
 localConfigure=0
 if test ${projectPath} = "."; then
@@ -10,7 +11,7 @@ if test ${projectPath} = "."; then
 fi
 
 rm -f CMakeCache.txt
-cmake ${projectPath}
+cmake -G "${generator}" ${projectPath}
 
 if test ${localConfigure} -eq 1; then
   echo "Now run \"cd build\" to change to the build directory."
