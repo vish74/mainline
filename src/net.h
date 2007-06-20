@@ -5,10 +5,17 @@ struct net_data {
 	void* arg;
 	obex_t* obex;
 	struct net_funcs* funcs;
+
+	/* auth */
+	uint8_t nonce[16];
+	int auth_success;
 };
 struct net_data* net_data_new ();
 void net_init (struct net_data* data, obex_event_t eventcb);
-void net_security_init (struct net_data* data);
+void net_security_init (
+	struct net_data* data,
+	obex_object_t* obj
+);
 void net_security_cleanup (struct net_data* data);
 void net_get_peer (struct net_data* data, char* buffer, size_t bufsiz);
 void net_cleanup (struct net_data* data);

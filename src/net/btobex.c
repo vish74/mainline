@@ -52,6 +52,22 @@ obex_t* bluetooth_init(
 }
 
 static
+void _bluetooth_security_init(
+	struct bluetooth_args* arg
+)
+{
+	/* socket option RFCOMM_LM_AUTH: here or in init()? */
+}
+
+static
+void bluetooth_security_init(
+	void* arg
+)
+{
+	_bluetooth_security_init((struct bluetooth_args*)arg);
+}
+
+static
 int bluetooth_get_peer(
 	obex_t* handle,
 	char* buffer,
@@ -87,7 +103,8 @@ int bluetooth_get_peer(
 static
 struct net_funcs bluetooth_funcs = {
 	.init = bluetooth_init,
-	.get_peer = bluetooth_get_peer
+	.get_peer = bluetooth_get_peer,
+	//.security_init = bluetooth_security_init
 };
 
 int bluetooth_setup(

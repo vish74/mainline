@@ -18,3 +18,5 @@ struct net_funcs {
 	 */
 	int  (*get_peer)(obex_t*, char* buffer, size_t bufsiz);
 };
+
+int get_nonce (/*@out@*/ uint8_t nonce[16]);

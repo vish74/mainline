@@ -19,10 +19,6 @@ typedef struct {
 	pid_t child;
 	uint8_t buffer[1000];
 
-	/* auth */
-	uint8_t nonce[16];
-	int auth_success;
-
 	struct net_data* net_data;
 } file_data_t;
 

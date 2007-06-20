@@ -21,7 +21,6 @@
 #include "obexpushd.h"
 #include "data_io.h"
 #include "utf.h"
-#include "md5.h"
 #include "net.h"
 
 #include <unistd.h>
@@ -69,22 +68,6 @@ static /*@null@*/ char* auth_file = NULL;
 static /*@null@*/ char* realm_file = NULL;
 static /*@null@*/ char* script = NULL;
 
-#define RANDOM_FILE "/dev/urandom"
-int get_nonce (/*@out@*/ uint8_t nonce[16]) {
-	int fd = open(RANDOM_FILE,O_RDONLY);
-	uint8_t n[16];
-	int status;
-	if (fd < 0)
-		return -errno;
-	status = (int)read(fd,n,sizeof(n));
-	if (status < 0)
-		return -errno;
-	if (status == 0)
-		return -EIO;
-	MD5(nonce,n,(size_t)status);
-	(void)close(fd);
-	return 0;
-}
 
 #define EOL(n) ((n) == '\n' || (n) == '\r')
 
@@ -325,12 +308,12 @@ void obex_object_headers (obex_t* handle, obex_object_t* obj) {
 			break;
 
 		case OBEX_HDR_AUTHCHAL:
-			if (realm_file && data->auth_success)
+			if (realm_file && data->net_data->auth_success)
 				(void)obex_auth_send_response(handle,obj,value,vsize);
 			break;
 
 		case OBEX_HDR_AUTHRESP:
-			data->auth_success = obex_auth_verify_response(handle,value,vsize);
+			data->net_data->auth_success = obex_auth_verify_response(handle,value,vsize);
 			break;
 
 		default:
@@ -344,24 +327,12 @@ void obex_action_connect (obex_t* handle, obex_object_t* obj, int event) {
 	file_data_t* data = OBEX_GetUserData(handle);
 	switch (event) {
 	case OBEX_EV_REQHINT: /* A new request is coming in */
-		if (auth_file && !data->auth_success) {
-			struct obex_auth_challenge chal;
-			if (get_nonce(chal.nonce) < 0)
-				(void)OBEX_ObjectSetRsp(obj,
-							OBEX_RSP_SERVICE_UNAVAILABLE,
-							OBEX_RSP_SERVICE_UNAVAILABLE);
-			memcpy(data->nonce,chal.nonce,sizeof(data->nonce));
-			chal.opts = OBEX_AUTH_OPT_USER_REQ|OBEX_AUTH_OPT_FULL_ACC;
-			chal.realm = NULL;
-			(void)obex_auth_add_challenge(handle,obj,&chal);
-			(void)OBEX_ObjectSetRsp(obj,
-						OBEX_RSP_UNAUTHORIZED,
-						OBEX_RSP_UNAUTHORIZED);
-		} else
+		if (auth_file && !data->net_data->auth_success)
+			net_security_init(data->net_data, obj);
+		else
 			(void)OBEX_ObjectSetRsp(obj,
 						OBEX_RSP_CONTINUE,
 						OBEX_RSP_SUCCESS);
-		
 		break;
 	}
 }
@@ -589,12 +560,12 @@ void client_eventcb (obex_t* handle, obex_object_t* obj,
 		break;
 
 	case OBEX_CMD_PUT:
-		if (!auth_file || data->auth_success)
+		if (!auth_file || data->net_data->auth_success)
 			obex_action_put(handle,obj,event);
 		break;
 
 	case OBEX_CMD_GET:
-		if (!auth_file || data->auth_success)
+		if (!auth_file || data->net_data->auth_success)
 			obex_action_get(handle,obj,event);
 		break;
 

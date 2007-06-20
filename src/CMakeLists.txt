@@ -44,6 +44,7 @@ set ( SOURCES
   get.c
   checks.c
   utf.c
+  net/auth.c
   net/core.c
   net/btobex.c
   net/irobex.c
