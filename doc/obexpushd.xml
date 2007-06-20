@@ -2,9 +2,9 @@
 <!DOCTYPE refentry PUBLIC "-//OASIS//DTD DocBook XML V4.2//DE" "http://www.oasis-open.org/docbook/xml/4.2/docbookx.dtd">
 <refentry id="obexpushd">
   <refentryinfo>
-    <date>2007-01-05</date>
+    <date>2007-05-17</date>
     <productname>obexpushd</productname>
-    <productnumber>0.5</productnumber>
+    <productnumber>0.6</productnumber>
     <authorgroup>
       <author>
 	<firstname>Hendrik</firstname>
@@ -36,7 +36,7 @@
       <command>obexpushd</command>
       <arg choice="opt"><option>-B</option><replaceable><optional>channel</optional></replaceable></arg>
       <arg choice="opt"><option>-I</option><replaceable><optional>app</optional></replaceable></arg>
-      <arg choice="opt"><option>-N</option></arg>
+      <arg choice="opt"><option>-N</option><replaceable><optional>port</optional></replaceable></arg>
       <arg choice="opt"><option>-p</option> <replaceable>file</replaceable></arg>
       <arg choice="opt"><option>-a</option> <replaceable>file</replaceable></arg>
       <arg choice="opt"><option>-r</option> <replaceable>file</replaceable></arg>
@@ -81,13 +81,16 @@
       <varlistentry>
 	<term><option>-I</option></term>
 	<listitem><para>
-	  Listen to IrDA connections (<replaceable>app</replaceable> example: IrXfer).
+	  Listen to IrDA connections on the default inbox and, in addition and optionally, to the
+	  inbox identified by <replaceable>app</replaceable> (example: IrXfer)
 	</para></listitem>
       </varlistentry>
       <varlistentry>
 	<term><option>-N</option></term>
 	<listitem><para>
-	  Listen to network connections (currently: tcp/650 on any).
+	  Listen to network connections. If compiled with TcpOBEX support (openobex > 1.3),
+	  it is possible to specify a port number to listen to (default: tcp/*:650).
+	  Note that to bind to the default TCP OBEX port, you need root priviledges.
 	</para></listitem>
       </varlistentry>
       <varlistentry>
@@ -130,32 +133,26 @@
       <varlistentry>
 	<term><option>-s</option></term>
 	<listitem><para>
-	  Open a pipe to the script or program specified by <replaceable>file</replaceable>.
-	  There are up to three parameters:
-	  <orderedlist>
-	    <listitem><para>
-	      The first parameter is either "putt" or "get".
-	    </para></listitem>
-	    <listitem><para>
-	      The second parameter is the name of the received file (UTF-8 encoded) and may be empty
-	      if the first parameter is "get".
-	    </para></listitem>
-	    <listitem><para>
-	      The third parameter is the file type and is always present on "get" but may be missing
-	      on "put".
-	    </para></listitem>
-	  </orderedlist>
+	  Open pipes to the script or program specified by <replaceable>file</replaceable>.
+	  These pipes are seen by the program as stdin and stdout.
+	  There is one parameter, that can be either "put" or "get".
 	</para>
 	<para>
-	  With the first parameter being "put", further parameters and
-	  data are fed to the script via stdin. With "get", parameters and data are read
-	  via stdout.
+	  Further parameters are fed to the script via stdin.
+	  With the first parameter being "put", data optionally follows on stdin.
+	  With "get", parameters and data are read via stdout.
 	  Parameters that are transmitted via stdin or stdout have the form
 	  "<replaceable>Parameter</replaceable>: <replaceable>value</replaceable>".
 	  The first empty line seperates parameters and data. The empty line can be the first line.
-	  In this case, no parameters are present. Line delimiter is CRLF.
+	  In this case, no parameters are present. Line delimiter is system specific.
 	  The possible parameters are:
 	  <itemizedlist>
+	    <listitem><para>
+	      "From: <replaceable>type</replaceable>/<replaceable>client-identifier</replaceable>"
+	      which specifies the client address. Currently, types can be "bluetooth", "irda" or
+	      "tcp". The client identifier is an address (embraced in brackets) with optionally a
+	      port (seperated by a colon).
+	    </para></listitem>
 	    <listitem><para>
 	      "Name: <replaceable>utf8-string</replaceable>" (required on "get" output)
 	      which specifies the file name,
