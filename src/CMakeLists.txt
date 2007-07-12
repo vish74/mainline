@@ -1,31 +1,19 @@
-#TODO: Replace with FindPkgConfig as soon as it is available
-#      in a CMake release
 
-include ( UsePkgConfig )
+find_package ( PkgConfig )
 foreach ( i openobex bluez )
-  pkgconfig ( ${i}
-    ${i}_INCLUDE_DIR
-    ${i}_LINK_DIR
-    ${i}_LINK_FLAGS
-    ${i}_CFLAGS
-  )
-  #hack around buggy CMake module: remove newlines
-  foreach ( k INCLUDE_DIR LINK_DIR LINK_FLAGS CFLAGS )
-    string ( REGEX REPLACE "[\r\n]" "" ${i}_${k} ${${i}_${k}} )
-  endforeach ( k INCLUDE_DIR LINK_DIR LINK_FLAGS CFLAGS )
-  include_directories ( ${${i}_INCLUDE_DIR} )
-  link_directories ( ${${i}_LINK_DIR} )
-  add_definitions ( ${${i}_CFLAGS} )
+  pkg_check_modules ( ${i} REQUIRED ${i} )
+  include_directories ( ${${i}_INCLUDE_DIRS} )
+  link_directories ( ${${i}_LIBRARY_DIRS} )
 endforeach ( i OPENOBEX BLUEZ )
 
 include_directories ( ${CMAKE_CURRENT_SOURCE_DIR} )
 
 include ( CheckFunctionExists )
 message( STATUS "Checking capabilities of OpenObex..." )
-set ( CMAKE_REQUIRED_FLAGS ${OPENOBEX_CFLAGS} )
+set ( CMAKE_REQUIRED_FLAGS ${openobex_CFLAGS} )
 set ( CMAKE_REQUIRED_DEFINITIONS )
-set ( CMAKE_REQUIRED_INCLUDES ${OPENOBEX_INLUDE_DIR} )
-set ( CMAKE_REQUIRED_LIBRARIES ${OPENOBEX_LINK_FLAGS} )
+set ( CMAKE_REQUIRED_INCLUDES ${openobex_INLUDE_DIRS} )
+set ( CMAKE_REQUIRED_LIBRARIES ${openobex_LINK_FLAGS} )
 check_function_exists ( TcpOBEX_ServerRegister USE_TCPOBEX )
 if ( USE_TCPOBEX )
   set ( SOURCES ${SOURCES} net/tcpobex.c )
@@ -54,11 +42,14 @@ set ( SOURCES
 add_executable ( obexpushd
   ${SOURCES}
 )
-
-set_target_properties ( obexpushd PROPERTIES
-  LINK_FLAGS "${openobex_LINK_FLAGS} ${bluez_LINK_FLAGS}"
+target_link_libraries ( obexpushd
+  ${openobex_LIBRARIES}
+  ${bluez_LIBRARIES}
 )
-
+set_target_properties ( obexpushd PROPERTIES
+  COMPILE_FLAGS "${openobex_CFLAGS_OTHERS} ${bluez_CFLAGS_OTHERS}"
+  LINK_FLAGS "${openobex_LDFLAGS_OTHERS} ${bluez_LDFLAGS_OTHERS}"
+)
 install (
   TARGETS obexpushd
   RUNTIME DESTINATION bin

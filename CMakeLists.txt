@@ -1,6 +1,10 @@
 project ( obexpushd C )
 
-cmake_minimum_required ( VERSION 2.4.5 )
+set ( VERSION_MAJOR 0 )
+set ( VERSION_MINOR 6 )
+set ( VERSION_PATCH 0 )
+
+cmake_minimum_required ( VERSION 2.4.7 )
 
 set ( CMAKE_BUILD_TYPE Release )
 
@@ -26,9 +30,9 @@ set ( CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE" )
 set ( CPACK_RESOURCE_FILE_README  "${CMAKE_CURRENT_SOURCE_DIR}/README" )
 
 #setting only CPACK_PACKAGE_VERSION does not work (cmake-2.4.5)
-set ( CPACK_PACKAGE_VERSION_MAJOR "0" )
-set ( CPACK_PACKAGE_VERSION_MINOR "5" )
-set ( CPACK_PACKAGE_VERSION_PATCH "0" )
+set ( CPACK_PACKAGE_VERSION_MAJOR "${VERSION_MAJOR}" )
+set ( CPACK_PACKAGE_VERSION_MINOR "${VERSION_MINOR}" )
+set ( CPACK_PACKAGE_VERSION_PATCH "${VERSION_PATCH}" )
 
 execute_process (
   COMMAND         ${CMAKE_C_COMPILER} -dumpmachine

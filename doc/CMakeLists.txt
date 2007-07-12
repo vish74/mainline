@@ -22,7 +22,7 @@ foreach ( file ${XMLTO_FILES_man} )
                 WORLD_READ
   )
 endforeach ( file ${XMLTO_FILES_man} )
-INSTALL (
+install (
   FILES ${XMLTO_FILES_html}
   DESTINATION share/doc/${PROJECT_NAME}
   PERMISSIONS OWNER_READ OWNER_WRITE

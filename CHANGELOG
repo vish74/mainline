@@ -1,3 +1,9 @@
+0.6 (2007-??-??)
+    - change build system to cmake
+    - tell storage scripts the client address
+    - require storage script to allow the transfer
+    - change TCP support to TcpOBEX to allow for non-official ports
+
 0.5 (2007-03-04)
     - fix SECURITY issue with script output call
     - fix compilation issue with 64bit machines
