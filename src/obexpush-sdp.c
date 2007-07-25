@@ -93,6 +93,8 @@ sdp_session_t* bt_sdp_session_open (uint8_t channel) {
   sdp_set_info_attr(rec,SDP_SERVICE_NAME,SDP_SERVICE_PROVIDER,SDP_SERVICE_DESCR);
 
   session = sdp_connect(BDADDR_ANY,BDADDR_LOCAL,SDP_RETRY_IF_BUSY);
+  if (!session)
+	  return NULL;
   status = sdp_record_register(session,rec,0);
   if (status < 0) {
     bt_sdp_session_close(session);
