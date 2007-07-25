@@ -1,3 +1,8 @@
+set ( OBEXPUSHD_VERSION ${VERSION} )
+configure_file (
+  ${CMAKE_CURRENT_SOURCE_DIR}/version.h.in
+  ${CMAKE_CURRENT_BINARY_DIR}/version.h
+)
 
 find_package ( PkgConfig )
 foreach ( i openobex bluez )
@@ -6,7 +11,10 @@ foreach ( i openobex bluez )
   link_directories ( ${${i}_LIBRARY_DIRS} )
 endforeach ( i OPENOBEX BLUEZ )
 
-include_directories ( ${CMAKE_CURRENT_SOURCE_DIR} )
+include_directories (
+  ${CMAKE_CURRENT_SOURCE_DIR}
+  ${CMAKE_CURRENT_BINARY_DIR}
+)
 
 include ( CheckFunctionExists )
 message( STATUS "Checking capabilities of OpenObex..." )
