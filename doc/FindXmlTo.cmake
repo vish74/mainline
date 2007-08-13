@@ -9,6 +9,7 @@ find_program ( XMLTO_EXECUTABLE
   NAMES xmlto
   DOC   "path to the xmlto docbook xslt frontend"  
 )
+mark_as_advanced ( XMLTO_EXECUTABLE )
 
 if ( XMLTO_EXECUTABLE )
   set ( XmlTo_FOUND true )
@@ -33,7 +34,6 @@ macro ( _XMLTO_FILE outfiles mode)
   endif ( NOT XMLTO_FILEEXT_${mode} )
 
   foreach ( dbFile ${ARGN} )
-    #TODO: set XMLTO_FILEEXT_man to value from <manvolnum>
     if ( "${mode}" STREQUAL "man" )
       file ( READ "${dbFile}" _DB_FILE_CONTENTS )
       string ( REGEX MATCH "<manvolnum>[^<]*" XMLTO_FILEEXT_${mode} "${_DB_FILE_CONTENTS}" )
