@@ -666,7 +666,11 @@ void print_help (char* me) {
 	       "Interfaces:\n"
 	       " -B[<channel>]  listen to bluetooth connections (default: channel 9)\n"
 	       " -I[<app>]      listen to IrDA connections (app example: IrXfer)\n"
+#if OPENOBEX_TCPOBEX
 	       " -N[<port>]     listen to IP Network connections (default: port 650)\n"
+#else
+	       " -N             listen to IP Network connections on port 650\n"
+#endif
 	       "\n"
 	       "Options:\n"
 	       " -n             do not detach from terminal\n"
@@ -736,11 +740,13 @@ int main (int argc, char** argv) {
 			char* address = "*";
 			uint16_t port = 650;
 			char* intf = NULL;
+#if OPENOBEX_TCPOBEX
 			if (optarg) {
 				long portnum = strtol(optarg, NULL, 10);
 				if (portnum > 0 && portnum < (1 << 16))
 					port = portnum;
 			}
+#endif
 			INET_HANDLE = net_data_new();
 			if (tcp_setup(INET_HANDLE, address, port, intf)) {
 				net_cleanup(IRDA_HANDLE);
