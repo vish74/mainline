@@ -56,7 +56,11 @@ if ( UNIX )
     set ( CPACK_GENERATOR "TGZ" )
     set ( CPACK_SOURCE_GENERATOR "TGZ" )
 endif ( UNIX )
-set ( CPACK_SOURCE_IGNORE_FILES "/\\\\.svn/;~$" )
+set ( CPACK_SOURCE_IGNORE_FILES
+  "~$"
+  "/\\\\.svn/"
+  "/build/"
+)
 
 # this must _follow_ the settings!
 include ( CPack )
