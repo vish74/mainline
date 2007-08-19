@@ -1,5 +1,12 @@
 project ( x-obex C )
 
+if ( NOT CMAKE_BUILD_TYPE )
+  set ( CMAKE_BUILD_TYPE Release
+        CACHE STRING "" FORCE )
+endif ( NOT CMAKE_BUILD_TYPE )
+
+option ( BUILD_SHARED_LIBS "Build shared libraries instead of static ones." ON )
+
 if (WIN32 AND NOT UNIX)
   link_libraries ( shlwapi )
 endif (WIN32 AND NOT UNIX)
