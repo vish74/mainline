@@ -1,15 +1,22 @@
 project ( x-obex C )
 
-add_definitions ( -DAPP )
-
 if (WIN32 AND NOT UNIX)
   link_libraries ( shlwapi )
 endif (WIN32 AND NOT UNIX)
 
-add_executable ( obex-folder-listing
-  obex-folder-listing.c
-)
+foreach ( type capability folder-listing )
+  add_library ( obex-${type}-lib
+    obex-${type}.c
+  )
+  set_target_properties ( obex-${type}-lib
+    PROPERTIES
+      OUTPUT_NAME "obex-${type}"
+  )
 
-add_executable ( obex-capability
-  obex-capability.c
-)
+  add_executable ( obex-${type}
+    obex-${type}-app.c
+  )
+  target_link_libraries ( obex-${type}
+    obex-${type}-lib
+  )
+endforeach ( type )

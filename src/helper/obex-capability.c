@@ -31,11 +31,6 @@
 #include <unistd.h>
 #include <errno.h>
 
-#if defined(APP)
-#define PROGRAM_NAME "obex-capability"
-#define PROGRAM_VERSION "0.1"
-#endif
-
 static
 void obex_caps_version (FILE* fd,
 			unsigned int indent,
@@ -189,66 +184,3 @@ int obex_capability (FILE* fd, struct obex_capability* caps)
 	xml_close(fd,0,"Capability");
 	return err;
 }
-
-#if defined(APP)
-void print_disclaimer () {
-	fprintf(stderr,
-		PROGRAM_NAME" "PROGRAM_VERSION " Copyright (C) 2006 Hendrik Sattler\n"
-		"This software comes with ABSOLUTELY NO WARRANTY.\n"
-		"This is free software, and you are welcome to redistribute it\n"
-		"under certain conditions.\n");
-}
-
-void print_help () {
-	print_disclaimer();
-	fprintf(stderr,
-		"\n"
-		"Usage: %s [<options>]\n", PROGRAM_NAME);
-	fprintf(stderr,
-		"\n"
-		"Options:\n"
-		" -V <vendor>  vendor name (default: dummy vendor)\n"
-		" -M <model>   model description (default: dummy model)\n"
-		" -h           this help message\n");
-}
-
-int main (int argc, char** argv)
-{
-	struct obex_capability caps = {
-		.general = {
-			.vendor = NULL,
-			.model = NULL,
-		},
-	};
-
-	int err = 0;
-	FILE* fd = stdout;
-	int c;
-
-	while ((c = getopt(argc,argv,"V:M:h")) != -1) {
-		switch (c) {
-		case 'V':
-			if (optarg)
-				caps.general.vendor = optarg;
-			break;
-		case 'M':
-			if (optarg)
-				caps.general.model = optarg;
-			break;
-		case 'h':
-			print_help();
-			exit(EXIT_SUCCESS);
-		}
-	}
-
-	print_disclaimer();
-	err = obex_capability(fd,&caps);
-
-	if (err) {
-		fprintf(stderr,"%s\n",strerror(-err));
-		exit(EXIT_FAILURE);
-	} else {
-		exit(EXIT_SUCCESS);
-	}
-}
-#endif

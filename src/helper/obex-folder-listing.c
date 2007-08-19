@@ -37,11 +37,6 @@
 #define strdup(s) StrDup(s)
 #endif
 
-#if defined(APP)
-#define PROGRAM_NAME "obex-folder-listing"
-#define PROGRAM_VERSION "0.1"
-#endif
-
 enum ft {
 	FT_FILE,
 	FT_FOLDER,
@@ -175,7 +170,6 @@ void print_dir (FILE* fd, const char* dir, int flags)
 	closedir(d);
 }
 
-#include <locale.h>
 #include <langinfo.h>
 static
 char* get_system_charset ()
@@ -250,80 +244,3 @@ out:
 	return err;
 
 }
-
-#if defined(APP)
-void print_disclaimer () {
-	fprintf(stderr,
-		PROGRAM_NAME" "PROGRAM_VERSION " Copyright (C) 2006 Hendrik Sattler\n"
-		"This software comes with ABSOLUTELY NO WARRANTY.\n"
-		"This is free software, and you are welcome to redistribute it\n"
-		"under certain conditions.\n");
-}
-
-void print_help () {
-	print_disclaimer();
-	fprintf(stderr,
-		"\n"
-		"Usage: %s [<options>]\n", PROGRAM_NAME);
-	fprintf(stderr,
-		"\n"
-		"Options:\n"
-		" -P  show parent folder indicator\n"
-		" -H  also list hidden files/directories\n"
-		" -t  show time attributes\n"
-		" -p  show permission attributes\n"
-		" -o  show file owner attribute\n"
-		" -g  show file group attribute\n"
-		" -h  this help message\n");
-}
-
-int main (int argc, char** argv)
-{
-	char* name = ".";
-	FILE* fd = stdout;
-	int err;
-	int c;
-	int flags = 0;
-
-	while ((c = getopt(argc,argv,"PHtpogh")) != -1) {
-		switch (c) {
-		case 'P':
-			flags |= OFL_FLAG_PARENT;
-			break;
-		case 'H':
-			flags |= OFL_FLAG_HIDDEN;
-			break;
-		case 't':
-			flags |= OFL_FLAG_TIMES;
-			break;
-		case 'p':
-			flags |= OFL_FLAG_PERMS;
-			break;
-		case 'o':
-			flags |= OFL_FLAG_OWNER;
-			break;
-		case 'g':
-			flags |= OFL_FLAG_GROUP;
-			break;
-		case 'h':
-			print_help();
-			exit(EXIT_SUCCESS);
-		}
-	}
-
-	if (optind < argc)
-		name = argv[optind];
-
-	print_disclaimer();
-	
-	setlocale(LC_ALL, "");
-	err = obex_folder_listing(fd, name, flags);
-
-	if (err) {
-		fprintf(stderr,"%s\n",strerror(-err));
-		exit(EXIT_FAILURE);
-	} else {
-		exit(EXIT_SUCCESS);
-	}
-}
-#endif
