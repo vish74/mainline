@@ -24,13 +24,13 @@ set ( CMAKE_REQUIRED_INCLUDES ${openobex_INLUDE_DIRS} )
 set ( CMAKE_REQUIRED_LIBRARIES ${openobex_LINK_FLAGS} )
 check_function_exists ( TcpOBEX_ServerRegister USE_TCPOBEX )
 if ( USE_TCPOBEX )
-  set ( SOURCES ${SOURCES} net/tcpobex.c )
+  list ( APPEND SOURCES net/tcpobex.c )
   add_definitions ( -DOPENOBEX_TCPOBEX=1 )
 else ( USE_TCPOBEX )
-  set ( SOURCES ${SOURCES} net/inobex.c )
+  list ( APPEND SOURCES net/inobex.c )
 endif ( USE_TCPOBEX )
 
-set ( SOURCES
+list ( APPEND SOURCES
   obexpushd.c
   obexpush-sdp.c
   obex_auth.c
@@ -44,7 +44,6 @@ set ( SOURCES
   net/core.c
   net/btobex.c
   net/irobex.c
-  ${SOURCES}
 )
 
 add_executable ( obexpushd
