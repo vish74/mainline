@@ -1,0 +1,47 @@
+0.6 (2007-08-28)
+    - change build system to cmake
+    - tell storage scripts the client address
+    - require storage script to allow the transfer
+    - provide example script
+    - change TCP support to TcpOBEX to allow for non-official ports
+      if openobex > 1.3 is installed
+    - rename: src/helper -> src/x-obex (must be compiled seperately)
+
+0.5 (2007-03-04)
+    - fix SECURITY issue with script output call
+    - fix compilation issue with 64bit machines
+    - fix many bugs found with splint
+    - show file count in debug output
+    - add x-obex helpers to ease future work (not compiled by default)
+    - change script options
+    - add get support (_requires_ a script)
+    - add script header support and base script headers
+    - add TCP support
+    - update manpage
+
+0.4 (2006-10-25) (REVOKED)
+    - fix manpage install directory
+    - use streaming mode
+    - add option to write daemon PID to a file
+    - add obex authentication via credential files
+    - add script output alternative
+    - use DocBook DTD v4.2 for documenation
+    - change documenation compilation to xmlto
+    - fix daemon directory change
+    - fix segfaults on second invocation
+    - correctly exit forked childs
+    - clean up license
+    - create files with mode 0666 (usually limited by umask to 0644)
+
+0.3 (2006-09-26)
+    - add manpage in DocBook/XML format
+    - Makefile: add install target
+    - clean up help output
+
+0.2 (2006-09-23)
+    - Reformat the code
+    - use select/fork combination instead of only fork
+    - fix type decoding
+
+0.1 (2006-08-05)
+    - Initial release

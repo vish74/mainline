@@ -1,0 +1,18 @@
+#!/bin/sh
+generator="Unix Makefiles"
+projectPath=$(dirname $0)
+localConfigure=0
+if test ${projectPath} = "."; then
+  echo "Creating directory $(pwd)/build for out-of-source build..."
+  mkdir -p build
+  cd build
+  projectPath=..
+  localConfigure=1
+fi
+
+rm -f CMakeCache.txt
+cmake -G "${generator}" ${projectPath}
+
+if test ${localConfigure} -eq 1; then
+  echo "Now run \"cd build\" to change to the build directory."
+fi

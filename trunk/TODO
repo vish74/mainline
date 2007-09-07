@@ -1,0 +1,3 @@
+ * add obex push client for testing purposes
+ * use bluetooth security features for bluetooth instead of OBEX authentication
+ * add FBS support
