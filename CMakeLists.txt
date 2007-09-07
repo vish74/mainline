@@ -10,7 +10,10 @@ endif ( VERSION_PATCH GREATER 0 )
 
 cmake_minimum_required ( VERSION 2.4.7 )
 
-set ( CMAKE_BUILD_TYPE Release )
+if ( NOT CMAKE_BUILD_TYPE )
+  set ( CMAKE_BUILD_TYPE Release
+        CACHE STRING "Choice of a predefined CMake ruleset" FORCE)
+endif ( NOT CMAKE_BUILD_TYPE )
 
 add_subdirectory ( src )
 add_subdirectory ( doc )

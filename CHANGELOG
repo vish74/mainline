@@ -1,8 +1,11 @@
-0.6 (2007-??-??)
+0.6 (2007-08-28)
     - change build system to cmake
     - tell storage scripts the client address
     - require storage script to allow the transfer
+    - provide example script
     - change TCP support to TcpOBEX to allow for non-official ports
+      if openobex > 1.3 is installed
+    - rename: src/helper -> src/x-obex (must be compiled seperately)
 
 0.5 (2007-03-04)
     - fix SECURITY issue with script output call

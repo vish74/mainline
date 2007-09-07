@@ -2,7 +2,7 @@
 <!DOCTYPE refentry PUBLIC "-//OASIS//DTD DocBook XML V4.2//DE" "http://www.oasis-open.org/docbook/xml/4.2/docbookx.dtd">
 <refentry id="obexpushd">
   <refentryinfo>
-    <date>2007-05-17</date>
+    <date>2007-08-28</date>
     <productname>obexpushd</productname>
     <productnumber>0.6</productnumber>
     <authorgroup>
@@ -166,6 +166,9 @@
 	    </para></listitem>
 	  </itemizedlist>
 	  Unknown parameters shall be ignored.
+          With "put", obexpushd is waiting for an ok after the list of parameters. The script must either
+	  print a line with "OK" to stdout to accept the input or a line with any other content to reject
+	  it.
 	</para></listitem>
       </varlistentry>
       <varlistentry>

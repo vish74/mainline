@@ -20,6 +20,7 @@
 #include "obexpushd.h"
 #include "data_io.h"
 #include "utf.h"
+#include "net.h"
 
 #include <errno.h>
 #include <sys/types.h>
