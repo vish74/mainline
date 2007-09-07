@@ -16,20 +16,6 @@ include_directories (
   ${CMAKE_CURRENT_BINARY_DIR}
 )
 
-include ( CheckFunctionExists )
-message( STATUS "Checking capabilities of OpenObex..." )
-set ( CMAKE_REQUIRED_FLAGS ${openobex_CFLAGS} )
-set ( CMAKE_REQUIRED_DEFINITIONS )
-set ( CMAKE_REQUIRED_INCLUDES ${openobex_INLUDE_DIRS} )
-set ( CMAKE_REQUIRED_LIBRARIES ${openobex_LINK_FLAGS} )
-check_function_exists ( TcpOBEX_ServerRegister USE_TCPOBEX )
-if ( USE_TCPOBEX )
-  list ( APPEND SOURCES net/tcpobex.c )
-  add_definitions ( -DOPENOBEX_TCPOBEX=1 )
-else ( USE_TCPOBEX )
-  list ( APPEND SOURCES net/inobex.c )
-endif ( USE_TCPOBEX )
-
 list ( APPEND SOURCES
   obexpushd.c
   obexpush-sdp.c
@@ -46,8 +32,22 @@ list ( APPEND SOURCES
   net/irobex.c
 )
 
+include ( CheckFunctionExists )
+message( STATUS "Checking capabilities of OpenObex..." )
+set ( CMAKE_REQUIRED_FLAGS ${openobex_CFLAGS} )
+set ( CMAKE_REQUIRED_DEFINITIONS )
+set ( CMAKE_REQUIRED_INCLUDES ${openobex_INLUDE_DIRS} )
+set ( CMAKE_REQUIRED_LIBRARIES ${openobex_LINK_FLAGS} )
+check_function_exists ( TcpOBEX_ServerRegister USE_TCPOBEX )
+if ( USE_TCPOBEX )
+  list ( APPEND SOURCES net/tcpobex.c )
+  add_definitions ( -DOPENOBEX_TCPOBEX=1 )
+else ( USE_TCPOBEX )
+  list ( APPEND SOURCES net/inobex.c )
+endif ( USE_TCPOBEX )
+
 add_executable ( obexpushd
-  ${SOURCES}
+   ${SOURCES}
 )
 target_link_libraries ( obexpushd
   ${openobex_LIBRARIES}

@@ -20,6 +20,7 @@
 #include "obexpushd.h"
 #include "utf.h"
 #include "data_io.h"
+#include "net.h"
 
 #include <openobex/obex.h>
 
@@ -31,6 +32,7 @@
 #include <sys/wait.h>
 #include <fcntl.h>
 #include <ctype.h>
+#include <unistd.h>
 
 #define EOL(n) ((n) == '\n' || (n) == '\r')
 
@@ -158,7 +160,7 @@ int get_open (obex_t* handle, char* script) {
 
 		/* headers can be written here */
 		fprintf(ctrl, "From: %s\n", (strlen(from)? from: "unknown"));
-		if (strlen(name))
+		if (strlen((char*)name))
 			fprintf(ctrl, "Name: %s\n", name);
 		if (data->type)
 			fprintf(ctrl, "Type: %s\n", data->type);
