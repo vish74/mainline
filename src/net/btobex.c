@@ -24,6 +24,7 @@ obex_t* _bluetooth_init (
 {
 	obex_t* handle = OBEX_Init(OBEX_TRANS_BLUETOOTH,eventcb,OBEX_FL_KEEPSERVER);
 	sdp_session_t* session;
+	char device[18];
   
 	if (!handle)
 		return NULL;
@@ -32,11 +33,12 @@ obex_t* _bluetooth_init (
 		perror("BtOBEX_ServerRegister");
 		return NULL;
 	}
-	fprintf(stderr,"Listening on bluetooth channel %u\n",(unsigned int)args->channel);
+	(void)ba2str(&args->device, device);
+	fprintf(stderr, "Listening on bluetooth [%s]:%u\n", device, (unsigned int)args->channel);
 
 	session = bt_sdp_session_open(&args->device, args->channel);
 	if (!session) {
-		fprintf(stderr,"SDP session setup failed, disabling bluetooth\n");
+		fprintf(stderr, "SDP session setup failed, disabling bluetooth\n");
 		OBEX_Cleanup(handle);
 		return NULL;
 	}
@@ -123,7 +125,6 @@ int bluetooth_setup(
 		return -errno;
 
 	if (device) {
-		printf("Using bluetooth device \"%s\"\n", device);
 		if (strlen(device) == 17) /* 11:22:33:44:55:66 */
 			hciId = hci_devid(device);
 		else if (1 != sscanf(device, "hci%d", &hciId))
