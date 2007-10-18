@@ -703,17 +703,39 @@ int main (int argc, char** argv) {
 		switch (c) {
 		case 'B':
 		{
+			char* tmp = NULL;
+			char* device = NULL;
 			uint8_t btchan = 9;
 			BT_HANDLE = net_data_new();
 			if (optarg) {
-				int arg = atoi(optarg);
-				if (arg < 0x00 || arg > 0xFF) {
-					fprintf(stderr,"Error: %s\n", "bluetooth channel value out of range.");
-					exit(EXIT_FAILURE);
+				tmp = strrchr(optarg, (int)':');
+				if (tmp) {
+					if (optarg[0] == '[' && optarg[18] == ']') {
+						device = optarg+1;
+						device[17] = 0;
+						if (tmp == optarg+19)
+							++tmp;
+						else
+							tmp = NULL;
+
+					} else if (strncmp(optarg, "hci", 3) == 0) {
+						device = optarg;
+						*tmp = 0;
+						++tmp;
+					}
+				} else {
+					tmp = optarg;
 				}
-				btchan = (uint8_t)arg;
+				if (tmp) {
+					int arg = atoi(tmp);
+					if (arg < 0x00 || arg > 0xFF) {
+						fprintf(stderr,"Error: %s\n", "bluetooth channel value out of range.");
+						exit(EXIT_FAILURE);
+					}
+					btchan = (uint8_t)arg;
+				}
 			}
-			if (bluetooth_setup(BT_HANDLE, btchan)) {
+			if (bluetooth_setup(BT_HANDLE, device, btchan)) {
 				net_cleanup(BT_HANDLE);
 				BT_HANDLE = NULL;
 			}
@@ -737,18 +759,23 @@ int main (int argc, char** argv) {
 
 		case 'N':
 		{
+
+#if OPENOBEX_TCPOBEX
 			char* address = "*";
 			uint16_t port = 650;
 			char* intf = NULL;
-#if OPENOBEX_TCPOBEX
 			if (optarg) {
 				long portnum = strtol(optarg, NULL, 10);
 				if (portnum > 0 && portnum < (1 << 16))
 					port = portnum;
 			}
-#endif
 			INET_HANDLE = net_data_new();
-			if (tcp_setup(INET_HANDLE, address, port, intf)) {
+			if (tcp_setup(INET_HANDLE, address, port, intf))
+#else
+			INET_HANDLE = net_data_new();
+			if (inet_setup(INET_HANDLE))
+#endif
+			{
 				net_cleanup(IRDA_HANDLE);
 				IRDA_HANDLE = NULL;
 			}
@@ -796,7 +823,7 @@ int main (int argc, char** argv) {
 	}
 	if (i == sizeof(handle)/sizeof(*handle)) {
 		BT_HANDLE = net_data_new();
-		if (bluetooth_setup(BT_HANDLE, 9)) {
+		if (bluetooth_setup(BT_HANDLE, NULL, 9)) {
 			net_cleanup(BT_HANDLE);
 			exit(EXIT_FAILURE);
 		}

@@ -24,9 +24,8 @@ void net_cleanup (struct net_data* data);
 int tcp_setup(struct net_data*, const char*, uint16_t, const char*);
 #else /* OPENOBEX_TCPOBEX */
 int inet_setup(struct net_data* data);
-#define tcp_setup(data, addr, port, intf) inet_setup(data)
 #endif /* OPENOBEX_TCPOBEX */
 
-int bluetooth_setup(struct net_data*, uint8_t);
+int bluetooth_setup(struct net_data*, char* device_addr, uint8_t);
 
 int irda_setup(struct net_data*, char*);

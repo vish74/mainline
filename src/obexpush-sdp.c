@@ -21,13 +21,14 @@ static const char* SDP_SERVICE_NAME = "OBEX Object Push";
 static const char* SDP_SERVICE_PROVIDER = "obexpushd";
 static const char* SDP_SERVICE_DESCR = "dummy description";
 
-int bt_sdp_session_close (sdp_session_t* session) {
-  return sdp_close(session);
-}
-
-sdp_session_t* bt_sdp_session_open (uint8_t channel) {
-  sdp_session_t* session;
-
+static
+int bt_sdp_obexpush(
+    sdp_session_t* session,
+    bdaddr_t* device,
+    uint8_t channel,
+    int on
+)
+{
   uuid_t uuid_srv;
   uuid_t uuid_group;
   uuid_t uuid_l2cap;
@@ -92,13 +93,10 @@ sdp_session_t* bt_sdp_session_open (uint8_t channel) {
 
   sdp_set_info_attr(rec,SDP_SERVICE_NAME,SDP_SERVICE_PROVIDER,SDP_SERVICE_DESCR);
 
-  session = sdp_connect(BDADDR_ANY,BDADDR_LOCAL,SDP_RETRY_IF_BUSY);
-  if (!session)
-	  return NULL;
-  status = sdp_record_register(session,rec,0);
-  if (status < 0) {
-    bt_sdp_session_close(session);
-    session = NULL;
+  if (on) {
+    status = sdp_device_record_register(session, device, rec, 0);
+  } else {
+    status = sdp_device_record_unregister(session, device, rec);
   }
 
   sdp_data_free(chan);
@@ -111,7 +109,22 @@ sdp_session_t* bt_sdp_session_open (uint8_t channel) {
   sdp_data_free(list_formats);
   sdp_list_free(list_proto,0);
   sdp_list_free(list_access,0);
-/*   sdp_record_free(rec); */
 
-  return session;
+  return status;
+}
+
+sdp_session_t* bt_sdp_session_open (
+    bdaddr_t* device,
+    uint8_t channel
+)
+{
+  sdp_session_t* session = sdp_connect(device, BDADDR_LOCAL, SDP_RETRY_IF_BUSY);
+  int status;
+  if (!session)
+	  return NULL;
+  status = bt_sdp_obexpush(session, device, channel, 1);
+  if (status < 0) {
+    sdp_close(session);
+  }
+  return session;    
 }

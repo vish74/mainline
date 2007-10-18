@@ -7,6 +7,7 @@ obex_t* inet_init (
 )
 {
 	obex_t* handle = OBEX_Init(OBEX_TRANS_INET,eventcb,OBEX_FL_KEEPSERVER);
+	(void)arg;
 	
 	if (!handle)
 		return NULL;

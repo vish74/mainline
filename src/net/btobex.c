@@ -7,9 +7,11 @@
 
 #include <bluetooth/bluetooth.h>
 #include <bluetooth/rfcomm.h>
+#include <bluetooth/hci_lib.h>
 #include <sys/socket.h>
 
 struct bluetooth_args {
+	bdaddr_t device;
 	uint8_t channel;
 };
 
@@ -26,13 +28,13 @@ obex_t* _bluetooth_init (
 	if (!handle)
 		return NULL;
 
-	if (BtOBEX_ServerRegister(handle,BDADDR_ANY,args->channel) == -1) {
+	if (BtOBEX_ServerRegister(handle, &args->device, args->channel) == -1) {
 		perror("BtOBEX_ServerRegister");
 		return NULL;
 	}
 	fprintf(stderr,"Listening on bluetooth channel %u\n",(unsigned int)args->channel);
 
-	session = bt_sdp_session_open(args->channel);
+	session = bt_sdp_session_open(&args->device, args->channel);
 	if (!session) {
 		fprintf(stderr,"SDP session setup failed, disabling bluetooth\n");
 		OBEX_Cleanup(handle);
@@ -56,6 +58,7 @@ void _bluetooth_security_init(
 	struct bluetooth_args* arg
 )
 {
+	(void)arg;
 	/* socket option RFCOMM_LM_AUTH: here or in init()? */
 }
 
@@ -104,18 +107,33 @@ static
 struct net_funcs bluetooth_funcs = {
 	.init = bluetooth_init,
 	.get_peer = bluetooth_get_peer,
-	//.security_init = bluetooth_security_init
+	.security_init = bluetooth_security_init
 };
 
 int bluetooth_setup(
 	struct net_data* data,
+	char* device,
 	uint8_t channel
 )
 {
 	struct bluetooth_args* args = malloc(sizeof(*args));
+	int hciId  = -1;
 	data->arg = args;
 	if (!args)
 		return -errno;
+
+	if (device) {
+		printf("Using bluetooth device \"%s\"\n", device);
+		if (strlen(device) == 17) /* 11:22:33:44:55:66 */
+			hciId = hci_devid(device);
+		else if (1 != sscanf(device, "hci%d", &hciId))
+			return -1;
+	}
+
+	if (hciId >= 0)
+		hci_devba(hciId, &args->device);
+	else
+		bacpy(&args->device, BDADDR_ANY);
 
 	args->channel = channel;
 	data->funcs = &bluetooth_funcs;
