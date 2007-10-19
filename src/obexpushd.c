@@ -685,6 +685,51 @@ void print_help (char* me) {
 	       "See manual page %s(1) for details.\n",me);
 }
 
+static char* parse_bluetooth_arg (char* optarg, uint8_t* btchan)
+{
+	char* tmp = strrchr(optarg, (int)':');
+	char* device = NULL;
+	if (tmp) {
+		if (optarg[0] == '[' && optarg[18] == ']') {
+			device = optarg+1;
+			device[17] = 0;
+			if (tmp == optarg+19)
+				++tmp;
+			else
+				tmp = NULL;
+
+		} else if (strncmp(optarg, "hci", 3) == 0) {
+			device = optarg;
+			*tmp = 0;
+			++tmp;
+		}
+	} else {
+		tmp = optarg;
+	}
+	if (tmp) {
+		int arg = atoi(tmp);
+		if (arg < 0x00 || arg > 0xFF) {
+			fprintf(stderr,"Error: %s\n", "bluetooth channel value out of range.");
+			exit(EXIT_FAILURE);
+		}
+		*btchan = (uint8_t)arg;
+	}
+	return device;
+}
+
+#if OPENOBEX_TCPOBEX
+static char* parse_ip_arg (char* optarg, uint16_t* port)
+{
+	char* address = "*";
+
+	/* TODO: add address selection */
+	long portnum = strtol(optarg, NULL, 10);
+	if (portnum > 0 && portnum < (1 << 16))
+		*port = portnum;
+	return address;
+}
+#endif
+
 int main (int argc, char** argv) {
 	size_t i;
 	int topfd = 0;
@@ -703,37 +748,13 @@ int main (int argc, char** argv) {
 		switch (c) {
 		case 'B':
 		{
-			char* tmp = NULL;
 			char* device = NULL;
 			uint8_t btchan = 9;
+			if (BT_HANDLE)
+				net_cleanup(BT_HANDLE);
 			BT_HANDLE = net_data_new();
 			if (optarg) {
-				tmp = strrchr(optarg, (int)':');
-				if (tmp) {
-					if (optarg[0] == '[' && optarg[18] == ']') {
-						device = optarg+1;
-						device[17] = 0;
-						if (tmp == optarg+19)
-							++tmp;
-						else
-							tmp = NULL;
-
-					} else if (strncmp(optarg, "hci", 3) == 0) {
-						device = optarg;
-						*tmp = 0;
-						++tmp;
-					}
-				} else {
-					tmp = optarg;
-				}
-				if (tmp) {
-					int arg = atoi(tmp);
-					if (arg < 0x00 || arg > 0xFF) {
-						fprintf(stderr,"Error: %s\n", "bluetooth channel value out of range.");
-						exit(EXIT_FAILURE);
-					}
-					btchan = (uint8_t)arg;
-				}
+				device = parse_bluetooth_arg(optarg, &btchan);
 			}
 			if (bluetooth_setup(BT_HANDLE, device, btchan)) {
 				net_cleanup(BT_HANDLE);
@@ -743,6 +764,12 @@ int main (int argc, char** argv) {
 		}
 
 		case 'I':
+			if (IRDA_EXTRA_HANDLE) {
+				net_cleanup(IRDA_EXTRA_HANDLE);
+				IRDA_EXTRA_HANDLE = NULL;
+			}
+			if (IRDA_HANDLE)
+				net_cleanup(IRDA_HANDLE);
 			IRDA_HANDLE = net_data_new();
 			if (irda_setup(IRDA_HANDLE, NULL)) {
 				net_cleanup(IRDA_HANDLE);
@@ -759,25 +786,25 @@ int main (int argc, char** argv) {
 
 		case 'N':
 		{
-
 #if OPENOBEX_TCPOBEX
-			char* address = "*";
+			char* address = NULL;
 			uint16_t port = 650;
 			char* intf = NULL;
 			if (optarg) {
-				long portnum = strtol(optarg, NULL, 10);
-				if (portnum > 0 && portnum < (1 << 16))
-					port = portnum;
+				address = parse_ip_arg(optarg, &port);
 			}
+#endif
+			if (INET_HANDLE)
+				net_cleanup(INET_HANDLE);
 			INET_HANDLE = net_data_new();
+#if OPENOBEX_TCPOBEX
 			if (tcp_setup(INET_HANDLE, address, port, intf))
 #else
-			INET_HANDLE = net_data_new();
 			if (inet_setup(INET_HANDLE))
 #endif
 			{
-				net_cleanup(IRDA_HANDLE);
-				IRDA_HANDLE = NULL;
+				net_cleanup(INET_HANDLE);
+				INET_HANDLE = NULL;
 			}
 			break;
 		}
