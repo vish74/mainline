@@ -6,7 +6,7 @@ openobex >= 1.1
 bluez-lib
 
 You also must have installed:
-cmake (>= 2.4.5)
+cmake (>= 2.4.7)
 pkg-config
 xmlto
 
@@ -14,9 +14,24 @@ xmlto
 Building:
 =========
 
-Run the configure script (either locally or from any other dir).
-If you ran configure locally, change to the build/ directory.
-Run make.
+CMake is used for building. In the simplest form, you create a
+binary directory somewhere e.g. as ./build, change to that
+directory and run:
+$ cmake ..
+
+where ".." is the relative path to the source directory.
+If you want to change the installation location to "/usr",
+define the cmake variable CMAKE_INSTALL_PREFIX with the -D command
+line option:
+$ cmake -DCMAKE_INSTALL_PREFIX=/usr ..
+
+You can also use one of the provided interactive front-end like
+to change project options:
+$ ccmake .
+or as replacement for the cmake above.
+
+This will create Makefiles and thus you can run:
+$ make
 
 
 Installing:
@@ -24,7 +39,9 @@ Installing:
 
 Run:
 $ make install
-You can optionally define the DESTDIR variable.
+
+You can optionally define the DESTDIR variable like
+$ make install DESTDIR=/path/to/some/dir
 
 
 Using:
@@ -41,4 +58,3 @@ You can download the spefication document from
 http://www.bluetooth.com/Bluetooth/Learn/Technology/Specifications/
 The OBEX base secification is available seperately from the
 Infrared Data Association.
-
