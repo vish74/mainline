@@ -2,9 +2,9 @@
 <!DOCTYPE refentry PUBLIC "-//OASIS//DTD DocBook XML V4.2//DE" "http://www.oasis-open.org/docbook/xml/4.2/docbookx.dtd">
 <refentry id="obexpushd">
   <refentryinfo>
-    <date>2007-08-28</date>
+    <date>2007-11-25</date>
     <productname>obexpushd</productname>
-    <productnumber>0.6</productnumber>
+    <productnumber>0.7</productnumber>
     <authorgroup>
       <author>
 	<firstname>Hendrik</firstname>
@@ -34,9 +34,13 @@
   <refsynopsisdiv>
     <cmdsynopsis>
       <command>obexpushd</command>
-      <arg choice="opt"><option>-B</option><replaceable><optional>channel</optional></replaceable></arg>
+      <arg choice="opt"><option>-B</option>
+      <replaceable><optional><optional><optional>address</optional>:</optional>channel</optional></replaceable>
+      </arg>
       <arg choice="opt"><option>-I</option><replaceable><optional>app</optional></replaceable></arg>
-      <arg choice="opt"><option>-N</option><replaceable><optional>port</optional></replaceable></arg>
+      <arg choice="opt"><option>-N</option>
+      <replaceable><optional><optional><optional>address</optional>:</optional>port</optional></replaceable>
+      </arg>
       <arg choice="opt"><option>-p</option> <replaceable>file</replaceable></arg>
       <arg choice="opt"><option>-a</option> <replaceable>file</replaceable></arg>
       <arg choice="opt"><option>-r</option> <replaceable>file</replaceable></arg>
@@ -74,8 +78,12 @@
       <varlistentry>
 	<term><option>-B</option></term>
 	<listitem><para>
-	  Listen to Bluetooth connections. It is possible to specify a channel number to listen to.
+	  Listen to Bluetooth connections. It is possible to specify an address of a local adapter
+          and a channel number to listen to.
 	  Default is to use <replaceable>channel</replaceable> 9.
+	  The <replaceable>address</replaceable> can be either a bluetooth adapter interface name
+	  (e.g. "hci0"), only the number of that interface (e.g. "0") or the interface address
+	  enclosed in brackets (e.g. "[11:22:33:44:55:66]").
 	</para></listitem>
       </varlistentry>
       <varlistentry>
@@ -89,8 +97,11 @@
 	<term><option>-N</option></term>
 	<listitem><para>
 	  Listen to network connections. If compiled with TcpOBEX support (openobex > 1.3),
-	  it is possible to specify a port number to listen to (default: tcp/*:650).
+	  it is possible to specify an address and a port number to listen to (default: *:650).
 	  Note that to bind to the default TCP OBEX port, you need root priviledges.
+	  The <replaceable>address</replaceable> can either be an IPv4 address in quad-dot-notation
+	  (e.g. "127.0.0.1"), an IPv6 address enclosed in brackets (e.g. "[::1]") or a "*" as
+	  alias for "[::]".
 	</para></listitem>
       </varlistentry>
       <varlistentry>

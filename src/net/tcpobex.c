@@ -35,13 +35,22 @@ obex_t* _tcp_init (
 		if (strcmp(args->address, "*") == 0)
 			addrstr = "::";
 			
+		if (!args->intf) {
+			char* intf = strchr(addrstr, '%');
+			if (intf) {
+				*intf = 0;
+				args->intf = strdup(intf+1);
+			}
+		}
 		if (inet_pton(AF_INET6, addrstr, &addr.in6.sin6_addr) == 1) {
 			addr.raw.sa_family = AF_INET6;
 			addr.in6.sin6_port = htons(args->port);
 			addr.in6.sin6_flowinfo = 0;
 			addr.in6.sin6_scope_id = 0;
-			if (IN6_IS_ADDR_LINKLOCAL(&addr.in6.sin6_addr) && args->intf)
-				addr.in6.sin6_scope_id = if_nametoindex(args->intf);
+			if (IN6_IS_ADDR_LINKLOCAL(&addr.in6.sin6_addr)) {
+				if (args->intf)
+					addr.in6.sin6_scope_id = if_nametoindex(args->intf);
+			}
 
 		} else if (inet_pton(AF_INET, args->address, &addr.in4.sin_addr) == 1) {
 			addr.raw.sa_family = AF_INET;
@@ -116,7 +125,6 @@ int tcp_setup(
 	struct net_data* data,
 	const char* address,
 	uint16_t port,
-	const char* intf
 )
 {
 	struct tcp_args* args = malloc(sizeof(*args));
@@ -129,10 +137,6 @@ int tcp_setup(
 	else
 		args->address = NULL;
 	args->port = port;
-	if (args->intf)
-		args->intf = strdup(intf);
-	else
-		args->intf = NULL;
 	data->funcs = &tcp_funcs;
 	return 0;
 }

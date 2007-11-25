@@ -707,12 +707,9 @@ static char* parse_bluetooth_arg (char* optarg, uint8_t* btchan)
 		tmp = optarg;
 	}
 	if (tmp) {
-		int arg = atoi(tmp);
-		if (arg < 0x00 || arg > 0xFF) {
-			fprintf(stderr,"Error: %s\n", "bluetooth channel value out of range.");
-			exit(EXIT_FAILURE);
-		}
-		*btchan = (uint8_t)arg;
+		long arg = strtol(tmp, NULL, 10);
+		if (0 < arg && arg < (1 << 8))
+			*btchan = (uint8_t)arg;
 	}
 	return device;
 }
@@ -720,13 +717,43 @@ static char* parse_bluetooth_arg (char* optarg, uint8_t* btchan)
 #if OPENOBEX_TCPOBEX
 static char* parse_ip_arg (char* optarg, uint16_t* port)
 {
-	char* address = "*";
+	char* tmp = strrchr(optarg, (int)':');
+	char* device = NULL;
+	if (tmp == optarg) {
+		tmp = optarg+1;
 
-	/* TODO: add address selection */
-	long portnum = strtol(optarg, NULL, 10);
+	} else if (tmp) {
+		char* tmp2 = strchr(optarg, (int)']');
+		if (optarg[0] == '[' && tmp2 == tmp-1) { /* IPv6 address */
+			device = optarg+1;
+			tmp2 = 0;
+			++tmp;
+
+			/* Validate */
+			tmp2 = device;
+			do {
+				if (*tmp2 == '%') /* interface may follow */
+					break;
+				if (*tmp2 != ':' && !isxdigit((int)*tmp2)) {
+					device = NULL;
+					break;
+				}
+			} while (*(++tmp2));
+
+		} else { /* IPv4 address */
+			device = optarg;
+			*tmp = 0;
+			++tmp;
+		}
+
+	} else {
+		tmp = optarg;
+	}
+
+	long portnum = strtol(tmp, NULL, 10);
 	if (portnum > 0 && portnum < (1 << 16))
 		*port = portnum;
-	return address;
+	return device;
 }
 #endif
 
