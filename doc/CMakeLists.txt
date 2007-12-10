@@ -24,7 +24,7 @@ foreach ( file ${XMLTO_FILES_man} )
 endforeach ( file ${XMLTO_FILES_man} )
 install (
   FILES ${XMLTO_FILES_html}
-  DESTINATION share/doc/${PROJECT_NAME}
+  DESTINATION "${DOCUMENTS_DIRECTORY}"
   PERMISSIONS OWNER_READ OWNER_WRITE
               GROUP_READ
               WORLD_READ

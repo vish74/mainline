@@ -21,7 +21,7 @@ void net_get_peer (struct net_data* data, char* buffer, size_t bufsiz);
 void net_cleanup (struct net_data* data);
 
 #if OPENOBEX_TCPOBEX
-int tcp_setup(struct net_data*, const char*, uint16_t, const char*);
+int tcp_setup(struct net_data*, const char*, uint16_t);
 #else /* OPENOBEX_TCPOBEX */
 int inet_setup(struct net_data* data);
 #endif /* OPENOBEX_TCPOBEX */

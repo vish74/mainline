@@ -32,7 +32,7 @@ obex_t* _tcp_init (
 		} addr;
 		char* addrstr = args->address;
 
-		if (strcmp(args->address, "*") == 0)
+		if (!args->address || strcmp(args->address, "*") == 0)
 			addrstr = "::";
 			
 		if (!args->intf) {
@@ -65,7 +65,9 @@ obex_t* _tcp_init (
 			return NULL;
 
 		} else {
-			fprintf(stderr, "Listening on TCP/%s:%d\n", args->address, args->port);
+			fprintf(stderr, "Listening on TCP/%s:%d\n",
+				(args->address? args->address: "*"),
+				args->port);
 		}
 	}
 	return handle;
@@ -124,7 +126,7 @@ struct net_funcs tcp_funcs = {
 int tcp_setup(
 	struct net_data* data,
 	const char* address,
-	uint16_t port,
+	uint16_t port
 )
 {
 	struct tcp_args* args = malloc(sizeof(*args));

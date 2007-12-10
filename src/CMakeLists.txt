@@ -9,7 +9,7 @@ foreach ( i openobex bluez )
   pkg_check_modules ( ${i} REQUIRED ${i} )
   include_directories ( ${${i}_INCLUDE_DIRS} )
   link_directories ( ${${i}_LIBRARY_DIRS} )
-endforeach ( i OPENOBEX BLUEZ )
+endforeach ( i )
 
 include_directories (
   ${CMAKE_CURRENT_SOURCE_DIR}
@@ -37,7 +37,7 @@ message( STATUS "Checking capabilities of OpenObex..." )
 set ( CMAKE_REQUIRED_FLAGS ${openobex_CFLAGS} )
 set ( CMAKE_REQUIRED_DEFINITIONS )
 set ( CMAKE_REQUIRED_INCLUDES ${openobex_INLUDE_DIRS} )
-set ( CMAKE_REQUIRED_LIBRARIES ${openobex_LINK_FLAGS} )
+set ( CMAKE_REQUIRED_LIBRARIES ${openobex_LDFLAGS} )
 check_function_exists ( TcpOBEX_ServerRegister USE_TCPOBEX )
 if ( USE_TCPOBEX )
   list ( APPEND SOURCES net/tcpobex.c )

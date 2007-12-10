@@ -825,7 +825,7 @@ int main (int argc, char** argv) {
 				net_cleanup(INET_HANDLE);
 			INET_HANDLE = net_data_new();
 #if OPENOBEX_TCPOBEX
-			if (tcp_setup(INET_HANDLE, address, port, intf))
+			if (tcp_setup(INET_HANDLE, address, port))
 #else
 			if (inet_setup(INET_HANDLE))
 #endif
@@ -907,8 +907,9 @@ int main (int argc, char** argv) {
 		if (!handle[i])
 			continue;
 		net_init(handle[i], eventcb);
-		if (handle[i]->obex)
-			fd = OBEX_GetFD(handle[i]->obex);
+		if (!handle[i]->obex)
+			exit(EXIT_FAILURE);
+		fd = OBEX_GetFD(handle[i]->obex);
 		if (fd == -1) {
 			perror("OBEX_GetFD()");
 			exit(EXIT_FAILURE);

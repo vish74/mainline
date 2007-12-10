@@ -1,7 +1,7 @@
 project ( obexpushd C )
 
 set ( VERSION_MAJOR 0 )
-set ( VERSION_MINOR 6 )
+set ( VERSION_MINOR 7 )
 set ( VERSION_PATCH 0 )
 set ( VERSION "${VERSION_MAJOR}.${VERSION_MINOR}" )
 if ( VERSION_PATCH GREATER 0 )
@@ -12,15 +12,21 @@ cmake_minimum_required ( VERSION 2.4.7 )
 
 if ( NOT CMAKE_BUILD_TYPE )
   set ( CMAKE_BUILD_TYPE Release
-        CACHE STRING "Choice of a predefined CMake ruleset" FORCE)
+        CACHE STRING "Choice of a predefined CMake ruleset" FORCE )
 endif ( NOT CMAKE_BUILD_TYPE )
 
 add_subdirectory ( src )
+
+if ( NOT DOCUMENTS_DIRECTORY )
+  set ( DOCUMENTS_DIRECTORY "share/doc/${PROJECT_NAME}"
+        CACHE PATH "Where documentation files are copied to on installation" FORCE )
+endif ( NOT DOCUMENTS_DIRECTORY )
+
 add_subdirectory ( doc )
 
 install (
   FILES       README LICENSE GPLv2.txt
-  DESTINATION share/doc/${PROJECT_NAME}
+  DESTINATION "${DOCUMENTS_DIRECTORY}"
   PERMISSIONS OWNER_READ OWNER_WRITE
               GROUP_READ
               WORLD_READ

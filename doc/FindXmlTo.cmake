@@ -53,8 +53,7 @@ macro ( _XMLTO_FILE outfiles mode)
       VERBATIM
     )
 
-    set ( ${outfiles}
-      ${${outfiles}}
+    list ( APPEND ${outfiles}
       ${dbFileAbsWE}.${XMLTO_FILEEXT_${mode}}
     )
   endforeach ( dbFile )
@@ -64,17 +63,17 @@ macro ( XMLTO )
   set ( XMLTO_MODES )
   set ( XMLTO_FILES )
   set ( XMLTO_HAS_MODES false )
-  set ( XMLTO_ADD_DEFAULT false )
+  set ( XMLTO_ADD_DEFAULT "" )
   foreach ( arg ${ARGN} )
     if ( ${arg} STREQUAL "MODES" )
       set ( XMLTO_HAS_MODES true )
     elseif ( ${arg} STREQUAL "ALL" )
-      set ( XMLTO_ADD_DEFAULT true )
+      set ( XMLTO_ADD_DEFAULT ALL )
     else ( ${arg} STREQUAL "MODES" )
       if ( XMLTO_HAS_MODES )
-	set ( XMLTO_MODES ${XMLTO_MODES} ${arg} )
+	list ( APPEND XMLTO_MODES ${arg} )
       else ( XMLTO_HAS_MODES )    
-	set ( XMLTO_FILES ${XMLTO_FILES} ${arg} )
+	list ( APPEND XMLTO_FILES ${arg} )
       endif ( XMLTO_HAS_MODES )
     endif ( ${arg} STREQUAL "MODES" )
   endforeach ( arg ${ARGN} )
@@ -84,17 +83,10 @@ macro ( XMLTO )
 
   foreach ( mode ${XMLTO_MODES} )
     _xmlto_file ( XMLTO_FILES_${mode} ${mode} ${XMLTO_FILES} )
-    if ( XMLTO_ADD_DEFAULT )
-      add_custom_target ( ${mode} ALL
-	DEPENDS ${XMLTO_FILES_${mode}}
-	VERBATIM
-      )
-    else ( XMLTO_ADD_DEFAULT )
-      add_custom_target ( ${mode}
-	DEPENDS ${XMLTO_FILES_${mode}}
-	VERBATIM
-      )
-    endif ( XMLTO_ADD_DEFAULT )
+    add_custom_target ( ${mode} ${XMLTO_ADD_DEFAULT}
+      DEPENDS ${XMLTO_FILES_${mode}}
+      VERBATIM
+    )
   endforeach ( mode )
 
   set ( XMLTO_MODES )
