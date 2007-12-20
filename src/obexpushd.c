@@ -51,7 +51,7 @@
 
 char* obex_events[] = {
 	"PROGRESS", "REQHINT", "REQ", "REQDONE",
-	"LINERR", "PARSEERR", "ACCEPTHINT", "ABORT",
+	"LINKERR", "PARSEERR", "ACCEPTHINT", "ABORT",
 	"STREAMEMPTY", "STREAMAVAIL", "UNEXPECTED", "REQCHECK",
 };
 
@@ -644,8 +644,11 @@ void eventcb (obex_t* handle, obex_object_t __unused *obj,
 	case OBEX_EV_ACCEPTHINT:
 	{
 		obex_t* client = OBEX_ServerAccept(handle,client_eventcb,NULL);
-		if (client && (nofork >= 2 || fork() == 0))
+		if (client && (nofork >= 2 || fork() == 0)) {
+			(void)signal(SIGINT, SIG_DFL);
+			(void)signal(SIGTERM, SIG_DFL);
 			handle_client(client, OBEX_GetUserData(handle));
+		}
 	}
 	break;
 	}
@@ -667,14 +670,14 @@ void print_help (char* me) {
 	       " -B[<channel>]  listen to bluetooth connections (default: channel 9)\n"
 	       " -I[<app>]      listen to IrDA connections (app example: IrXfer)\n"
 #if OPENOBEX_TCPOBEX
-	       " -N[<port>]     listen to IP Network connections (default: port 650)\n"
+	       " -N[<port>]     listen to IPv4/v6 network connections (default: port 650)\n"
 #else
-	       " -N             listen to IP Network connections on port 650\n"
+	       " -N             listen to IPv4 network connections on port 650\n"
 #endif
 	       "\n"
 	       "Options:\n"
 	       " -n             do not detach from terminal\n"
-	       " -d             enable debug messages\n"
+	       " -d             enable debug messages (implies -n)\n"
 	       " -p <file>      write pid to file when getting detached\n"
 	       " -a <file>      authenticate against credentials from file (EXPERIMENTAL)\n"
 	       " -r <file>      use realm credentials from file (EXPERIMENTAL)\n"
@@ -687,88 +690,93 @@ void print_help (char* me) {
 
 static char* parse_bluetooth_arg (char* optarg, uint8_t* btchan)
 {
-	char* tmp = strrchr(optarg, (int)':');
+	char* tmp;
 	char* device = NULL;
-	if (tmp) {
-		if (optarg[0] == '[' && optarg[18] == ']') {
-			device = optarg+1;
-			device[17] = 0;
-			if (tmp == optarg+19)
-				++tmp;
-			else
-				tmp = NULL;
 
-		} else if (strncmp(optarg, "hci", 3) == 0) {
-			device = optarg;
-			*tmp = 0;
-			++tmp;
-		}
+	if (strlen(optarg) >= 19 && optarg[0] == '[' && optarg[18] == ']') {
+		device = optarg+1;
+		device[17] = 0;
+		tmp = optarg+19;
+
+	} else if (strncmp(optarg, "hci", 3) == 0) {
+		device = optarg;
+		tmp = strchr(optarg, (int)':');
+
 	} else {
 		tmp = optarg;
 	}
+
 	if (tmp) {
-		long arg = strtol(tmp, NULL, 10);
+		long arg = 0;
+		if (*tmp == ':') {
+			*tmp = 0;
+			++tmp;
+		}
+		arg = strtol(tmp, NULL, 10);
 		if (0 < arg && arg < (1 << 8))
 			*btchan = (uint8_t)arg;
 	}
+
 	return device;
 }
 
 #if OPENOBEX_TCPOBEX
 static char* parse_ip_arg (char* optarg, uint16_t* port)
 {
-	char* tmp = strrchr(optarg, (int)':');
 	char* device = NULL;
-	if (tmp == optarg) {
-		tmp = optarg+1;
 
-	} else if (tmp) {
-		char* tmp2 = strchr(optarg, (int)']');
-		if (optarg[0] == '[' && tmp2 == tmp-1) { /* IPv6 address */
-			device = optarg+1;
-			tmp2 = 0;
-			++tmp;
+	char* tmp = strchr(optarg, (int)']');
+	if (tmp && optarg[0] == '[') { /* IPv6 address */
+		device = optarg+1;
+		*tmp = 0;
+		++tmp;
 
-			/* Validate */
-			tmp2 = device;
-			do {
-				if (*tmp2 == '%') /* interface may follow */
-					break;
-				if (*tmp2 != ':' && !isxdigit((int)*tmp2)) {
-					device = NULL;
-					break;
-				}
-			} while (*(++tmp2));
-
-		} else { /* IPv4 address */
-			device = optarg;
-			*tmp = 0;
-			++tmp;
-		}
-
-	} else {
+	} else if (strchr(optarg, (int)'.') != NULL) { /* IPv4 address */
+		device = optarg;
+		tmp = strchr(optarg, (int)':');
+		
+	} else { /* no address */
 		tmp = optarg;
 	}
 
-	long portnum = strtol(tmp, NULL, 10);
-	if (portnum > 0 && portnum < (1 << 16))
-		*port = portnum;
+	if (tmp) {
+		long portnum = 0;
+		if (*tmp == ':') {
+			*tmp = 0;
+			++tmp;
+		}
+		portnum = strtol(tmp, NULL, 10);
+		if (portnum > 0 && portnum < (1 << 16))
+			*port = portnum;
+	}
 	return device;
 }
 #endif
+
+static struct net_data* handle[4] = {
+	NULL, NULL, NULL, NULL
+};
+#define BT_HANDLE         handle[0]
+#define IRDA_HANDLE       handle[1]
+#define IRDA_EXTRA_HANDLE handle[2]  
+#define INET_HANDLE       handle[3]
+
+void obexpushd_shutdown (int sig) {
+	size_t i;
+	(void)signal(SIGINT, SIG_DFL);
+	(void)signal(SIGTERM, SIG_DFL);
+	for (i = 0; i < sizeof(handle)/sizeof(*handle); ++i) {
+		if (handle[i])
+			net_cleanup(handle[i]);
+	}	
+	(void)kill(getpid(), sig);
+}
 
 int main (int argc, char** argv) {
 	size_t i;
 	int topfd = 0;
 	char* pidfile = NULL;
 
-	struct net_data* handle[4] = {
-		NULL, NULL, NULL, NULL
-	};
-#define BT_HANDLE         handle[0]
-#define IRDA_HANDLE       handle[1]
-#define IRDA_EXTRA_HANDLE handle[2]  
-#define INET_HANDLE       handle[3]
 
 	int c;
 	while ((c = getopt(argc,argv,"B::I::N::a:dhnp:r:s:v")) != -1) {
@@ -899,9 +907,13 @@ int main (int argc, char** argv) {
 	} else {
 		print_disclaimer();
 	}
-	
-	/* initialize all enabled listeners */
+
+	/* setup the signal handlers */
 	(void)signal(SIGCLD, SIG_IGN);
+	(void)signal(SIGINT, obexpushd_shutdown);
+	(void)signal(SIGTERM, obexpushd_shutdown);
+
+	/* initialize all enabled listeners */
 	for (i = 0; i < sizeof(handle)/sizeof(*handle); ++i) {
 		int fd = -1;
 		if (!handle[i])

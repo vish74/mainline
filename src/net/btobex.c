@@ -11,6 +11,7 @@
 #include <sys/socket.h>
 
 struct bluetooth_args {
+	sdp_session_t* session;
 	bdaddr_t device;
 	uint8_t channel;
 };
@@ -42,7 +43,7 @@ obex_t* _bluetooth_init (
 		OBEX_Cleanup(handle);
 		return NULL;
 	}
-
+	args->session = session;
 	return handle;
 }
 
@@ -53,6 +54,24 @@ obex_t* bluetooth_init(
 )
 {
 	return _bluetooth_init((struct bluetooth_args*)arg, eventcb);
+}
+
+static
+void _bluetooth_cleanup(
+	struct bluetooth_args* args,
+	obex_t* ptr
+)
+{
+	bt_sdp_session_close(args->session, &args->device, args->channel);
+}
+
+static
+void bluetooth_cleanup(
+	void* arg,
+	obex_t* ptr
+)
+{
+	return _bluetooth_cleanup((struct bluetooth_args*)arg, ptr);
 }
 
 static
@@ -108,6 +127,7 @@ int bluetooth_get_peer(
 static
 struct net_funcs bluetooth_funcs = {
 	.init = bluetooth_init,
+	.cleanup = bluetooth_cleanup,
 	.get_peer = bluetooth_get_peer,
 	.security_init = bluetooth_security_init
 };

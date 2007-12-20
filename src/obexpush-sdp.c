@@ -128,3 +128,13 @@ sdp_session_t* bt_sdp_session_open (
   }
   return session;    
 }
+
+void bt_sdp_session_close (
+    sdp_session_t* session,
+    bdaddr_t* device,
+    uint8_t channel
+)
+{
+  bt_sdp_obexpush(session, device, channel, 0);
+  sdp_close(session);
+}
