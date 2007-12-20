@@ -16,125 +16,126 @@
  */
 
 #include "obexpush-sdp.h"
+#include <stdlib.h>
 
 static const char* SDP_SERVICE_NAME = "OBEX Object Push";
 static const char* SDP_SERVICE_PROVIDER = "obexpushd";
 static const char* SDP_SERVICE_DESCR = "dummy description";
+static uint8_t formats[] = { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0xFF };
+static uint8_t fdtd = SDP_UINT8;
+
+struct obexpush_sdp_data {
+	sdp_session_t* session;
+	sdp_record_t* rec;
+
+	uuid_t uuid_srv;
+	uuid_t uuid_group;
+	uuid_t uuid_l2cap;
+	uuid_t uuid_rfcomm;
+	uuid_t uuid_obex;
+
+	sdp_data_t* chan;
+	sdp_data_t* list_formats;
+
+	sdp_list_t* list_class;
+	sdp_list_t* list_srv;
+	sdp_list_t* list_group;
+	sdp_list_t* list_l2cap;
+	sdp_list_t* list_rfcomm;
+	sdp_list_t* list_obex;
+	sdp_list_t* list_proto;
+	sdp_list_t* list_access;
+
+	void* dtds[sizeof(formats)];
+	void* values[sizeof(formats)];
+	sdp_profile_desc_t desc_srv;
+};
 
 static
-int bt_sdp_obexpush(
-    sdp_session_t* session,
-    bdaddr_t* device,
-    uint8_t channel,
-    int on
+struct obexpush_sdp_data* bt_sdp_obexpush (
+	bdaddr_t* device,
+	uint8_t channel
 )
 {
-  uuid_t uuid_srv;
-  uuid_t uuid_group;
-  uuid_t uuid_l2cap;
-  uuid_t uuid_rfcomm;
-  uuid_t uuid_obex;
+	size_t i;
+	int status;
 
-  sdp_profile_desc_t desc_srv;
-  sdp_data_t* chan;
+	struct obexpush_sdp_data* data = malloc(sizeof(*data));
+	if (!data)
+		return NULL;
+	memset(data, 0, sizeof(*data));
 
-  sdp_list_t* list_class = NULL;
-  sdp_list_t* list_srv = NULL;
-  sdp_list_t* list_group = NULL;
-  sdp_list_t* list_l2cap = NULL;
-  sdp_list_t* list_rfcomm = NULL;
-  sdp_list_t* list_obex = NULL;
+	for (i = 0; i < sizeof(formats); ++i) {
+		data->dtds[i] = &fdtd;
+		data->values[i] = formats+i;
+	}
+	data->desc_srv.version = 0x0100;
 
-  uint8_t formats[] = { 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0xFF };
-  uint8_t fdtd = SDP_UINT8;
-  void* dtds[sizeof(formats)];
-  void* values[sizeof(formats)];
-  sdp_data_t* list_formats = NULL;
-  size_t i;
+	data->session = sdp_connect(device, BDADDR_LOCAL, SDP_RETRY_IF_BUSY);
+	if (!data->session)
+		return NULL;
 
-  sdp_list_t* list_proto = NULL;
-  sdp_list_t* list_access = NULL;
-  sdp_record_t* rec = sdp_record_alloc();
-  int status;
+	data->rec = sdp_record_alloc();
+	data->chan = sdp_data_alloc(SDP_UINT8, &channel);
+	data->list_formats = sdp_seq_alloc(data->dtds, data->values, sizeof(formats));
 
-  /* Service: OBEX-Push */
-  list_class = sdp_list_append(list_class,sdp_uuid16_create(&uuid_srv,OBEX_OBJPUSH_SVCLASS_ID));
-  sdp_set_service_classes(rec,list_class);
+	data->list_class  = sdp_list_append(NULL, sdp_uuid16_create(&data->uuid_srv, OBEX_OBJPUSH_SVCLASS_ID));
+	data->list_group  = sdp_list_append(NULL, sdp_uuid16_create(&data->uuid_group, PUBLIC_BROWSE_GROUP));
+	data->list_l2cap  = sdp_list_append(NULL, sdp_uuid16_create(&data->uuid_l2cap, L2CAP_UUID));
+	data->list_rfcomm = sdp_list_append(NULL, sdp_uuid16_create(&data->uuid_rfcomm, RFCOMM_UUID));
+	data->list_rfcomm = sdp_list_append(data->list_rfcomm, data->chan);
+	data->list_obex   = sdp_list_append(NULL, sdp_uuid16_create(&data->uuid_obex, OBEX_UUID));
 
-  /* the service is publicly browsable */
-  list_group = sdp_list_append(list_group,sdp_uuid16_create(&uuid_group,PUBLIC_BROWSE_GROUP));
-  sdp_set_browse_groups(rec,list_group);
+	data->list_proto  = sdp_list_append(NULL, data->list_l2cap);
+	data->list_proto  = sdp_list_append(data->list_proto, data->list_rfcomm);
+	data->list_proto  = sdp_list_append(data->list_proto, data->list_obex);
+	data->list_access = sdp_list_append(NULL, data->list_proto);
+	data->list_srv    = sdp_list_append(NULL, sdp_uuid16_create(&data->desc_srv.uuid, OBEX_OBJPUSH_PROFILE_ID));
 
-  /* protocol descriptor list */
-  list_l2cap = sdp_list_append(list_l2cap,sdp_uuid16_create(&uuid_l2cap,L2CAP_UUID));
-  list_rfcomm = sdp_list_append(list_rfcomm,sdp_uuid16_create(&uuid_rfcomm,RFCOMM_UUID));
-  list_obex = sdp_list_append(list_obex,sdp_uuid16_create(&uuid_obex,OBEX_UUID));
+	sdp_set_service_classes(data->rec, data->list_class);
+	sdp_set_browse_groups(data->rec, data->list_group);
+	sdp_set_access_protos(data->rec, data->list_access);
+	sdp_set_profile_descs(data->rec, data->list_srv);
+	sdp_attr_add(data->rec, SDP_ATTR_SUPPORTED_FORMATS_LIST, data->list_formats);
+	sdp_set_info_attr(data->rec, SDP_SERVICE_NAME, SDP_SERVICE_PROVIDER, SDP_SERVICE_DESCR);
 
-  chan = sdp_data_alloc(SDP_UINT8,&channel);
-  list_rfcomm = sdp_list_append(list_rfcomm,chan);
-
-  list_proto = sdp_list_append(list_proto,list_l2cap);
-  list_proto = sdp_list_append(list_proto,list_rfcomm);
-  list_proto = sdp_list_append(list_proto,list_obex);
-
-  list_access = sdp_list_append(list_access,list_proto);
-  sdp_set_access_protos(rec,list_access);
-
-  desc_srv.version = 0x0100;
-  list_srv = sdp_list_append(list_srv,sdp_uuid16_create(&desc_srv.uuid, OBEX_OBJPUSH_PROFILE_ID));
-  sdp_set_profile_descs(rec,list_srv);
-
-  for (i = 0; i < sizeof(formats); ++i) {
-    dtds[i] = &fdtd;
-    values[i] = formats+i;
-  }
-  list_formats = sdp_seq_alloc(dtds,values,sizeof(formats));
-  sdp_attr_add(rec,SDP_ATTR_SUPPORTED_FORMATS_LIST,list_formats);
-
-  sdp_set_info_attr(rec,SDP_SERVICE_NAME,SDP_SERVICE_PROVIDER,SDP_SERVICE_DESCR);
-
-  if (on) {
-    status = sdp_device_record_register(session, device, rec, 0);
-  } else {
-    status = sdp_device_record_unregister(session, device, rec);
-  }
-
-  sdp_data_free(chan);
-  sdp_list_free(list_class,0);
-  sdp_list_free(list_srv,0);
-  sdp_list_free(list_group,0);
-  sdp_list_free(list_l2cap,0);
-  sdp_list_free(list_rfcomm,0);
-  sdp_list_free(list_obex,0);
-  sdp_data_free(list_formats);
-  sdp_list_free(list_proto,0);
-  sdp_list_free(list_access,0);
-
-  return status;
+	return data;
 }
 
-sdp_session_t* bt_sdp_session_open (
-    bdaddr_t* device,
-    uint8_t channel
+void* bt_sdp_session_open (
+	bdaddr_t* device,
+	uint8_t channel
 )
 {
-  sdp_session_t* session = sdp_connect(device, BDADDR_LOCAL, SDP_RETRY_IF_BUSY);
-  int status;
-  if (!session)
-	  return NULL;
-  status = bt_sdp_obexpush(session, device, channel, 1);
-  if (status < 0) {
-    sdp_close(session);
-  }
-  return session;    
+	int status;
+	struct obexpush_sdp_data* data = bt_sdp_obexpush(device, channel);
+	if (!data)
+		return NULL;
+
+	status = sdp_device_record_register(data->session, device, data->rec, 0);
+	if (status < 0)
+		sdp_close(data->session);
+
+	return data;
 }
 
 void bt_sdp_session_close (
-    sdp_session_t* session,
-    bdaddr_t* device,
-    uint8_t channel
+	void* session_data,
+	bdaddr_t* device
 )
 {
-  bt_sdp_obexpush(session, device, channel, 0);
-  sdp_close(session);
+	struct obexpush_sdp_data* data = session_data;
+	(void)sdp_device_record_unregister(data->session, device, data->rec);
+	sdp_close(data->session);
+
+	sdp_list_free(data->list_class, 0);
+	sdp_list_free(data->list_srv, 0);
+	sdp_list_free(data->list_group, 0);
+	sdp_list_free(data->list_l2cap, 0);
+	sdp_list_free(data->list_rfcomm, 0);
+	sdp_list_free(data->list_obex, 0);
+	sdp_list_free(data->list_proto, 0);
+	sdp_list_free(data->list_access, 0);
+	sdp_data_free(data->chan);
+	free(data);
 }

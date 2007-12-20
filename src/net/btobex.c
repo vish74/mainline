@@ -11,7 +11,7 @@
 #include <sys/socket.h>
 
 struct bluetooth_args {
-	sdp_session_t* session;
+	void* session_data;
 	bdaddr_t device;
 	uint8_t channel;
 };
@@ -24,7 +24,6 @@ obex_t* _bluetooth_init (
 )
 {
 	obex_t* handle = OBEX_Init(OBEX_TRANS_BLUETOOTH,eventcb,OBEX_FL_KEEPSERVER);
-	sdp_session_t* session;
 	char device[18];
   
 	if (!handle)
@@ -37,13 +36,12 @@ obex_t* _bluetooth_init (
 	(void)ba2str(&args->device, device);
 	fprintf(stderr, "Listening on bluetooth [%s]:%u\n", device, (unsigned int)args->channel);
 
-	session = bt_sdp_session_open(&args->device, args->channel);
-	if (!session) {
+	args->session_data = bt_sdp_session_open(&args->device, args->channel);
+	if (!args->session_data) {
 		fprintf(stderr, "SDP session setup failed, disabling bluetooth\n");
 		OBEX_Cleanup(handle);
 		return NULL;
 	}
-	args->session = session;
 	return handle;
 }
 
@@ -62,7 +60,7 @@ void _bluetooth_cleanup(
 	obex_t* ptr
 )
 {
-	bt_sdp_session_close(args->session, &args->device, args->channel);
+	bt_sdp_session_close(args->session_data, &args->device);
 }
 
 static
