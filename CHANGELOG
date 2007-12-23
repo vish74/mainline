@@ -1,6 +1,8 @@
-0.7 (2007-10-??)
+0.7 (2007-12-23) "Merry Xmas and a happy new year"
     - add support for binding to a specific bluetooth adapter
     - add support for binding to a specific ethernet address
+    - catch SIGINT and SIGTERM to properly shut down
+    - add support for properly deregistering SDP records
     - remove configure and Makefile and document native use of cmake in INSTALL
 
 0.6 (2007-08-28)
