@@ -573,16 +573,9 @@ void client_eventcb (obex_t* handle, obex_object_t* obj,
 		obex_action_disconnect(handle,obj,event);
 		break;
 
-	case OBEX_EV_LINKERR:
-	case OBEX_EV_PARSEERR:
-	case OBEX_EV_ABORT:
-		switch (last_obex_cmd) {
-		case OBEX_CMD_PUT:
+	case OBEX_CMD_ABORT:
+		if (last_obex_cmd == OBEX_CMD_PUT) {
 			obex_action_put(handle,NULL,OBEX_EV_ABORT);
-			break;
-
-		default:
-			break;
 		}
 		break;
 
@@ -824,7 +817,7 @@ int main (int argc, char** argv) {
 #if OPENOBEX_TCPOBEX
 			char* address = NULL;
 			uint16_t port = 650;
-			char* intf = NULL;
+
 			if (optarg) {
 				address = parse_ip_arg(optarg, &port);
 			}
