@@ -1,10 +1,36 @@
+/* Copyright (C) 2006-2007 Hendrik Sattler <post@hendrik-sattler.de>
+ *       
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.		       
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *	       
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
+ */
+
+/* work around crappy GNU libc to define environ in unistd.h as
+ * define in environ(3posix)
+ */
+#define _GNU_SOURCE
+
+#include <unistd.h>
 #include <errno.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
-#include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
+
+#if USE_SPAWN
+#include <spawn.h>
+#endif
 
 int file_open (
 	char* name,
@@ -54,15 +80,22 @@ pid_t pipe_open (
 		return -err;
 	}
 
+#if USE_SPAWN
+	/* In theory, using spawn() is more efficient that fork()+exec().
+	 */
+	posix_spawn_file_actions_t actions;
+	if (posix_spawn_file_actions_init(&actions) ||
+	    posix_spawn_file_actions_addclose(&actions, PIPE_SERVER_WRITE) ||
+	    posix_spawn_file_actions_addclose(&actions, PIPE_SERVER_READ) ||
+	    posix_spawn_file_actions_adddup2(&actions, PIPE_CLIENT_STDIN, STDIN_FILENO) ||
+	    posix_spawn_file_actions_adddup2(&actions, PIPE_CLIENT_STDOUT, STDOUT_FILENO) ||
+	    posix_spawnp(&p, command, &actions, NULL, args, environ) ||
+	    posix_spawn_file_actions_destroy(&actions))
+	{
+#else
 	p = fork();
-	switch(p) {
-	case -1:
-		err = errno;
-		pipe_close(fds[0]);
-		pipe_close(fds[1]);
-		return -err;
-
-	case 0: /* child */
+	if (p) {
+		/* child */
 		close(PIPE_SERVER_WRITE);
 		close(PIPE_SERVER_READ);
 		if (PIPE_CLIENT_STDIN != STDIN_FILENO) {
@@ -82,14 +115,20 @@ pid_t pipe_open (
 		execvp(command, args);
 		perror("execvp");
 		exit(EXIT_FAILURE);
-		
-	default: /* parent */
-		close(PIPE_CLIENT_STDIN);
-		close(PIPE_CLIENT_STDOUT);
-		if (client_fds) {
-			client_fds[0] = PIPE_SERVER_READ;
-			client_fds[1] = PIPE_SERVER_WRITE;
-		}
-		return p;
+
+	} else if (p == -1) {
+#endif		
+		err = errno;
+		pipe_close(fds[0]);
+		pipe_close(fds[1]);
+		return -err;
 	}
+	/* parent */
+	close(PIPE_CLIENT_STDIN);
+	close(PIPE_CLIENT_STDOUT);
+	if (client_fds) {
+		client_fds[0] = PIPE_SERVER_READ;
+		client_fds[1] = PIPE_SERVER_WRITE;
+	}
+	return p;
 }

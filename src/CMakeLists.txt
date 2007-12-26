@@ -27,6 +27,8 @@ if ( USE_TCPOBEX )
   add_definitions ( -DOPENOBEX_TCPOBEX=1 )
 endif ( USE_TCPOBEX )
 
+add_definitions ( -DUSE_SPAWN=1 )
+
 #
 # ObexPush server daemon
 #
