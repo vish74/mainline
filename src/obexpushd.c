@@ -37,6 +37,10 @@
 #include <string.h>
 #include <ctype.h>
 
+#if defined(USE_THREADS)
+#include <pthread.h>
+#endif
+
 #define PROGRAM_NAME "obexpushd"
 #include "version.h"
 
@@ -591,38 +595,56 @@ void client_eventcb (obex_t* handle, obex_object_t* obj,
 	}
 }
 
-void handle_client (obex_t* client, struct net_data* net_data) {
+void* handle_client (void* arg) {
+	obex_t* client;
 	int status = 0;
 	file_data_t* data = malloc(sizeof(*data));
 	char buffer[256];
 
+	client = OBEX_ServerAccept(arg,client_eventcb,NULL);
 	if (!client)
-		exit(EXIT_FAILURE);
+		goto out;
 
 	if (data)
 		memset(data,0,sizeof(*data));
 	data->id = id++;
 	data->child = -1;
-	data->net_data = net_data;
+
+	data->net_data = malloc(sizeof(*data->net_data));
+	if (!data->net_data) {
+		free(data);
+		goto out;
+	}
+	memcpy(data->net_data, OBEX_GetUserData(client), sizeof(*data->net_data));
+	data->net_data->obex = client;
 	OBEX_SetUserData(client,data);
 
 	memset(buffer, 0, sizeof(buffer));
-	net_data->obex = client;
-	net_get_peer(net_data, buffer, sizeof(buffer));
+	net_get_peer(data->net_data, buffer, sizeof(buffer));
 	fprintf(stderr,"Connection from \"%s\"\n", buffer);
 
-	while (status != -1) {
-		status = OBEX_HandleInput(client,10);
-	}
+	do {
+		if (OBEX_HandleInput(client,10) < 0)
+			break;
+	} while (1);
 
+	OBEX_Cleanup(client);
 	if (data) {
-		if (data->name) free(data->name);
-		if (data->type) free(data->type);
+		if (data->net_data)
+			free(data->net_data);
+		if (data->name)
+			free(data->name);
+		if (data->type)
+			free(data->type);
 		free(data);
 	}
-	OBEX_Cleanup(client);
+
+out:
+#if ! defined(USE_THREADS)
 	if (nofork < 2)
 		exit(EXIT_SUCCESS);
+#endif
+	return NULL;
 }
 
 void eventcb (obex_t* handle, obex_object_t __unused *obj,
@@ -632,20 +654,44 @@ void eventcb (obex_t* handle, obex_object_t __unused *obj,
 	if (debug) printf("OBEX_EV_%s, OBEX_CMD_%s\n",
 			  obex_events[event],
 			  obex_commands[obex_cmd]);
-	if (obj) obex_object_headers(handle,obj);
-	switch (event) {
-	case OBEX_EV_ACCEPTHINT:
-	{
-		obex_t* client = OBEX_ServerAccept(handle,client_eventcb,NULL);
-		if (client && (nofork >= 2 || fork() == 0)) {
+	if (obj)obex_object_headers(handle,obj);
+	if (event == OBEX_EV_ACCEPTHINT) {
+#if defined(USE_THREADS)
+		pthread_t t;
+		(void)pthread_create(&t, NULL, handle_client, handle);
+#else
+		if (nofork >= 2 || fork() == 0) {
 			(void)signal(SIGINT, SIG_DFL);
 			(void)signal(SIGTERM, SIG_DFL);
-			handle_client(client, OBEX_GetUserData(handle));
+			(void)handle_client(handle);
 		}
-	}
-	break;
+#endif
 	}
 }
+
+#if defined(USE_THREADS)
+void obexpushd_listen_thread_cleanup (void* arg) {
+	net_cleanup(arg);
+}
+
+void* obexpushd_listen_thread (void* arg) {
+	struct net_data* data = arg;
+
+	pthread_cleanup_push(obexpushd_listen_thread_cleanup, arg);
+	net_init(data, eventcb);
+	if (!data->obex) {
+		fprintf(stderr, "net_init() failed\n");
+		pthread_exit(NULL);
+	}
+	do {
+		if (OBEX_HandleInput(data->obex, 60*60) < 0) { //wait one hour
+			//break;
+		}
+	} while (1);
+	pthread_cleanup_pop(1);
+	return NULL;
+}
+#endif
 
 void print_disclaimer () {
 	printf(PROGRAM_NAME " " OBEXPUSHD_VERSION " Copyright (C) 2006-2007 Hendrik Sattler\n"
@@ -754,15 +800,31 @@ static struct net_data* handle[4] = {
 #define IRDA_EXTRA_HANDLE handle[2]  
 #define INET_HANDLE       handle[3]
 
+#if defined(USE_THREADS)
+static pthread_t thread[sizeof(handle)/sizeof(*handle)];
+#endif
+
 void obexpushd_shutdown (int sig) {
 	size_t i;
 	(void)signal(SIGINT, SIG_DFL);
 	(void)signal(SIGTERM, SIG_DFL);
 	for (i = 0; i < sizeof(handle)/sizeof(*handle); ++i) {
-		if (handle[i])
-			net_cleanup(handle[i]);
-	}	
+		if (handle[i]) {
+			struct net_data* h = handle[i];
+			handle[i] = NULL;
+			net_cleanup(h);
+		}
+	}
 	(void)kill(getpid(), sig);
+}
+
+void obexpushd_wait (int sig) {
+	pid_t pidOfChild;
+	int status;
+	if (sig != SIGCLD)
+		return;
+	pidOfChild = wait(&status);
+	fprintf(stderr, "Child exited with status %d\n", status);
 }
 
 int main (int argc, char** argv) {
@@ -902,10 +964,32 @@ int main (int argc, char** argv) {
 	}
 
 	/* setup the signal handlers */
-	(void)signal(SIGCLD, SIG_IGN);
+	(void)signal(SIGCLD, obexpushd_wait);
 	(void)signal(SIGINT, obexpushd_shutdown);
 	(void)signal(SIGTERM, obexpushd_shutdown);
 
+
+#if defined(USE_THREADS)
+	/* initialize all enabled listeners */
+	for (i = 0; i < sizeof(handle)/sizeof(*handle); ++i) {
+		if (!handle[i])
+			continue;
+		if (pthread_create(&thread[i], NULL, obexpushd_listen_thread, handle[i]))
+			perror("pthread_create()");
+	}
+
+	/* Calling pthread_exit() would be sufficient but some users may wonder
+	 * why the entry is then "[obexpushd] <defunct>". This is done to avoid that.
+	 */
+	for (i = 0; i < sizeof(handle)/sizeof(*handle); ++i) {
+		if (handle[i]) {
+			void* retval;
+			pthread_join(thread[i], &retval);
+		}
+	}
+	pthread_exit(NULL);
+
+#else
 	/* initialize all enabled listeners */
 	for (i = 0; i < sizeof(handle)/sizeof(*handle); ++i) {
 		int fd = -1;
@@ -946,6 +1030,7 @@ int main (int argc, char** argv) {
 				(void)OBEX_HandleInput(handle[i]->obex,1);
 		}			
 	} while (1);
+#endif
 
 	/* never reached */
 	return EXIT_FAILURE;

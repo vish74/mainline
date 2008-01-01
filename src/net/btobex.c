@@ -60,7 +60,10 @@ void _bluetooth_cleanup(
 	obex_t* ptr
 )
 {
-	bt_sdp_session_close(args->session_data, &args->device);
+	if (args->session_data) {
+		bt_sdp_session_close(args->session_data, &args->device);
+		args->session_data = NULL;
+	}
 }
 
 static

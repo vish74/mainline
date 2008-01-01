@@ -28,7 +28,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#if USE_SPAWN
+#if defined(USE_SPAWN)
 #include <spawn.h>
 #endif
 
@@ -80,7 +80,7 @@ pid_t pipe_open (
 		return -err;
 	}
 
-#if USE_SPAWN
+#if defined(USE_SPAWN)
 	/* In theory, using spawn() is more efficient that fork()+exec().
 	 */
 	posix_spawn_file_actions_t actions;

@@ -27,7 +27,20 @@ if ( USE_TCPOBEX )
   add_definitions ( -DOPENOBEX_TCPOBEX=1 )
 endif ( USE_TCPOBEX )
 
-add_definitions ( -DUSE_SPAWN=1 )
+option ( USE_SPAWN "Use POSIX spawn function instead of fork+exec" ON )
+if ( USE_SPAWN )
+  add_definitions ( -DUSE_SPAWN )
+endif ( USE_SPAWN )
+
+option ( USE_THREADS "Use POSIX threads instead of fork" ON )
+if ( USE_THREADS )
+  find_package ( Threads )
+  if ( CMAKE_USE_PTHREADS_INIT )
+    add_definitions ( -DUSE_THREADS )
+    find_library ( THREAD_LIBRARY pthread )
+    mark_as_advanced ( THREAD_LIBRARY )
+  endif ( CMAKE_USE_PTHREADS_INIT )
+endif ( USE_THREADS )
 
 #
 # ObexPush server daemon
@@ -57,6 +70,7 @@ add_executable ( obexpushd ${SOURCES} )
 target_link_libraries ( obexpushd
   ${openobex_LIBRARIES}
   ${bluez_LIBRARIES}
+  ${THREAD_LIBRARY}
 )
 set_target_properties ( obexpushd PROPERTIES
   COMPILE_FLAGS "${openobex_CFLAGS_OTHERS} ${bluez_CFLAGS_OTHERS}"

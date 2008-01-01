@@ -72,5 +72,8 @@ void net_cleanup (struct net_data* data)
 	net_security_cleanup(data);
 	if (data->funcs && data->funcs->cleanup)
 		data->funcs->cleanup(data->arg, data->obex);
-	OBEX_Cleanup(data->obex);
+	if (data->obex) {
+		OBEX_Cleanup(data->obex);
+		data->obex = NULL;
+	}
 }
