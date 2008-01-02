@@ -45,10 +45,8 @@
 #include "version.h"
 
 #if __GNUC__ >= 3
-#define __noreturn __attribute__((noreturn))
 #define __unused   /*@unused@*/ __attribute__((unused))
 #else
-#define __noreturn
 #define __unused /*@unused@*/
 #endif
 
@@ -637,10 +635,6 @@ out2:
 		free(data);
 	}
 out1:
-#if ! defined(USE_THREADS)
-	if (nofork < 2)
-		exit(EXIT_SUCCESS);
-#endif
 	return NULL;
 }
 
@@ -671,7 +665,7 @@ void eventcb (obex_t* handle, obex_object_t __unused *obj,
 				(void)signal(SIGINT, SIG_DFL);
 				(void)signal(SIGTERM, SIG_DFL);
 				(void)handle_client(client);
-				break;
+				exit(EXIT_SUCCESS);
 
 			case -1:
 				perror("fork()");
