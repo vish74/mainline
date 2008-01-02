@@ -596,50 +596,47 @@ void client_eventcb (obex_t* handle, obex_object_t* obj,
 }
 
 void* handle_client (void* arg) {
-	obex_t* client;
 	int status = 0;
 	file_data_t* data = malloc(sizeof(*data));
 	char buffer[256];
 
-	client = OBEX_ServerAccept(arg,client_eventcb,NULL);
-	if (!client)
-		goto out;
-
-	if (data)
-		memset(data,0,sizeof(*data));
+	if (!data)
+		goto out1;
+	memset(data,0,sizeof(*data));
 	data->id = id++;
 	data->child = -1;
 
 	data->net_data = malloc(sizeof(*data->net_data));
-	if (!data->net_data) {
-		free(data);
-		goto out;
-	}
-	memcpy(data->net_data, OBEX_GetUserData(client), sizeof(*data->net_data));
-	data->net_data->obex = client;
-	OBEX_SetUserData(client,data);
+	if (!data->net_data)
+		goto out2;
+	memcpy(data->net_data, OBEX_GetUserData(arg), sizeof(*data->net_data));
+	data->net_data->obex = arg;
+	if (!data->net_data->obex)
+		goto out2;
+	OBEX_SetUserData(data->net_data->obex, data);
 
 	memset(buffer, 0, sizeof(buffer));
 	net_get_peer(data->net_data, buffer, sizeof(buffer));
 	fprintf(stderr,"Connection from \"%s\"\n", buffer);
 
 	do {
-		if (OBEX_HandleInput(client,10) < 0)
+		if (OBEX_HandleInput(data->net_data->obex, 10) < 0)
 			break;
 	} while (1);
 
-	OBEX_Cleanup(client);
+out2:
 	if (data) {
-		if (data->net_data)
+		if (data->net_data) {
+			OBEX_Cleanup(data->net_data->obex);
 			free(data->net_data);
+		}
 		if (data->name)
 			free(data->name);
 		if (data->type)
 			free(data->type);
 		free(data);
 	}
-
-out:
+out1:
 #if ! defined(USE_THREADS)
 	if (nofork < 2)
 		exit(EXIT_SUCCESS);
@@ -656,16 +653,31 @@ void eventcb (obex_t* handle, obex_object_t __unused *obj,
 			  obex_commands[obex_cmd]);
 	if (obj)obex_object_headers(handle,obj);
 	if (event == OBEX_EV_ACCEPTHINT) {
+		obex_t* client = OBEX_ServerAccept(handle, client_eventcb, NULL);
+		if (!client)
+			return;
+		if (nofork >= 2) {
+			(void)handle_client(client);
+		} else {
 #if defined(USE_THREADS)
-		pthread_t t;
-		(void)pthread_create(&t, NULL, handle_client, handle);
+			pthread_t t;
+			if (pthread_create(&t, NULL, handle_client, client) != 0)
+				perror("pthread_create()");
+
 #else
-		if (nofork >= 2 || fork() == 0) {
-			(void)signal(SIGINT, SIG_DFL);
-			(void)signal(SIGTERM, SIG_DFL);
-			(void)handle_client(handle);
-		}
+			pid_t p = fork();
+			switch (p) {
+			case 0:
+				(void)signal(SIGINT, SIG_DFL);
+				(void)signal(SIGTERM, SIG_DFL);
+				(void)handle_client(client);
+				break;
+
+			case -1:
+				perror("fork()");
+			}
 #endif
+		}
 	}
 }
 
@@ -684,7 +696,10 @@ void* obexpushd_listen_thread (void* arg) {
 		pthread_exit(NULL);
 	}
 	do {
-		if (OBEX_HandleInput(data->obex, 60*60) < 0) { //wait one hour
+		if (OBEX_HandleInput(data->obex, 3600) < 0) {
+			/* OpenOBEX sometimes return -1 anyway, must be a bug
+			 * thus the break is commented -> go on anyway
+			 */
 			//break;
 		}
 	} while (1);
@@ -829,9 +844,7 @@ void obexpushd_wait (int sig) {
 
 int main (int argc, char** argv) {
 	size_t i;
-	int topfd = 0;
 	char* pidfile = NULL;
-
 
 	int c;
 	while ((c = getopt(argc,argv,"B::I::N::a:dhnp:r:s:v")) != -1) {
@@ -974,7 +987,7 @@ int main (int argc, char** argv) {
 	for (i = 0; i < sizeof(handle)/sizeof(*handle); ++i) {
 		if (!handle[i])
 			continue;
-		if (pthread_create(&thread[i], NULL, obexpushd_listen_thread, handle[i]))
+		if (pthread_create(&thread[i], NULL, obexpushd_listen_thread, handle[i]) != 0)
 			perror("pthread_create()");
 	}
 
@@ -1003,22 +1016,28 @@ int main (int argc, char** argv) {
 			perror("OBEX_GetFD()");
 			exit(EXIT_FAILURE);
 		}
-		if (fd > topfd)
-			topfd = fd;
 	}
-	++topfd;
 	
 	/* run the multiplexer */
 	do {
+		int topfd = 0;
 		fd_set fds;
 		FD_ZERO(&fds);
 		for (i = 0; i < sizeof(handle)/sizeof(*handle); ++i) {
 			if (!handle[i])
 				continue;
-			if (handle[i]->obex)
-				FD_SET(OBEX_GetFD(handle[i]->obex), &fds);
+			if (handle[i]->obex) {
+				int fd = OBEX_GetFD(handle[i]->obex);
+				if (fd == -1) {
+					perror("OBEX_GetFD()");
+					exit(EXIT_FAILURE);
+				}
+				if (fd > topfd)
+					topfd = fd;
+				FD_SET(fd, &fds);
+			}
 		}
-		select(topfd,&fds,NULL,NULL,NULL);
+		select(topfd+1, &fds, NULL, NULL, NULL);
 		for (i = 0; i < sizeof(handle)/sizeof(*handle); ++i) {
 			int fd = -1;
 			if (!handle[i])
