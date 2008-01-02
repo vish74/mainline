@@ -1,3 +1,8 @@
+0.8 (2008-??-??)
+    - add usage of POSIX function spawn() for externally called programs/scripts
+      and select it by default
+    - add usage of POSIX threads for concurrency and select it by default
+
 0.7 (2007-12-23) "Merry Xmas and a happy new year"
     - add support for binding to a specific bluetooth adapter
     - add support for binding to a specific ethernet address
