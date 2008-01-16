@@ -9,6 +9,7 @@
 typedef struct {
 	unsigned int id;
 	unsigned int count;
+	uint8_t error;
 
 	uint16_t* name;
 	char* type;

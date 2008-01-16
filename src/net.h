@@ -12,7 +12,7 @@ struct net_data {
 };
 struct net_data* net_data_new ();
 void net_init (struct net_data* data, obex_event_t eventcb);
-void net_security_init (
+uint8_t net_security_init (
 	struct net_data* data,
 	obex_object_t* obj
 );

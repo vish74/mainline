@@ -57,9 +57,9 @@ char* obex_events[] = {
 	"STREAMEMPTY", "STREAMAVAIL", "UNEXPECTED", "REQCHECK",
 };
 
-char* obex_commands[] = {
+char* _obex_commands[] = {
 	"CONNECT", "DISCONNECT", "PUT", "GET",
-	"SETPATH", "SESSION", "ABORT", "FINAL",
+	"SETPATH", "SESSION", "ABORT"
 };
 
 /* global settings */
@@ -235,7 +235,26 @@ int obex_auth_send_response (obex_t* handle,
 	return obex_auth_add_response(handle,obj,&resp);
 }
 
-void obex_object_headers (obex_t* handle, obex_object_t* obj) {
+char* obex_command_string(uint8_t cmd)
+{
+	switch (cmd) {
+	case OBEX_CMD_CONNECT:
+	case OBEX_CMD_DISCONNECT:
+	case OBEX_CMD_PUT:
+	case OBEX_CMD_GET:
+		return _obex_commands[cmd];
+	case OBEX_CMD_SETPATH:
+		return _obex_commands[4];
+	case OBEX_CMD_SESSION:
+		return _obex_commands[5];
+	case OBEX_CMD_ABORT:
+		return _obex_commands[6];
+	default:
+		return "UNKNOWN";
+	}
+}
+
+int obex_object_headers (obex_t* handle, obex_object_t* obj) {
 	uint8_t id = 0;
 	obex_headerdata_t value;
 	uint32_t vsize;
@@ -263,10 +282,10 @@ void obex_object_headers (obex_t* handle, obex_object_t* obj) {
 					printf("%u.%u: name: \"%s\"\n",data->id,data->count,(char*)n);
 					free(n);
 				}
-				if (!check_name(data->name))
-					(void)OBEX_ObjectSetRsp(obj,
-								OBEX_RSP_BAD_REQUEST,
-								OBEX_RSP_BAD_REQUEST);
+				if (!check_name(data->name)) {
+					printf("%u.%u: CHECK FAILED: Invalid name string\n",data->id,data->count);
+					return 0;
+				}
 			}
 			break;
 
@@ -281,10 +300,10 @@ void obex_object_headers (obex_t* handle, obex_object_t* obj) {
 				data->type[vsize] = '\0';
 				if (debug)
 					printf("%u.%u: type: \"%s\"\n",data->id,data->count,data->type);
-				if (!check_type(data->type))
-					(void)OBEX_ObjectSetRsp(obj,
-								OBEX_RSP_BAD_REQUEST,
-								OBEX_RSP_BAD_REQUEST);
+				if (!check_type(data->type)) {
+					printf("%u.%u: CHECK FAILED: Invalid type string\n",data->id,data->count);
+					return 0;
+				}
 			}
 			break;
 
@@ -320,21 +339,40 @@ void obex_object_headers (obex_t* handle, obex_object_t* obj) {
 
 		default:
 			/* some unexpected header, may be a bug */
-			return;
+			break;
+		}
+	}
+	return 1;
+}
+
+static
+void obex_send_response (obex_t* handle, obex_object_t* obj, uint8_t respCode) {
+	switch (respCode) {
+	case OBEX_RSP_CONTINUE:
+	case OBEX_RSP_SUCCESS:
+		(void)OBEX_ObjectSetRsp(obj,
+					OBEX_RSP_CONTINUE,
+					OBEX_RSP_SUCCESS);
+		break;
+
+	default:
+	        {
+			file_data_t* data = OBEX_GetUserData(handle);
+			(void)OBEX_ObjectSetRsp(obj, respCode, respCode);
+			data->error = respCode;
+			break;
 		}
 	}
 }
 
 void obex_action_connect (obex_t* handle, obex_object_t* obj, int event) {
 	file_data_t* data = OBEX_GetUserData(handle);
+	uint8_t code = OBEX_RSP_CONTINUE;
 	switch (event) {
 	case OBEX_EV_REQHINT: /* A new request is coming in */
 		if (auth_file && !data->net_data->auth_success)
-			net_security_init(data->net_data, obj);
-		else
-			(void)OBEX_ObjectSetRsp(obj,
-						OBEX_RSP_CONTINUE,
-						OBEX_RSP_SUCCESS);
+			code = net_security_init(data->net_data, obj);
+		obex_send_response(handle, obj, code);
 		break;
 	}
 }
@@ -342,9 +380,7 @@ void obex_action_connect (obex_t* handle, obex_object_t* obj, int event) {
 void obex_action_disconnect (obex_t* handle, obex_object_t* obj, int event) {
 	switch (event) {
 	case OBEX_EV_REQHINT: /* A new request is coming in */
-		(void)OBEX_ObjectSetRsp(obj,
-					OBEX_RSP_CONTINUE,
-					OBEX_RSP_SUCCESS);
+		obex_send_response(handle, obj, OBEX_RSP_CONTINUE);
 		break;
 
 	case OBEX_EV_REQDONE:
@@ -356,13 +392,22 @@ void obex_action_disconnect (obex_t* handle, obex_object_t* obj, int event) {
 void obex_action_put (obex_t* handle, obex_object_t* obj, int event) {
 	file_data_t* data = OBEX_GetUserData(handle);
 
-	obex_object_headers(handle,obj);
+	if (data->error &&
+	    (event == OBEX_EV_REQ ||
+	     event == OBEX_EV_REQCHECK ||
+	     event == OBEX_EV_STREAMAVAIL))
+	{
+		obex_send_response(handle, obj, data->error);
+		return;
+	}
+	if (!obex_object_headers(handle,obj)) {
+		obex_send_response(handle, obj, OBEX_RSP_BAD_REQUEST);
+		return;
+	}
 	switch (event) {
 	case OBEX_EV_REQHINT: /* A new request is coming in */
-		(void)OBEX_ObjectSetRsp(obj,
-					OBEX_RSP_CONTINUE,
-					OBEX_RSP_SUCCESS);
 		(void)OBEX_ObjectReadStream(handle,obj,NULL);
+		data->error = 0;
 		if (data->name) {
 			free(data->name);
 			data->name = NULL;
@@ -380,9 +425,9 @@ void obex_action_put (obex_t* handle, obex_object_t* obj, int event) {
 	case OBEX_EV_REQCHECK:
 		if (data->out == NULL
 		    && put_open(handle,script) < 0)
-			(void)OBEX_ObjectSetRsp(obj,
-						OBEX_RSP_FORBIDDEN,
-						OBEX_RSP_FORBIDDEN);
+			obex_send_response(handle, obj, OBEX_RSP_FORBIDDEN);
+		else
+			obex_send_response(handle, obj, OBEX_RSP_CONTINUE);
 		break;
 
 	case OBEX_EV_STREAMAVAIL:
@@ -395,9 +440,7 @@ void obex_action_put (obex_t* handle, obex_object_t* obj, int event) {
 			if ((data->out == NULL
 			     && put_open(handle,script) < 0)
 			    || put_write(handle,buf,len))
-				(void)OBEX_ObjectSetRsp(obj,
-							OBEX_RSP_FORBIDDEN,
-							OBEX_RSP_FORBIDDEN);
+				obex_send_response(handle, obj, OBEX_RSP_FORBIDDEN);
 		}
 		break;
 	}
@@ -426,16 +469,21 @@ void obex_action_get (obex_t* handle, obex_object_t* obj, int event) {
 	file_data_t* data = OBEX_GetUserData(handle);
 	int len = 0;
 
-	obex_object_headers(handle,obj);
+	if (data->error &&
+	    (event == OBEX_EV_REQ ||
+	     event == OBEX_EV_REQCHECK ||
+	     event == OBEX_EV_STREAMEMPTY))
+	{
+		obex_send_response(handle, obj, data->error);
+		return;
+	}
+	if (!obex_object_headers(handle,obj)) {
+		obex_send_response(handle, obj, OBEX_RSP_BAD_REQUEST);
+		return;
+	}
 	switch (event) {
 	case OBEX_EV_REQHINT: /* A new request is coming in */
-		if (!script) {
-			/* There is no default object to get */
-			(void)OBEX_ObjectSetRsp(obj,
-						OBEX_RSP_NOT_FOUND,
-						OBEX_RSP_NOT_FOUND);
-			break;
-		}
+		data->error = 0;
 		if (data->name) {
 			free(data->name);
 			data->name = NULL;
@@ -445,6 +493,11 @@ void obex_action_get (obex_t* handle, obex_object_t* obj, int event) {
 		data->count += 1;
 		data->length = 0;
 		data->time = 0;
+		if (!script) {
+			/* There is no default object to get */
+			obex_send_response(handle, obj, OBEX_RSP_NOT_FOUND);
+			break;
+		}
 		break;
 
 	case OBEX_EV_REQCHECK:
@@ -459,23 +512,17 @@ void obex_action_get (obex_t* handle, obex_object_t* obj, int event) {
 		 */
 		if ((strcmp(data->type,"x-obex/object-profile") != 0 && data->name)
 		    || strcmp(data->type,"x-obex/folder-listing") == 0)
-			(void)OBEX_ObjectSetRsp(obj,
-						OBEX_RSP_FORBIDDEN,
-						OBEX_RSP_FORBIDDEN);
+			obex_send_response(handle, obj, OBEX_RSP_FORBIDDEN);
 
 		if (get_open(handle,script) < 0 ||
 		    data->length == 0) {
-			(void)OBEX_ObjectSetRsp(obj,
-						OBEX_RSP_INTERNAL_SERVER_ERROR,
-						OBEX_RSP_INTERNAL_SERVER_ERROR);
+			obex_send_response(handle, obj, OBEX_RSP_INTERNAL_SERVER_ERROR);
 		}
 		break;
 
 	case OBEX_EV_REQ: {
 		obex_headerdata_t hv;
-		(void)OBEX_ObjectSetRsp(obj,
-					OBEX_RSP_CONTINUE,
-					OBEX_RSP_SUCCESS);
+		obex_send_response(handle, obj, OBEX_RSP_CONTINUE);
 		if (data->name) {
 			size_t size = utf16len(data->name);
 			if (size) {
@@ -517,9 +564,7 @@ void obex_action_get (obex_t* handle, obex_object_t* obj, int event) {
 							   hv,len,
 							   OBEX_FL_STREAM_DATAEND);			
 		} else {			
-			(void)OBEX_ObjectSetRsp(obj,
-						OBEX_RSP_INTERNAL_SERVER_ERROR,
-						OBEX_RSP_INTERNAL_SERVER_ERROR);
+			obex_send_response(handle, obj, OBEX_RSP_INTERNAL_SERVER_ERROR);
 		}
 		break;
 
@@ -555,7 +600,8 @@ void client_eventcb (obex_t* handle, obex_object_t* obj,
 
 	if (debug) printf("%u: OBEX_EV_%s, OBEX_CMD_%s\n",data->id,
 			  obex_events[event],
-			  obex_commands[obex_cmd]);
+			  obex_command_string(obex_cmd));
+
 	switch (obex_cmd) {
 	case OBEX_CMD_CONNECT:
 		obex_action_connect(handle,obj,event);
@@ -585,9 +631,7 @@ void client_eventcb (obex_t* handle, obex_object_t* obj,
 		switch (event) {
 		case OBEX_EV_REQHINT: /* A new request is coming in */
 			/* Reject any other commands */                       
-			(void)OBEX_ObjectSetRsp(obj,
-						OBEX_RSP_NOT_IMPLEMENTED,
-						OBEX_RSP_NOT_IMPLEMENTED);
+			obex_send_response(handle, obj, OBEX_RSP_NOT_IMPLEMENTED);
 			break;
 		}
 	}
@@ -644,8 +688,13 @@ void eventcb (obex_t* handle, obex_object_t __unused *obj,
 {
 	if (debug) printf("OBEX_EV_%s, OBEX_CMD_%s\n",
 			  obex_events[event],
-			  obex_commands[obex_cmd]);
-	if (obj)obex_object_headers(handle,obj);
+			  obex_command_string(obex_cmd));
+	if (obj && !obex_object_headers(handle,obj)) {
+		(void)OBEX_ObjectSetRsp(obj,
+					OBEX_RSP_BAD_REQUEST,
+					OBEX_RSP_BAD_REQUEST);
+		return;
+	}
 	if (event == OBEX_EV_ACCEPTHINT) {
 		obex_t* client = OBEX_ServerAccept(handle, client_eventcb, NULL);
 		if (!client)
@@ -655,7 +704,10 @@ void eventcb (obex_t* handle, obex_object_t __unused *obj,
 		} else {
 #if defined(USE_THREADS)
 			pthread_t t;
-			if (pthread_create(&t, NULL, handle_client, client) != 0)
+			pthread_attr_t attr;
+			pthread_attr_init(&attr);
+			pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+			if (pthread_create(&t, &attr, handle_client, client) != 0)
 				perror("pthread_create()");
 
 #else
@@ -809,10 +861,6 @@ static struct net_data* handle[4] = {
 #define IRDA_EXTRA_HANDLE handle[2]  
 #define INET_HANDLE       handle[3]
 
-#if defined(USE_THREADS)
-static pthread_t thread[sizeof(handle)/sizeof(*handle)];
-#endif
-
 void obexpushd_shutdown (int sig) {
 	size_t i;
 	(void)signal(SIGINT, SIG_DFL);
@@ -839,6 +887,9 @@ void obexpushd_wait (int sig) {
 int main (int argc, char** argv) {
 	size_t i;
 	char* pidfile = NULL;
+#if defined(USE_THREADS)
+	pthread_t thread[sizeof(handle)/sizeof(*handle)];
+#endif
 
 	int c;
 	while ((c = getopt(argc,argv,"B::I::N::a:dhnp:r:s:v")) != -1) {
@@ -985,9 +1036,6 @@ int main (int argc, char** argv) {
 			perror("pthread_create()");
 	}
 
-	/* Calling pthread_exit() would be sufficient but some users may wonder
-	 * why the entry is then "[obexpushd] <defunct>". This is done to avoid that.
-	 */
 	for (i = 0; i < sizeof(handle)/sizeof(*handle); ++i) {
 		if (handle[i]) {
 			void* retval;
