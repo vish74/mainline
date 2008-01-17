@@ -32,7 +32,7 @@ if ( USE_SPAWN )
   add_definitions ( -DUSE_SPAWN )
 endif ( USE_SPAWN )
 
-option ( USE_THREADS "Use POSIX threads instead of fork" ON )
+option ( USE_THREADS "Use POSIX threads instead of fork (if supported by system)" ON )
 if ( USE_THREADS )
   find_package ( Threads )
   if ( CMAKE_USE_PTHREADS_INIT )
