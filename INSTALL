@@ -33,6 +33,16 @@ This will create Makefiles and thus you can run:
 $ make
 
 
+Build options:
+==============
+
+The following build options (== cmake variables) are available:
+USE_SPAWN     Use POSIX function spawn() (instead of fork()+exec()) for external
+              scripts. The default is ON and this is also the suggested value.
+USE_THREADS   Use POSIX threads (instead of fork()) for client connections. The
+              default in ON and this is also the suggested value.
+
+
 Installing:
 ===========
 

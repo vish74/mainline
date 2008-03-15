@@ -1,7 +1,7 @@
 project ( obexpushd C )
 
 set ( VERSION_MAJOR 0 )
-set ( VERSION_MINOR 7 )
+set ( VERSION_MINOR 8 )
 set ( VERSION_PATCH 0 )
 set ( VERSION "${VERSION_MAJOR}.${VERSION_MINOR}" )
 if ( VERSION_PATCH GREATER 0 )
@@ -16,6 +16,7 @@ if ( NOT CMAKE_BUILD_TYPE )
 endif ( NOT CMAKE_BUILD_TYPE )
 
 add_subdirectory ( src )
+add_subdirectory ( src/x-obex )
 
 if ( NOT DOCUMENTS_DIRECTORY )
   set ( DOCUMENTS_DIRECTORY "share/doc/${PROJECT_NAME}"

@@ -7,11 +7,7 @@ DIALOG=kdialog
 # compatible with obexpushd 0.6
 #
 
-#only put is supported
-if ( test "$1" = "get" ); then
-    exit 1
-fi
-
+MODE="$1"
 FROM=""
 NAME=""
 LENGTH="0"
@@ -30,25 +26,40 @@ while read LINE; do
     esac
 done
 
-if ( test -z "${NAME}" ); then
-    exit 1;
-fi
-
-if ( test -e "${NAME}" ); then
-    exit 1
-fi
+case "${MODE}" in
+put)
+	if ( test -z "${NAME}" ); then
+	    exit 1;
+	fi
+	
+	if ( test -e "${NAME}" ); then
+	    exit 1
+	fi
 
 #tell obexpushd to go on
-${DIALOG} --title "Obex-Push" \
-          --yesno \
-          "Allow receiving the file\n\"${NAME}\"\n(${LENGTH} bytes) from\n${FROM}" \
-          10 40
-if ( test "$?" -eq "0" ); then
-    echo "OK"
-else
-    echo "ABORT"
-    exit 1
-fi
+	${DIALOG} --title "Obex-Push" \
+            --yesno \
+            "Allow receiving the file\n\"${NAME}\"\n(${LENGTH} bytes) from\n${FROM}" \
+            10 40
+	if ( test "$?" -eq "0" ); then
+	    echo "OK"
+	else
+	    echo "ABORT"
+	    exit 1
+	fi
+	
+	cat > "${NAME}"
+	;;
 
-cat > "${NAME}"
+get)
+	case "${TYPE}" in
+	x-obex/capability)
+		obex-capability 2>/dev/null
+		;;
+
+	*)
+		;;
+	esac
+	;;
+esac
 exit 0

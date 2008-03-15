@@ -181,7 +181,7 @@ int get_open (obex_t* handle, char* script) {
 
 int get_read (obex_t* handle, uint8_t* buf, size_t size) {
 	file_data_t* data = OBEX_GetUserData(handle);
-	size_t status = fread(buf,1,size,data->out);
+	size_t status = fread(buf, sizeof(uint8_t), size, data->out);
 	
 	if (status < size && !feof(data->out))		
 		return -ferror(data->out);
