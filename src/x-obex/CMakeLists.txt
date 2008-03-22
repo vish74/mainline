@@ -5,7 +5,10 @@ if ( NOT CMAKE_BUILD_TYPE )
         CACHE STRING "" FORCE )
 endif ( NOT CMAKE_BUILD_TYPE )
 
-option ( BUILD_XOBEX_LIBS "Build shared libraries instead of static ones." OFF )
+option ( BUILD_XOBEX_LIBS "Build separate x-obex libraries." OFF )
+if ( BUILD_XOBEX_LIBS )
+  option ( BUILD_SHARED_LIBS "Build libraries as shared objects." OFF )
+endif ( BUILD_XOBEX_LIBS )
 
 if (WIN32 AND NOT UNIX)
   link_libraries ( shlwapi )
@@ -23,6 +26,15 @@ foreach ( type capability folder-listing )
       PROPERTIES
         OUTPUT_NAME "obex-${type}"
     )
+    install (
+      TARGETS obex-${type}-lib
+      RUNTIME DESTINATION bin
+      LIBRARY DESTINATION lib
+      ARCHIVE DESTINATION lib
+      PERMISSIONS OWNER_READ OWNER_WRITE
+                  GROUP_READ
+	          WORLD_READ
+    )
   else ( BUILD_XOBEX_LIBS )
     list ( APPEND obex_${type}_sources
       obex-${type}.c
@@ -31,6 +43,13 @@ foreach ( type capability folder-listing )
 
   add_executable ( obex-${type}
     ${obex_${type}_sources}
+  )
+  install (
+    TARGETS obex-${type}
+    RUNTIME DESTINATION bin
+    PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE
+                GROUP_READ             GROUP_EXECUTE
+	        WORLD_READ             WORLD_EXECUTE
   )
   if ( BUILD_XOBEX_LIBS )
     target_link_libraries ( obex-${type}
