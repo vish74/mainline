@@ -4,11 +4,9 @@ configure_file (
   ${CMAKE_CURRENT_BINARY_DIR}/version.h
 )
 
-find_package ( PkgConfig )
-foreach ( i openobex bluez )
-  pkg_check_modules ( ${i} REQUIRED ${i} )
+foreach ( i Bluetooth OpenObex )
+  find_package ( ${i} REQUIRED )
   include_directories ( ${${i}_INCLUDE_DIRS} )
-  link_directories ( ${${i}_LIBRARY_DIRS} )
 endforeach ( i )
 
 include_directories (
@@ -16,16 +14,9 @@ include_directories (
   ${CMAKE_CURRENT_BINARY_DIR}
 )
 
-include ( CheckFunctionExists )
-message( STATUS "Checking capabilities of OpenObex..." )
-set ( CMAKE_REQUIRED_FLAGS ${openobex_CFLAGS} )
-set ( CMAKE_REQUIRED_DEFINITIONS )
-set ( CMAKE_REQUIRED_INCLUDES ${openobex_INLUDE_DIRS} )
-set ( CMAKE_REQUIRED_LIBRARIES ${openobex_LDFLAGS} )
-check_function_exists ( TcpOBEX_ServerRegister USE_TCPOBEX )
-if ( USE_TCPOBEX )
+if ( OpenObex_HAVE_TcpObex )
   add_definitions ( -DOPENOBEX_TCPOBEX=1 )
-endif ( USE_TCPOBEX )
+endif ( OpenObex_HAVE_TcpObex )
 
 option ( USE_SPAWN "Use POSIX spawn function instead of fork+exec" ON )
 if ( USE_SPAWN )
@@ -60,16 +51,16 @@ list ( APPEND SOURCES
   net/btobex.c
   net/irobex.c
 )
-if ( USE_TCPOBEX )
+if ( OpenObex_HAVE_TcpObex )
   list ( APPEND SOURCES net/tcpobex.c )
-else ( USE_TCPOBEX )
+else ( OpenObex_HAVE_TcpObex )
   list ( APPEND SOURCES net/inobex.c )
-endif ( USE_TCPOBEX )
+endif ( OpenObex_HAVE_TcpObex )
 
 add_executable ( obexpushd ${SOURCES} )
 target_link_libraries ( obexpushd
-  ${openobex_LIBRARIES}
-  ${bluez_LIBRARIES}
+  ${OpenObex_LIBRARIES}
+  ${Bluetooth_LIBRARIES}
   ${THREAD_LIBRARY}
 )
 set_target_properties ( obexpushd PROPERTIES

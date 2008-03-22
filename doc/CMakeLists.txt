@@ -1,8 +1,4 @@
 
-list ( APPEND CMAKE_MODULE_PATH
-  ${CMAKE_CURRENT_SOURCE_DIR}
-)
-
 find_package ( XmlTo )
 
 if ( XmlTo_FOUND )

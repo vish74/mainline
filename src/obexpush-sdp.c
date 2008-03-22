@@ -58,7 +58,6 @@ struct obexpush_sdp_data* bt_sdp_obexpush (
 )
 {
 	size_t i;
-	int status;
 
 	struct obexpush_sdp_data* data = malloc(sizeof(*data));
 	if (!data)

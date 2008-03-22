@@ -37,11 +37,14 @@ Build options:
 ==============
 
 The following build options (== cmake variables) are available:
-USE_SPAWN     Use POSIX function spawn() (instead of fork()+exec()) for external
-              scripts. The default is ON and this is also the suggested value.
-USE_THREADS   Use POSIX threads (instead of fork()) for client connections. The
-              default in ON and this is also the suggested value.
+USE_SPAWN         Use POSIX function spawn() (instead of fork()+exec()) for external
+                  scripts. The default is ON and this is also the suggested value.
+USE_THREADS       Use POSIX threads (instead of fork()) for client connections. The
+                  default in ON and this is also the suggested value.
+BUILD_XOBEX_LIBS  Build libraries to handle xobex/* mime types in your own programs.
+                  Default if OFF and the binaries are linked statically.
 
+There are lots of other variables that affect the build.
 
 Installing:
 ===========

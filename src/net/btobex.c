@@ -1,5 +1,6 @@
 #include "net.h"
 #include "obexpush-sdp.h"
+#include "compiler.h"
 
 #include <inttypes.h>
 #include <stdlib.h>
@@ -56,8 +57,8 @@ obex_t* bluetooth_init(
 
 static
 void _bluetooth_cleanup(
-	struct bluetooth_args* args,
-	obex_t* ptr
+	struct bluetooth_args *args,
+	obex_t __unused *ptr
 )
 {
 	if (args->session_data) {
@@ -72,7 +73,7 @@ void bluetooth_cleanup(
 	obex_t* ptr
 )
 {
-	return _bluetooth_cleanup((struct bluetooth_args*)arg, ptr);
+	_bluetooth_cleanup((struct bluetooth_args*)arg, ptr);
 }
 
 static

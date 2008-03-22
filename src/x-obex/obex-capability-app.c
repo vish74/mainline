@@ -15,11 +15,14 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
  */
 
+#define _GNU_SOURCE
+
 #include "obex-capability.h"
 #include <stdio.h>
 #include <unistd.h>
 #include <stdlib.h>
 #include <errno.h>
+#include <string.h>
 
 #define PROGRAM_NAME "obex-capability"
 #define PROGRAM_VERSION "0.1"

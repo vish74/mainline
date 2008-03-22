@@ -1,3 +1,6 @@
+
+#define _GNU_SOURCE
+
 #include "net.h"
 
 #include <inttypes.h>

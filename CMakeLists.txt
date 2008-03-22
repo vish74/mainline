@@ -15,6 +15,10 @@ if ( NOT CMAKE_BUILD_TYPE )
         CACHE STRING "Choice of a predefined CMake ruleset" FORCE )
 endif ( NOT CMAKE_BUILD_TYPE )
 
+list ( APPEND CMAKE_MODULE_PATH
+  ${CMAKE_CURRENT_SOURCE_DIR}/CMakeModules
+)
+
 add_subdirectory ( src )
 add_subdirectory ( src/x-obex )
 

@@ -43,13 +43,7 @@
 
 #define PROGRAM_NAME "obexpushd"
 #include "version.h"
-
-#if __GNUC__ >= 3
-#define __unused   /*@unused@*/ __attribute__((unused))
-#else
-#define __unused /*@unused@*/
-#endif
-
+#include "compiler.h"
 
 char* obex_events[] = {
 	"PROGRESS", "REQHINT", "REQ", "REQDONE",
@@ -273,7 +267,7 @@ int obex_object_headers (obex_t* handle, obex_object_t* obj) {
 					free(data->name);
 				data->name = malloc(vsize+2);
 				if (!data->name)
-					return;
+					return 0;
 				memset(data->name,0,vsize+2);
 				memcpy(data->name,value.bs,vsize);
 				ucs2_ntoh(data->name,vsize/2);
@@ -295,7 +289,7 @@ int obex_object_headers (obex_t* handle, obex_object_t* obj) {
 					free(data->type);
 				data->type = malloc(vsize+1);
 				if (!data->type)
-					return;
+					return 0;
 				memcpy(data->type,value.bs,vsize);
 				data->type[vsize] = '\0';
 				if (debug)
@@ -638,7 +632,6 @@ void client_eventcb (obex_t* handle, obex_object_t* obj,
 }
 
 void* handle_client (void* arg) {
-	int status = 0;
 	file_data_t* data = malloc(sizeof(*data));
 	char buffer[256];
 
