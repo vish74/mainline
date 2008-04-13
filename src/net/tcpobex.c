@@ -68,7 +68,7 @@ obex_t* _tcp_init (
 			return NULL;
 
 		} else {
-			fprintf(stderr, "Listening on TCP/%s:%d\n",
+			fprintf(stderr, "Listening on tcp/%s:%d\n",
 				(args->address? args->address: "*"),
 				args->port);
 		}
@@ -142,6 +142,7 @@ int tcp_setup(
 	else
 		args->address = NULL;
 	args->port = port;
+	args->intf = NULL;
 	data->funcs = &tcp_funcs;
 	return 0;
 }

@@ -35,7 +35,7 @@ obex_t* _bluetooth_init (
 		return NULL;
 	}
 	(void)ba2str(&args->device, device);
-	fprintf(stderr, "Listening on bluetooth [%s]:%u\n", device, (unsigned int)args->channel);
+	fprintf(stderr, "Listening on bluetooth/[%s]:%u\n", device, (unsigned int)args->channel);
 
 	args->session_data = bt_sdp_session_open(&args->device, args->channel);
 	if (!args->session_data) {

@@ -20,7 +20,7 @@ obex_t* inet_init (
 			perror("InOBEX_ServerRegister");
 			return NULL;
 		} else {
-			fprintf(stderr,"Listening on TCP/*:650\n");
+			fprintf(stderr,"Listening on tcp/*:650\n");
 		}
 	}
 
