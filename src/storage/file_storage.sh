@@ -36,7 +36,7 @@ put)
 	    exit 1
 	fi
 
-#tell obexpushd to go on
+        #tell obexpushd to go on
 	${DIALOG} --title "Obex-Push" \
             --yesno \
             "Allow receiving the file\n\"${NAME}\"\n(${LENGTH} bytes) from\n${FROM}" \
@@ -52,14 +52,20 @@ put)
 	;;
 
 get)
+	FILE=$(mktemp)
 	case "${TYPE}" in
 	x-obex/capability)
-		obex-capability 2>/dev/null
+		obex-capability >${FILE} 2>/dev/null
 		;;
 
 	*)
 		;;
 	esac
+	stat --printf="Length: %s\n" ${FILE}
+	echo ""
+	cat ${FILE}
+	rm -f ${FILE}
 	;;
+
 esac
 exit 0

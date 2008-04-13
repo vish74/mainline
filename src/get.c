@@ -43,20 +43,16 @@ int get_parse_headers (obex_t* handle) {
 
 	while (1) {
 		size_t len = 0;
-		size_t status = fread(buffer,1,sizeof(buffer),data->out);
-		if (status == 0)
-			return -ferror(data->out);
+		if (fgets(buffer,sizeof(buffer),data->out) == NULL) {
+			if (!feof(data->out))
+				return -ferror(data->out);
+			else
+				return -EINVAL;
+		}
 		len = strlen(buffer);
 
-		if (!EOL(buffer[len-1])) {
-			while (!EOL(buffer[len-1])) {
-				if (feof(data->out) > 0)
-					return -EINVAL;
-				status = fread(buffer,1,sizeof(buffer),data->out);
-				if (status == 0)
-					return -ferror(data->out);
-			}
-		}
+		if (!EOL(buffer[len-1]) && feof(data->out))
+			return -EINVAL;
 		
 		if (buffer[len-1] == '\n')
 			--len;
@@ -82,12 +78,15 @@ int get_parse_headers (obex_t* handle) {
 			data->name = name;
 
 		} else if (strncasecmp(buffer,"Length: ",8) == 0) {
-			long len = strtol(buffer+8,NULL,10);
-			if (len > (long)UINT32_MAX ||
-			    len == LONG_MAX ||
-			    len < 0)
-				return -ERANGE;
-			data->length = (uint32_t)len;
+			char* endptr;
+			long dlen = strtol(buffer+8, &endptr, 10);
+			if ((dlen == LONG_MIN || dlen == LONG_MAX) && errno == ERANGE)
+				return -errno;
+
+			if (endptr != 0 && (0 <= dlen && dlen <= UINT32_MAX)) {
+				data->length = (uint32_t)dlen;
+				continue;
+			}
 
 		} else if (strncasecmp(buffer,"Type: ",6) == 0) {
 			char* type = buffer+6;
@@ -104,6 +103,9 @@ int get_parse_headers (obex_t* handle) {
 
 int get_close (obex_t* handle, int w) {
 	file_data_t* data = OBEX_GetUserData(handle);
+	if (data->child >= 0) {
+		kill(data->child, SIGKILL);
+	}
 	if (data->out) {
 		if (fclose(data->out) == EOF)
 			return -errno;
@@ -111,7 +113,16 @@ int get_close (obex_t* handle, int w) {
 	}
 	if (w) {
 		int status;
-		(void)wait(&status);
+		if (waitpid(data->child, &status, 0) < 0)
+			return -errno;
+
+		if (WIFEXITED(status)) {
+			fprintf(stderr, "%u.%u: script exited with exit code %d\n",
+				data->id, data->count, WEXITSTATUS(status));
+		} else if (WIFSIGNALED(status)) {
+			fprintf(stderr, "%u.%u: script got signal %d\n",
+				data->id, data->count, WTERMSIG(status));
+		}
 	}
 	return 0;
 }
@@ -181,10 +192,14 @@ int get_open (obex_t* handle, char* script) {
 
 int get_read (obex_t* handle, uint8_t* buf, size_t size) {
 	file_data_t* data = OBEX_GetUserData(handle);
-	size_t status = fread(buf, sizeof(uint8_t), size, data->out);
+	size_t status;
+
+	if (!data->out)
+		return -EBADF;
+	status = fread(buf, sizeof(*buf), size, data->out);
 	
 	if (status < size && !feof(data->out))		
 		return -ferror(data->out);
 	else
-		return 0;
+		return status;
 }

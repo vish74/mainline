@@ -489,33 +489,46 @@ void obex_action_get (obex_t* handle, obex_object_t* obj, int event) {
 		data->time = 0;
 		if (!script) {
 			/* There is no default object to get */
+			fprintf(stderr, "No script defined\n");
 			obex_send_response(handle, obj, OBEX_RSP_NOT_FOUND);
 			break;
 		}
 		break;
 
-	case OBEX_EV_REQCHECK:
-		/* If there is a default object but the name header
-		 * is non-empty. Special case is that
-		 * type == x-obex/object-profile, then name contains the
-		 * real type
-		 */
-		/* TODO: allowing x-obex/folder-listing would essentially implement
-		 * obexftp. However, this requires the FBS-UUID and secure directory
-		 * traversal. That's not implemented, yet.
-		 */
-		if ((strcmp(data->type,"x-obex/object-profile") != 0 && data->name)
-		    || strcmp(data->type,"x-obex/folder-listing") == 0)
-			obex_send_response(handle, obj, OBEX_RSP_FORBIDDEN);
-
-		if (get_open(handle,script) < 0 ||
-		    data->length == 0) {
-			obex_send_response(handle, obj, OBEX_RSP_INTERNAL_SERVER_ERROR);
-		}
-		break;
-
-	case OBEX_EV_REQ: {
+	case OBEX_EV_REQ:
+	{
 		obex_headerdata_t hv;
+		
+		if (data->out == NULL) {
+			/* If there is a default object but the name header
+			 * is non-empty. Special case is that
+			 * type == x-obex/object-profile, then name contains the
+			 * real type
+			 */
+			/* TODO: allowing x-obex/folder-listing would essentially implement
+			 * obexftp. However, this requires the FBS-UUID and secure directory
+			 * traversal. That's not implemented, yet.
+			 */
+			if ((strcmp(data->type,"x-obex/object-profile") != 0 && data->name)
+			    || strcmp(data->type,"x-obex/folder-listing") == 0)
+			{
+				printf("%u.%u: %s\n", data->id, data->count,
+				       "Forbidden request");
+				obex_send_response(handle, obj, OBEX_RSP_FORBIDDEN);
+			}
+
+			if (get_open(handle,script) < 0 ||
+			    data->length == 0)
+			{
+				data->out = NULL;
+				printf("%u.%u: %s\n", data->id, data->count,
+				       "Running script failed or no output data");
+				obex_send_response(handle, obj, OBEX_RSP_INTERNAL_SERVER_ERROR);
+			}
+			if (event == OBEX_EV_REQCHECK)
+				break;
+		}
+
 		obex_send_response(handle, obj, OBEX_RSP_CONTINUE);
 		if (data->name) {
 			size_t size = utf16len(data->name);
@@ -557,13 +570,20 @@ void obex_action_get (obex_t* handle, obex_object_t* obj, int event) {
 				(void)OBEX_ObjectAddHeader(handle,obj,OBEX_HDR_BODY,
 							   hv,len,
 							   OBEX_FL_STREAM_DATAEND);			
-		} else {			
+		} else {
+			perror("Reading script output failed");
 			obex_send_response(handle, obj, OBEX_RSP_INTERNAL_SERVER_ERROR);
 		}
 		break;
 
+	case OBEX_EV_LINKERR:
+	case OBEX_EV_PARSEERR:
+	case OBEX_EV_ABORT:
 	case OBEX_EV_REQDONE:
-		(void)get_close(handle,(script != NULL));
+	{
+		int err = get_close(handle,(script != NULL));
+		if (err)
+			fprintf(stderr, "%s\n", strerror(-err));
 		if (data->name) {
 			free(data->name);
 			data->name = NULL;
@@ -574,6 +594,7 @@ void obex_action_get (obex_t* handle, obex_object_t* obj, int event) {
 		}
 		data->length = 0;
 		data->time = 0;
+	}
 		break;
 	}
 }
@@ -707,6 +728,7 @@ void eventcb (obex_t* handle, obex_object_t __unused *obj,
 			pid_t p = fork();
 			switch (p) {
 			case 0:
+				(void)signal(SIGCHLD, SIG_DFL);
 				(void)signal(SIGINT, SIG_DFL);
 				(void)signal(SIGTERM, SIG_DFL);
 				(void)handle_client(client);
@@ -873,8 +895,12 @@ void obexpushd_wait (int sig) {
 	int status;
 	if (sig != SIGCLD)
 		return;
+
 	pidOfChild = wait(&status);
-	fprintf(stderr, "Child exited with status %d\n", status);
+	if (WIFEXITED(status))
+		fprintf(stderr, "child exited with exit code %d\n", WEXITSTATUS(status));
+	else if (WIFSIGNALED(status))
+		fprintf(stderr, "child got signal %d\n", WTERMSIG(status));
 }
 
 int main (int argc, char** argv) {
@@ -1015,10 +1041,8 @@ int main (int argc, char** argv) {
 	}
 
 	/* setup the signal handlers */
-	(void)signal(SIGCLD, obexpushd_wait);
 	(void)signal(SIGINT, obexpushd_shutdown);
 	(void)signal(SIGTERM, obexpushd_shutdown);
-
 
 #if defined(USE_THREADS)
 	/* initialize all enabled listeners */
@@ -1038,6 +1062,8 @@ int main (int argc, char** argv) {
 	pthread_exit(NULL);
 
 #else
+	(void)signal(SIGCHLD, obexpushd_wait);
+
 	/* initialize all enabled listeners */
 	for (i = 0; i < sizeof(handle)/sizeof(*handle); ++i) {
 		int fd = -1;
