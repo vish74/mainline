@@ -103,9 +103,10 @@ int get_parse_headers (obex_t* handle) {
 
 int get_close (obex_t* handle, int w) {
 	file_data_t* data = OBEX_GetUserData(handle);
-	if (data->child >= 0) {
-		kill(data->child, SIGKILL);
-	}
+	if (data->child < 0)
+		return 0;
+
+	kill(data->child, SIGKILL);
 	if (data->out) {
 		if (fclose(data->out) == EOF)
 			return -errno;

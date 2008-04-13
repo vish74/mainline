@@ -515,6 +515,7 @@ void obex_action_get (obex_t* handle, obex_object_t* obj, int event) {
 				printf("%u.%u: %s\n", data->id, data->count,
 				       "Forbidden request");
 				obex_send_response(handle, obj, OBEX_RSP_FORBIDDEN);
+				break;
 			}
 
 			if (get_open(handle,script) < 0 ||
@@ -524,6 +525,7 @@ void obex_action_get (obex_t* handle, obex_object_t* obj, int event) {
 				printf("%u.%u: %s\n", data->id, data->count,
 				       "Running script failed or no output data");
 				obex_send_response(handle, obj, OBEX_RSP_INTERNAL_SERVER_ERROR);
+				break;
 			}
 			if (event == OBEX_EV_REQCHECK)
 				break;
