@@ -132,12 +132,9 @@ int get_open (obex_t* handle, char* script) {
 	file_data_t* data = OBEX_GetUserData(handle);
 	int err = 0;
 	int p[2] = { -1, -1};
-	uint8_t* name = utf16to8(data->name);
 	char* args[5] = {
 		script,
 		"get",
-		(name? (char*)name: ""),
-		data->type,
 		NULL
 	};
 
@@ -160,6 +157,7 @@ int get_open (obex_t* handle, char* script) {
 	if (p[1] >= 0) {
 		char from[256];
 		FILE* ctrl = fdopen(p[1], "w");
+		uint8_t* name;
 
 		if (ctrl == NULL) {
 			err = errno;
@@ -172,8 +170,10 @@ int get_open (obex_t* handle, char* script) {
 
 		/* headers can be written here */
 		fprintf(ctrl, "From: %s\n", (strlen(from)? from: "unknown"));
+		name = utf16to8(data->name);
 		if (strlen((char*)name))
 			fprintf(ctrl, "Name: %s\n", name);
+		free(name);
 		if (data->type)
 			fprintf(ctrl, "Type: %s\n", data->type);
 
@@ -183,7 +183,6 @@ int get_open (obex_t* handle, char* script) {
 
 		close(p[1]);
 	}
-	free(name);
 
 	if (err == 0)
 		err = get_parse_headers(handle);
