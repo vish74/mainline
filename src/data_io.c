@@ -94,7 +94,7 @@ pid_t pipe_open (
 	{
 #else
 	p = fork();
-	if (p) {
+	if (p == 0) {
 		/* child */
 		close(PIPE_SERVER_WRITE);
 		close(PIPE_SERVER_READ);
