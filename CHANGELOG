@@ -1,4 +1,4 @@
-0.8 (2008-??-??)
+0.8 (2008-04-13)
     - SECURITY FIX: don't create files that previously failed the check for
       invalid characters. It was possible to create files outside of the current
       directory.
@@ -6,6 +6,9 @@
       and select it by default
     - add usage of POSIX threads for concurrency and select it by default
     - add inobex get_peer (forward compatible)
+    - make GET work
+    - add local CmakeModules/ and move FindXmlTo.cmake to it
+    - create cmake find modules for Bluetooth and OpenObex
 
 0.7 (2007-12-23) "Merry Xmas and a happy new year"
     - add support for binding to a specific bluetooth adapter
