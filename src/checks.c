@@ -52,13 +52,15 @@ int check_type (char* type) {
 	size_t k = 0;
 
 	for (; i < len; ++i) {
-		if (type[i] == '/')
+		if (type[i] == '/') {
 			++k;
-		if (!isascii((int)type[i])
-		    || isspace((int)type[i])
-		    || iscntrl((int)type[i])
-		    || k > 1)
+		} else if (type[i] == ';') {
+			if (k != 1)
+				return 0;
+			break;
+		} else if (!isalnum((int)type[i]) || k > 1) {
 			return 0;
+		}
 	}
 	return 1;
 }
