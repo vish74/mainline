@@ -29,13 +29,11 @@ if ( PKGCONFIG_OPENOBEX_FOUND )
     list ( APPEND OpenObex_LIBRARIES ${${i}_LIBRARY} )
     mark_as_advanced ( ${i}_LIBRARY )
   endforeach ( i )
-  set ( OpenObex_LIBRARIES "${OpenObex_LIBRARIES}" CACHE STRING "")
-  mark_as_advanced ( OpenObex_LIBRARIES )
 
 else ( PKGCONFIG_OPENOBEX_FOUND )
   find_path ( OpenObex_INCLUDE_DIRS
     NAMES
-      openobex.h
+      openobex/obex.h
     PATHS
       $ENV{ProgramFiles}/OpenObex
       $ENV{OPENOBEX_ROOT_DIR}
@@ -45,7 +43,7 @@ else ( PKGCONFIG_OPENOBEX_FOUND )
   mark_as_advanced ( OpenObex_INCLUDE_DIRS )
 #  message ( STATUS "OpenObex include dir: ${OpenObex_INCLUDE_DIRS}" )
 
-  find_library ( OpenObex_LIBRARY
+  find_library ( openobex_LIBRARY
     NAMES
       libopenobex openobex
     PATHS
@@ -54,8 +52,8 @@ else ( PKGCONFIG_OPENOBEX_FOUND )
     PATH_SUFFIXES
       lib
   )
-  set ( OpenObex_LIBRARIES ${openobex_LIBRARY} CACHE STRING "")
-  mark_as_advanced ( OpenObex_LIBRARY OpenObex_LIBRARIES )
+  set ( OpenObex_LIBRARIES ${openobex_LIBRARY} )
+  mark_as_advanced ( openobex_LIBRARY )
 
   if ( OpenObex_INCLUDE_DIRS AND OpenObex_LIBRARIES )
     set ( OpenObex_FOUND true )
