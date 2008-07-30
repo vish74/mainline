@@ -1,6 +1,7 @@
 0.9
     - fix CMake modules in case of pkg-config not being present
     - allow extended mime-types in the type header (fixes SF.net bug #1940844)
+    - add avahi support
 
 0.8 (2008-04-13)
     - SECURITY FIX: don't create files that previously failed the check for

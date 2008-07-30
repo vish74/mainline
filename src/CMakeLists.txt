@@ -38,7 +38,6 @@ endif ( USE_THREADS )
 #
 list ( APPEND SOURCES
   obexpushd.c
-  obexpush-sdp.c
   obex_auth.c
   md5.c
   data_io.c
@@ -46,6 +45,7 @@ list ( APPEND SOURCES
   get.c
   checks.c
   utf.c
+  net/publish/sdp.c
   net/auth.c
   net/core.c
   net/btobex.c
@@ -57,11 +57,19 @@ else ( OpenObex_HAVE_TcpObex )
   list ( APPEND SOURCES net/inobex.c )
 endif ( OpenObex_HAVE_TcpObex )
 
+find_package ( AvahiClient )
+if ( AvahiClient_FOUND )
+  include_directories ( AvahiClient_INCLUDE_DIRS} )
+  add_definitions ( -DENABLE_AVAHI=1 )
+  list ( APPEND SOURCES net/publish/avahi.c )
+endif ( AvahiClient_FOUND )
+
 add_executable ( obexpushd ${SOURCES} )
 target_link_libraries ( obexpushd
   ${OpenObex_LIBRARIES}
   ${Bluetooth_LIBRARIES}
   ${THREAD_LIBRARY}
+  ${AvahiClient_LIBRARIES}
 )
 set_target_properties ( obexpushd PROPERTIES
   COMPILE_FLAGS "${openobex_CFLAGS_OTHERS} ${bluez_CFLAGS_OTHERS}"

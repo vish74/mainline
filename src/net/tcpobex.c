@@ -2,6 +2,7 @@
 #define _GNU_SOURCE
 
 #include "net.h"
+#include "publish/avahi.h"
 
 #include <inttypes.h>
 #include <stdlib.h>
@@ -14,6 +15,9 @@ struct tcp_args {
 	char* address;
 	uint16_t port;
 	char* intf;
+#ifdef ENABLE_AVAHI
+	void *avahi;
+#endif
 };
 
 static
@@ -72,8 +76,34 @@ obex_t* _tcp_init (
 				(args->address? args->address: "*"),
 				args->port);
 		}
+
+#ifdef ENABLE_AVAHI
+		args->avahi = obex_avahi_setup(args->port);
+#endif
+		
 	}
 	return handle;
+}
+
+static
+void _tcp_cleanup (
+	struct tcp_args* args,
+	obex_t* handle
+)
+{
+#ifdef ENABLE_AVAHI
+	if (args->avahi)
+		obex_avahi_cleanup(args->avahi);
+#endif
+}
+
+static
+void tcp_cleanup(
+	void* arg,
+	obex_t* handle
+)
+{
+	_tcp_cleanup((struct tcp_args*)arg, handle);
 }
 
 static
@@ -123,6 +153,7 @@ int tcp_get_peer(
 static
 struct net_funcs tcp_funcs = {
 	.init = tcp_init,
+	.cleanup = tcp_cleanup,
 	.get_peer = tcp_get_peer
 };
 

@@ -1,6 +1,6 @@
 #include "net.h"
-#include "obexpush-sdp.h"
 #include "compiler.h"
+#include "publish/sdp.h"
 
 #include <inttypes.h>
 #include <stdlib.h>

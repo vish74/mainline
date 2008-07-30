@@ -15,7 +15,7 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
  */
 
-#include "obexpush-sdp.h"
+#include "sdp.h"
 #include <stdlib.h>
 
 static const char* SDP_SERVICE_NAME = "OBEX Object Push";

@@ -1,7 +1,13 @@
 #include "net.h"
+#include "publish/avahi.h"
 
 #include <arpa/inet.h>
 #include <errno.h>
+
+/* these can be static as there can ever be only one instance of this */
+#ifdef ENABLE_AVAHI
+static void *avahi_handle = NULL;
+#endif
 
 static
 obex_t* inet_init (
@@ -22,9 +28,25 @@ obex_t* inet_init (
 		} else {
 			fprintf(stderr,"Listening on tcp/*:650\n");
 		}
+
+#ifdef ENABLE_AVAHI
+		avahi_handle = obex_avahi_setup(650);
+#endif
 	}
 
 	return handle;
+}
+
+static
+void inet_cleanup (
+	void* args,
+	obex_t* handle
+)
+{
+#ifdef ENABLE_AVAHI
+	if (avahi_handle)
+		obex_avahi_cleanup(avahi_handle);
+#endif
 }
 
 static
