@@ -38,6 +38,7 @@ obex_t* _tcp_init (
 			struct sockaddr_in6 in6;
 		} addr;
 		char* addrstr = args->address;
+		int af = AF_UNSPEC;
 
 		if (!args->address || strcmp(args->address, "*") == 0)
 			addrstr = "::";
@@ -60,7 +61,7 @@ obex_t* _tcp_init (
 			}
 
 		} else if (inet_pton(AF_INET, args->address, &addr.in4.sin_addr) == 1) {
-			addr.raw.sa_family = AF_INET;
+			addr.raw.sa_family = af = AF_INET;
 			addr.in4.sin_port = htons(args->port);
 
 		} else {
@@ -78,7 +79,7 @@ obex_t* _tcp_init (
 		}
 
 #ifdef ENABLE_AVAHI
-		args->avahi = obex_avahi_setup(args->port);
+		args->avahi = obex_avahi_setup(af, args->port, args->intf);
 #endif
 		
 	}

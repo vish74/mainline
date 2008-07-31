@@ -30,7 +30,7 @@ obex_t* inet_init (
 		}
 
 #ifdef ENABLE_AVAHI
-		avahi_handle = obex_avahi_setup(650);
+		avahi_handle = obex_avahi_setup(AF_INET, 650, NULL);
 #endif
 	}
 

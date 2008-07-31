@@ -27,8 +27,10 @@ struct obex_avahi_data {
 	AvahiSimplePoll *p;
 #endif
 	AvahiClient *client;
-	char *service_name;
+	AvahiProtocol proto;
 	uint16_t port;
+	int intf;
+	char *service_name;
 };
 
 static
@@ -38,7 +40,7 @@ int obex_avahi_service_register (AvahiEntryGroup *group, struct obex_avahi_data 
 
 	if (avahi_entry_group_is_empty(group)) {
 		do {
-			err = avahi_entry_group_add_service(group, AVAHI_IF_UNSPEC, AVAHI_PROTO_UNSPEC, 0,
+			err = avahi_entry_group_add_service(group, oadata->intf, oadata->proto, 0,
 							    oadata->service_name, "_obex._tcp",
 							    NULL, NULL, oadata->port,
 							    "type=inbox", NULL);
@@ -130,7 +132,7 @@ void obex_avahi_client_cb (AvahiClient *client, AvahiClientState state, void *us
 	}
 }
 
-void* obex_avahi_setup (uint16_t port)
+void* obex_avahi_setup (int af, uint16_t port, char *intf)
 {
 	struct obex_avahi_data *oadata = NULL;
 
@@ -138,8 +140,10 @@ void* obex_avahi_setup (uint16_t port)
 	oadata = malloc(sizeof(*oadata));
 	if (oadata) {
 		oadata->p = avahi_threaded_poll_new();
-		oadata->service_name = avahi_strdup("obexpushd");
+		oadata->proto = avahi_af_to_proto(af);
 		oadata->port = port;
+		oadata->intf = (intf)? if_nametoindex(intf): AVAHI_IF_UNSPEC;
+		oadata->service_name = avahi_strdup("obexpushd");
 		oadata->client = avahi_client_new(avahi_threaded_poll_get(oadata->p), AVAHI_CLIENT_NO_FAIL,
 						  &obex_avahi_client_cb, oadata, NULL);
 		avahi_threaded_poll_start(oadata->p);
