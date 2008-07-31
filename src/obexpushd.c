@@ -851,6 +851,10 @@ static char* parse_ip_arg (char* optarg, uint16_t* port)
 	} else if (strchr(optarg, (int)'.') != NULL) { /* IPv4 address */
 		device = optarg;
 		tmp = strchr(optarg, (int)':');
+
+	} else if (optarg[0] == '*' && optarg[1] == ':') {
+		device = optarg;
+		tmp = optarg+1;
 		
 	} else { /* no address */
 		tmp = optarg;
