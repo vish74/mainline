@@ -364,7 +364,7 @@ void obex_action_connect (obex_t* handle, obex_object_t* obj, int event) {
 	uint8_t code = OBEX_RSP_CONTINUE;
 	switch (event) {
 	case OBEX_EV_REQHINT: /* A new request is coming in */
-		if (auth_file && !data->net_data->auth_success)
+		if (!net_security_check(data->net_data))
 			code = net_security_init(data->net_data, obj);
 		obex_send_response(handle, obj, code);
 		break;
@@ -625,12 +625,12 @@ void client_eventcb (obex_t* handle, obex_object_t* obj,
 		break;
 
 	case OBEX_CMD_PUT:
-		if (!auth_file || data->net_data->auth_success)
+		if (net_security_check(data->net_data))
 			obex_action_put(handle,obj,event);
 		break;
 
 	case OBEX_CMD_GET:
-		if (!auth_file || data->net_data->auth_success)
+		if (net_security_check(data->net_data))
 			obex_action_get(handle,obj,event);
 		break;
 
@@ -915,9 +915,10 @@ int main (int argc, char** argv) {
 #if defined(USE_THREADS)
 	pthread_t thread[sizeof(handle)/sizeof(*handle)];
 #endif
+	uint8_t auth_level = 0;
 
 	int c;
-	while ((c = getopt(argc,argv,"B::I::N::a:dhnp:r:s:v")) != -1) {
+	while ((c = getopt(argc,argv,"B::I::N::Aa:dhnp:r:s:v")) != -1) {
 		switch (c) {
 		case 'B':
 		{
@@ -994,8 +995,13 @@ int main (int argc, char** argv) {
 			pidfile = optarg;
 			break;
 
+		case 'A':
+			auth_level |= AUTH_LEVEL_TRANSPORT;
+			break;
+
 		case 'a':
 			auth_file = optarg;
+			auth_level |= AUTH_LEVEL_OBEX;
 			break;
 
 		case 'r':
@@ -1055,6 +1061,7 @@ int main (int argc, char** argv) {
 	for (i = 0; i < sizeof(handle)/sizeof(*handle); ++i) {
 		if (!handle[i])
 			continue;
+		handle[i]->auth_level = auth_level;
 		if (pthread_create(&thread[i], NULL, obexpushd_listen_thread, handle[i]) != 0)
 			perror("pthread_create()");
 	}
@@ -1075,6 +1082,7 @@ int main (int argc, char** argv) {
 		int fd = -1;
 		if (!handle[i])
 			continue;
+		handle[i]->auth_level = auth_level;
 		net_init(handle[i], eventcb);
 		if (!handle[i]->obex)
 			exit(EXIT_FAILURE);

@@ -77,20 +77,46 @@ void bluetooth_cleanup(
 }
 
 static
-void _bluetooth_security_init(
-	struct bluetooth_args* arg
+int _bluetooth_security_init(
+	struct bluetooth_args* arg,
+	obex_t* ptr
 )
 {
-	(void)arg;
-	/* socket option RFCOMM_LM_AUTH: here or in init()? */
+	int sock = OBEX_GetFD(ptr);
+	int err = 0;
+	const uint32_t options = (RFCOMM_LM_AUTH | RFCOMM_LM_SECURE);
+	uint32_t optval = 0;
+	socklen_t optlen = sizeof(optval);
+
+	if (sock < 0)
+		return -ENOTSOCK;
+
+	err = getsockopt(sock, SOL_RFCOMM, RFCOMM_LM, &optval, &optlen);
+	if (err < 0) {
+		perror("Getting RFCOMM_LM");
+		return -errno;
+	}
+	if (optlen != sizeof(optval))
+		return -EINVAL;
+
+	if ((optval & options) != options) {
+		optval |= options;
+		err = setsockopt(sock, SOL_RFCOMM, RFCOMM_LM, &optval, optlen);
+		if (err < 0) {
+			perror("Setting RFCOMM_LM");
+			return -errno;
+		}
+	}
+	return 0;
 }
 
 static
-void bluetooth_security_init(
-	void* arg
+int bluetooth_security_init(
+	void* arg,
+	obex_t* ptr
 )
 {
-	_bluetooth_security_init((struct bluetooth_args*)arg);
+	return _bluetooth_security_init((struct bluetooth_args*)arg, ptr);
 }
 
 static

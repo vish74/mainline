@@ -9,6 +9,9 @@ struct net_data {
 	/* auth */
 	uint8_t nonce[16];
 	int auth_success;
+#define AUTH_LEVEL_OBEX      (1 << 0)
+#define AUTH_LEVEL_TRANSPORT (1 << 1)
+	uint8_t auth_level;
 };
 struct net_data* net_data_new ();
 void net_init (struct net_data* data, obex_event_t eventcb);
@@ -16,6 +19,7 @@ uint8_t net_security_init (
 	struct net_data* data,
 	obex_object_t* obj
 );
+int net_security_check (struct net_data* data);
 void net_security_cleanup (struct net_data* data);
 void net_get_peer (struct net_data* data, char* buffer, size_t bufsiz);
 void net_cleanup (struct net_data* data);

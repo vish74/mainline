@@ -29,17 +29,19 @@ void net_init (
 	if (data->obex) {
 		OBEX_SetUserData(data->obex, data);
 	}
+	if ((data->auth_level & AUTH_LEVEL_TRANSPORT) &&
+	    data->funcs && data->funcs->security_init)
+	{
+		data->funcs->security_init(data->arg, data->obex);
+	}
 }
 
 uint8_t net_security_init (
 	struct net_data* data,
 	obex_object_t* obj
 )
-{
-	if (data->funcs && data->funcs->security_init) {
-		data->funcs->security_init(data->arg);
-		return OBEX_RSP_CONTINUE;
-	} else {
+{	
+	if (data->auth_level & AUTH_LEVEL_OBEX) {
 		struct obex_auth_challenge chal;
 		if (get_nonce(chal.nonce) < 0)
 			return OBEX_RSP_SERVICE_UNAVAILABLE;
@@ -49,12 +51,18 @@ uint8_t net_security_init (
 		(void)obex_auth_add_challenge(data->obex, obj, &chal);
 		return OBEX_RSP_UNAUTHORIZED;
 	}
+	return OBEX_RSP_CONTINUE;
 }
 
 void net_security_cleanup (struct net_data* data)
 {
 	if (data->funcs && data->funcs->security_cleanup)
 		data->funcs->security_cleanup(data->arg);
+}
+
+int net_security_check (struct net_data* data)
+{
+	return (!(data->auth_level & AUTH_LEVEL_OBEX) || data->auth_success);
 }
 
 void net_get_peer (struct net_data* data, char* buffer, size_t bufsiz)

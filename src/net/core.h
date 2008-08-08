@@ -7,7 +7,7 @@ struct net_funcs {
 
 	/* Functions to implement authentication
 	 */
-	void (*security_init)(void*);
+	int (*security_init)(void*, obex_t*);
 	void (*security_cleanup)(void*);
 
 	/* Writes the peer address string
