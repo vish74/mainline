@@ -59,10 +59,16 @@ endif ( OpenObex_HAVE_TcpObex )
 
 find_package ( AvahiClient )
 if ( AvahiClient_FOUND )
-  include_directories ( AvahiClient_INCLUDE_DIRS} )
-  add_definitions ( -DENABLE_AVAHI=1 )
+  include_directories ( ${AvahiClient_INCLUDE_DIRS} )
+  add_definitions ( -DENABLE_AVAHI )
   list ( APPEND SOURCES net/publish/avahi.c )
 endif ( AvahiClient_FOUND )
+
+find_package ( TcpWrap )
+if ( TcpWrap_FOUND )
+  include_directories ( ${TcpWrap_INCLUDE_DIRS} )
+  add_definitions ( -DENABLE_TCPWRAP )
+endif ( TcpWrap_FOUND )
 
 add_executable ( obexpushd ${SOURCES} )
 target_link_libraries ( obexpushd
@@ -70,6 +76,7 @@ target_link_libraries ( obexpushd
   ${Bluetooth_LIBRARIES}
   ${THREAD_LIBRARY}
   ${AvahiClient_LIBRARIES}
+  ${TcpWrap_LIBRARIES}
 )
 set_target_properties ( obexpushd PROPERTIES
   COMPILE_FLAGS "${openobex_CFLAGS_OTHERS} ${bluez_CFLAGS_OTHERS}"

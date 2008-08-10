@@ -11,6 +11,12 @@
 #include <arpa/inet.h>
 #include <net/if.h>
 
+#ifdef ENABLE_TCPWRAP
+#include <tcpd.h>
+int allow_severity;
+int deny_severity;
+#endif
+
 struct tcp_args {
 	char* address;
 	uint16_t port;
@@ -117,6 +123,52 @@ obex_t* tcp_init(
 }
 
 static
+int _tcp_security_check(
+	struct tcp_args* arg,
+	obex_t* ptr
+)
+{
+#ifdef ENABLE_TCPWRAP
+	int err = 1;
+	int sock = OBEX_GetFD(ptr);
+	struct sockaddr_in6 client, server;
+	socklen_t len;
+	struct request_info req;
+
+	len = sizeof(client);
+	err = getpeername(sock, (struct sockaddr*)&client, &len);
+	if (err < 0)
+		return 0;
+
+	len = sizeof(server);
+	err = getsockname(sock, (struct sockaddr*)&server, &len);
+	if (err < 0)
+		return 0;
+
+	request_init(&req,
+		     RQ_FILE, sock,
+		     RQ_CLIENT_SIN, client,
+		     RQ_SERVER_SIN, server,
+		     RQ_DAEMON, "obexpushd");
+	fromhost(&req);
+
+	return  hosts_access(&req);
+
+#else
+	return 1;
+#endif
+}
+
+static
+int tcp_security_check(
+	void* arg,
+	obex_t* ptr
+)
+{
+	return _tcp_security_check((struct tcp_args*)arg, ptr);
+}
+
+static
 int tcp_get_peer(
 	obex_t* handle,
 	char* buffer,
@@ -155,7 +207,8 @@ static
 struct net_funcs tcp_funcs = {
 	.init = tcp_init,
 	.cleanup = tcp_cleanup,
-	.get_peer = tcp_get_peer
+	.get_peer = tcp_get_peer,
+	.security_check = tcp_security_check,
 };
 
 int tcp_setup(

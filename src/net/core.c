@@ -62,7 +62,12 @@ void net_security_cleanup (struct net_data* data)
 
 int net_security_check (struct net_data* data)
 {
-	return (!(data->auth_level & AUTH_LEVEL_OBEX) || data->auth_success);
+	int transport = 0;
+	if ((data->auth_level & AUTH_LEVEL_TRANSPORT) &&
+	    data->funcs && data->funcs->security_check)
+		transport = data->funcs->security_check(data->arg, data->obex);
+
+	return (transport == 0) && (!(data->auth_level & AUTH_LEVEL_OBEX) || data->auth_success);
 }
 
 void net_get_peer (struct net_data* data, char* buffer, size_t bufsiz)
