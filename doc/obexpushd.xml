@@ -42,6 +42,7 @@
       <replaceable><optional><optional><optional>address</optional>:</optional>port</optional></replaceable>
       </arg>
       <arg choice="opt"><option>-p</option> <replaceable>file</replaceable></arg>
+      <arg choice="opt"><option>-A</option></arg>
       <arg choice="opt"><option>-a</option> <replaceable>file</replaceable></arg>
       <arg choice="opt"><option>-r</option> <replaceable>file</replaceable></arg>
       <arg choice="opt"><option>-s</option> <replaceable>file</replaceable></arg>
@@ -108,6 +109,14 @@
 	<term><option>-p</option></term>
 	<listitem><para>
 	  Write the process ID of the daemon to <replaceable>file</replaceable>
+	</para></listitem>
+      </varlistentry>
+      <varlistentry>
+	<term><option>-A</option></term>
+	<listitem><para>
+	  Enable special security/filter support that is special to the transport layer.
+	  For bluetooth, this enforces bluetooth pairing (does not conform to protocol specification).
+	  For TCP, this enables usage of hosts.allow and hosts.deny files.
 	</para></listitem>
       </varlistentry>
       <varlistentry>
