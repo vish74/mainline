@@ -2,6 +2,7 @@
 #include <obex_auth.h>
 
 #include <stdlib.h>
+#include <fcntl.h>
 
 struct net_data* net_data_new ()
 {
@@ -27,6 +28,9 @@ void net_init (
 		data->obex = data->funcs->init(data->arg, eventcb);
 	}
 	if (data->obex) {
+		int fd = OBEX_GetFD(data->obex);
+		if (fd >= 0)
+		  (void)fcntl(fd, F_SETFD, FD_CLOEXEC);
 		OBEX_SetUserData(data->obex, data);
 	}
 	if ((data->auth_level & AUTH_LEVEL_TRANSPORT) &&

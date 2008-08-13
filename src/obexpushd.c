@@ -712,9 +712,13 @@ void eventcb (obex_t* handle, obex_object_t __unused *obj,
 		return;
 	}
 	if (event == OBEX_EV_ACCEPTHINT) {
+		int fd;
 		obex_t* client = OBEX_ServerAccept(handle, client_eventcb, NULL);
 		if (!client)
 			return;
+		fd = OBEX_GetFD(client);
+		if (fd >= 0)
+			(void)fcntl(fd, F_SETFD, FD_CLOEXEC);
 		if (nofork >= 2) {
 			(void)handle_client(client);
 		} else {
