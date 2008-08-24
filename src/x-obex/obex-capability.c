@@ -82,12 +82,16 @@ void obex_caps_ext (FILE* fd,
 		    unsigned int indent,
 		    struct obex_caps_ext* caps)
 {
-	unsigned int i;
 	for (; caps != NULL; ++caps) {
+		if (!caps->name)
+			continue;
 		xml_open(fd, indent, "Ext");
 		xml_print(fd, indent, "XNam", "%s", caps->name);
-		for (i = 0; caps->value[i] != NULL; ++i)
-			xml_print(fd, indent, "XVal", "%s", *caps->value);
+		if (caps->value) {
+			char* value = *caps->value;
+			for (; value; ++value)
+				xml_print(fd, indent, "XVal", "%s", value);
+		}
 		xml_close(fd, indent, "Ext");
 	}
 }
@@ -98,8 +102,7 @@ void obex_caps_mem (FILE* fd,
 		    struct obex_caps_mem* caps)
 {
 	for (; caps != NULL; ++caps) {
-		xml_open(fd, indent, "Memory");
-		++indent;
+		xml_open(fd, indent++, "Memory");
 		if (caps->type)
 			xml_print(fd, indent, "MemType", "%s", caps->type);
 		if (caps->location)
@@ -118,8 +121,7 @@ void obex_caps_mem (FILE* fd,
 			xml_print(fd, indent, "CaseSenN", NULL, 0);
 		if (caps->ext)
 			obex_caps_ext(fd, indent, *caps->ext);
-		--indent;
-		xml_close(fd, indent, "Memory");
+		xml_close(fd, --indent, "Memory");
 	}
 }
 
@@ -152,17 +154,106 @@ void obex_caps_general (FILE* fd,
 }
 
 static
+void obex_caps_object (FILE* fd,
+		       unsigned int indent,
+		       struct obex_caps_obj* caps)
+{
+	for (; caps != NULL; ++caps) {
+		if (!caps->type && (!caps->name_ext || !*caps->name_ext))
+			continue;
+		xml_open(fd, indent++, "Object");
+		if (caps->type)
+			xml_print(fd, indent, "Type", "%s", caps->type);
+		if (caps->name_ext) {
+			char *name_ext = *caps->name_ext;
+			for (; name_ext; ++name_ext)
+				xml_print(fd, indent, "Name-Ext", "%s", name_ext);
+		}
+		if (caps->size)
+			xml_print(fd, indent, "Size", "%ul", caps->size);
+		if (caps->ext)
+			obex_caps_ext(fd, 2, *caps->ext);
+		xml_close(fd, --indent, "Object");
+	}
+}
+
+static
 void obex_caps_inbox (FILE* fd,
 		      struct obex_caps_inbox* caps)
 {
-	fprintf(stderr,"%s elements not supported, yet.","Inbox");
+        xml_open(fd, 1, "Inbox");
+	if (caps->obj)
+		obex_caps_object(fd, 2, *caps->obj);
+	if (caps->ext)
+		obex_caps_ext(fd, 2, *caps->ext);
+	xml_close(fd, 1, "Inbox");
+}
+
+static
+void obex_caps_uuid (FILE* fd,
+		     unsigned int indent,
+		     struct obex_caps_uuid *caps)
+{
+	size_t i = 0, k = 0;
+	char tmp[37];
+	memset(tmp, 0, sizeof(tmp));
+
+	switch (caps->type) {
+	case OBEX_CAPS_UUID_ASCII:
+		memcpy(tmp, caps->data, sizeof(caps->data));
+		break;
+
+	case OBEX_CAPS_UUID_BINARY:
+		for (; i < sizeof(caps->data); ++i) {
+			if (i == 4 || i == 6 || i == 8 || i == 10)
+				tmp[(2*i) + k++] = '-';
+			snprintf(tmp+(2*i)+k, 3, "%02X", (unsigned int)caps->data[i]);
+		}
+		break;
+	}
+	xml_print(fd, indent, "UUID", "%s", tmp);
+}
+
+static
+void obex_caps_access (FILE* fd,
+		       unsigned int indent,
+		       struct obex_caps_access* caps)
+{
+	for (; caps != NULL; ++caps) {
+		xml_open(fd, indent++, "Access");
+		if (caps->protocol)
+			xml_print(fd, indent, "Protocol", "%s", caps->protocol);
+		if (caps->endpoint)
+			xml_print(fd, indent, "Endpoint", "%s", caps->endpoint);
+		if (caps->target)
+			xml_print(fd, indent, "Target", "%s", caps->target);
+		if (caps->ext)
+			obex_caps_ext(fd, 2, *caps->ext);
+		xml_close(fd, --indent, "Access");
+	}
 }
 
 static
 void obex_caps_service (FILE* fd,
 			struct obex_caps_service* caps)
 {
-	fprintf(stderr,"%s elements not supported, yet.","Service");
+	if (!caps->name && !caps->uuid)
+		return;
+
+        xml_open(fd, 1, "Service");
+	if (caps->name)
+		xml_print(fd, 2, "Name", "%s", caps->name);
+	if (caps->uuid)
+		obex_caps_uuid(fd, 2, caps->uuid);
+	if (caps->version)
+		xml_print(fd, 2, "Version", "%s", caps->version);
+	if (caps->obj)
+		obex_caps_object(fd, 2, *caps->obj);
+	if (caps->access)
+		obex_caps_access(fd, 2, *caps->access);
+	if (caps->ext)
+		obex_caps_ext(fd, 2, *caps->ext);
+	xml_close(fd, 1, "Service");
 }
 
 int obex_capability (FILE* fd, struct obex_capability* caps)
