@@ -6,7 +6,7 @@ openobex >= 1.1 (> 1.3 recommended)
 bluez-lib
 
 You also must have installed:
-cmake (>= 2.4.7)
+cmake (>= 2.6.0)
 pkg-config
 xmlto
 
@@ -36,7 +36,11 @@ $ make
 Build options:
 ==============
 
-The following build options (== cmake variables) are available:
+Build options are set with CMake variables by adding -DFOO=bar to the cmake command
+line ot set variable 'FOO' to the value 'var'.
+Boolean values take the values 'ON' or 'OFF'.
+
+The following build options are available:
 USE_SPAWN         Use POSIX function spawn() (instead of fork()+exec()) for external
                   scripts. The default is ON and this is also the suggested value.
 USE_THREADS       Use POSIX threads (instead of fork()) for client connections. The
