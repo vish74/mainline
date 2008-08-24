@@ -69,10 +69,23 @@ struct obex_caps_inbox {
 	struct obex_caps_ext** ext;
 };
 
+struct obex_caps_uuid {
+	enum {
+		OBEX_CAPS_UUID_ASCII,
+		OBEX_CAPS_UUID_BINARY,
+	} type;
+	uint8_t data[16];
+};
+#define OBEX_UUID_FBS \
+	{ 0xF9, 0xEC, 0x7B, 0xC4, 0x95, 0x3C, 0x11, 0xD2, \
+	0x98, 0x4E, 0x52, 0x54, 0x00, 0xDC, 0x9E, 0x09 }
+#define OBEX_UUID_IRMC \
+	{ 'I', 'R', 'M', 'C', '-', 'S', 'Y', 'N', 'C' }
+
 struct obex_caps_service {
 	/* name or uuid must be defined */
 	char* name;
-	uint8_t* uuid; /* 16 bytes */
+	struct obex_caps_uuid* uuid;
 	char* version;
 	struct obex_caps_obj** obj;
 	struct obex_caps_access** access;
