@@ -26,7 +26,9 @@ if ( PKGCONFIG_OPENOBEX_FOUND )
                    NAMES ${i}
                    PATHS ${PKGCONFIG_OPENOBEX_LIBRARY_DIRS}
                  )
-    list ( APPEND OpenObex_LIBRARIES ${${i}_LIBRARY} )
+    if ( ${i}_LIBRARY )
+      list ( APPEND OpenObex_LIBRARIES ${${i}_LIBRARY} )
+    endif ( ${i}_LIBRARY )
     mark_as_advanced ( ${i}_LIBRARY )
   endforeach ( i )
 
@@ -52,8 +54,10 @@ else ( PKGCONFIG_OPENOBEX_FOUND )
     PATH_SUFFIXES
       lib
   )
-  set ( OpenObex_LIBRARIES ${openobex_LIBRARY} )
   mark_as_advanced ( openobex_LIBRARY )
+  if ( openobex_LIBRARY )
+    set ( OpenObex_LIBRARIES ${openobex_LIBRARY} )
+  endif ( openobex_LIBRARY )
 
   if ( OpenObex_INCLUDE_DIRS AND OpenObex_LIBRARIES )
     set ( OpenObex_FOUND true )
