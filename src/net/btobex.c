@@ -77,9 +77,9 @@ void bluetooth_cleanup(
 }
 
 static
-int _bluetooth_security_init(
-	struct bluetooth_args* arg,
-	obex_t* ptr
+int bluetooth_security_init(
+	void __unused *arg,
+	obex_t *ptr
 )
 {
 	int sock = OBEX_GetFD(ptr);
@@ -108,15 +108,6 @@ int _bluetooth_security_init(
 		}
 	}
 	return 0;
-}
-
-static
-int bluetooth_security_init(
-	void* arg,
-	obex_t* ptr
-)
-{
-	return _bluetooth_security_init((struct bluetooth_args*)arg, ptr);
 }
 
 static

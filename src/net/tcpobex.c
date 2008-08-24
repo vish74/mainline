@@ -2,6 +2,7 @@
 #define _GNU_SOURCE
 
 #include "net.h"
+#include "compiler.h"
 #include "publish/avahi.h"
 
 #include <inttypes.h>
@@ -94,8 +95,8 @@ obex_t* _tcp_init (
 
 static
 void _tcp_cleanup (
-	struct tcp_args* args,
-	obex_t* handle
+	struct tcp_args *args,
+	obex_t __unused *handle
 )
 {
 #ifdef ENABLE_AVAHI
@@ -123,9 +124,9 @@ obex_t* tcp_init(
 }
 
 static
-int _tcp_security_check(
-	struct tcp_args* arg,
-	obex_t* ptr
+int tcp_security_check(
+	void __unused *arg,
+	obex_t *ptr
 )
 {
 #ifdef ENABLE_TCPWRAP
@@ -157,15 +158,6 @@ int _tcp_security_check(
 #else
 	return 1;
 #endif
-}
-
-static
-int tcp_security_check(
-	void* arg,
-	obex_t* ptr
-)
-{
-	return _tcp_security_check((struct tcp_args*)arg, ptr);
 }
 
 static
