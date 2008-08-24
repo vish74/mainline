@@ -22,15 +22,18 @@ foreach ( type capability folder-listing )
     add_library ( obex-${type}-lib
       obex-${type}.c
     )
-    set_target_properties ( obex-${type}-lib
-      PROPERTIES
-        OUTPUT_NAME "obex-${type}"
+    set_property ( TARGET obex-${type}-lib PROPERTY
+      OUTPUT_NAME obex-${type}
+    )
+    set_property ( TARGET obex-${type}-lib PROPERTY
+      PRIVATE_HEADER obex-${type}.h
     )
     install (
       TARGETS obex-${type}-lib
-      RUNTIME DESTINATION bin
-      LIBRARY DESTINATION lib
-      ARCHIVE DESTINATION lib
+      RUNTIME        DESTINATION bin
+      LIBRARY        DESTINATION lib
+      ARCHIVE        DESTINATION lib
+      PRIVATE_HEADER DESTINATION include
       PERMISSIONS OWNER_READ OWNER_WRITE
                   GROUP_READ
 	          WORLD_READ
