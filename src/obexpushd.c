@@ -776,7 +776,7 @@ void* obexpushd_listen_thread (void* arg) {
 #endif
 
 void print_disclaimer () {
-	printf(PROGRAM_NAME " " OBEXPUSHD_VERSION " Copyright (C) 2006-2007 Hendrik Sattler\n"
+	printf(PROGRAM_NAME " " OBEXPUSHD_VERSION " Copyright (C) 2006-2008 Hendrik Sattler\n"
 	       "This software comes with ABSOLUTELY NO WARRANTY.\n"
 	       "This is free software, and you are welcome to redistribute it\n"
 	       "under certain conditions.\n");
@@ -800,6 +800,7 @@ void print_help (char* me) {
 	       " -n             do not detach from terminal\n"
 	       " -d             enable debug messages (implies -n)\n"
 	       " -p <file>      write pid to file when getting detached\n"
+	       " -A             use transport layer specific access rules if available\n"
 	       " -a <file>      authenticate against credentials from file (EXPERIMENTAL)\n"
 	       " -r <file>      use realm credentials from file (EXPERIMENTAL)\n"
 	       " -s <file>      define script/program for input/output\n"
