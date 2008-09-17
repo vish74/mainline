@@ -24,6 +24,7 @@
 #include <errno.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -31,22 +32,6 @@
 #if defined(USE_SPAWN)
 #include <spawn.h>
 #endif
-
-int file_open (
-	char* name,
-	int mode
-)
-{
-	int fd;
-	int err = 0;
-
-	if (!name)
-		return -EINVAL;
-	fd = open((char*)name, mode|O_CREAT|O_EXCL, S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH|S_IWOTH);
-	if (fd < 0)
-		err = errno;
-	return (fd < 0)? -err: fd;
-}
 
 void pipe_close (int client_fds[2])
 {

@@ -16,23 +16,17 @@ typedef struct {
 	size_t length;
 	time_t time;
 
-	FILE* out;
+	FILE *in, *out;
 	pid_t child;
 	uint8_t buffer[1000];
 
 	struct net_data* net_data;
 } file_data_t;
 
-/* file input */
-int put_open (obex_t* handle, char* script);
-int put_write (obex_t* handle, const uint8_t* buf, int len);
-int put_close (obex_t* handle, int wait);
-int put_revert (obex_t* handle);
-
-/* file output */
-int get_open (obex_t* handle, char* script);
-int get_read (obex_t* handle, uint8_t* buf, size_t size);
-int get_close (obex_t* handle, int wait);
+int obex_object_headers (obex_t* handle, obex_object_t* obj);
+void obex_send_response (obex_t* handle, obex_object_t* obj, uint8_t respCode);
+extern int debug;
+extern char* script;
 
 int check_name (uint16_t* name);
 int check_type (char* type);

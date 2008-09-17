@@ -5,15 +5,16 @@ list ( APPEND SOURCES
   obexpushd.c
   obex_auth.c
   md5.c
-  data_io.c
   put.c
   get.c
   checks.c
   utf.c
-  net/publish/sdp.c
+  io/core.c
+  io/pipe.c
   net/auth.c
   net/core.c
   net/btobex.c
+  net/publish/sdp.c
   net/irobex.c
 )
 

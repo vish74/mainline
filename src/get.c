@@ -19,7 +19,7 @@
 
 #include "obexpushd.h"
 #include "utf.h"
-#include "data_io.h"
+#include "io.h"
 #include "net.h"
 
 #include <openobex/obex.h>
@@ -101,95 +101,28 @@ int get_parse_headers (obex_t* handle) {
 	return 0;
 }
 
-int get_close (obex_t* handle, int w) {
+static
+int get_close (obex_t* handle) {
 	file_data_t* data = OBEX_GetUserData(handle);
-	if (data->child < 0)
-		return 0;
 
-	kill(data->child, SIGKILL);
-	if (data->out) {
-		if (fclose(data->out) == EOF)
-			return -errno;
-		data->out = NULL;
-	}
-	if (w) {
-		int status;
-		if (waitpid(data->child, &status, 0) < 0)
-			return -errno;
-
-		if (WIFEXITED(status)) {
-			fprintf(stderr, "%u.%u: script exited with exit code %d\n",
-				data->id, data->count, WEXITSTATUS(status));
-		} else if (WIFSIGNALED(status)) {
-			fprintf(stderr, "%u.%u: script got signal %d\n",
-				data->id, data->count, WTERMSIG(status));
-		}
-	}
-	return 0;
+	return io_close(data);
 }
 
+static
 int get_open (obex_t* handle, char* script) {
 	file_data_t* data = OBEX_GetUserData(handle);
 	int err = 0;
-	int p[2] = { -1, -1};
-	char* args[5] = {
-		script,
-		"get",
-		NULL
-	};
+	char* args[5] = { script, "get", NULL };
 
-	if (data->out) {
-	        err = get_close(handle,(script != NULL));
-		if (err < 0)
-			return err;
-	}
 
-	data->child = pipe_open(script, args, p);
-	if (p[0] >= 0) {
-		data->out = fdopen(p[0], "r");
-		if (data->out == NULL) {
-			err = errno;
-			pipe_close(p);
-			return -err;
-		}
-	}
-
-	if (p[1] >= 0) {
-		char from[256];
-		FILE* ctrl = fdopen(p[1], "w");
-		uint8_t* name;
-
-		if (ctrl == NULL) {
-			err = errno;
-			pipe_close(p);
-			return -err;
-		}
-
-		memset(from, 0, sizeof(from));
-		net_get_peer(data->net_data, from, sizeof(from));
-
-		/* headers can be written here */
-		fprintf(ctrl, "From: %s\n", (strlen(from)? from: "unknown"));
-		name = utf16to8(data->name);
-		if (strlen((char*)name))
-			fprintf(ctrl, "Name: %s\n", name);
-		free(name);
-		if (data->type)
-			fprintf(ctrl, "Type: %s\n", data->type);
-
-		/* empty line signals that data follows */
-		fprintf(ctrl, "\n");
-		fflush(ctrl);
-
-		close(p[1]);
-	}
-
+	err = io_script_open(data, script, args);
 	if (err == 0)
 		err = get_parse_headers(handle);
 
 	return err;
 }
 
+static
 int get_read (obex_t* handle, uint8_t* buf, size_t size) {
 	file_data_t* data = OBEX_GetUserData(handle);
 	size_t status;
@@ -202,4 +135,146 @@ int get_read (obex_t* handle, uint8_t* buf, size_t size) {
 		return -ferror(data->out);
 	else
 		return status;
+}
+
+void obex_action_get (obex_t* handle, obex_object_t* obj, int event) {
+	file_data_t* data = OBEX_GetUserData(handle);
+	int len = 0;
+
+	if (data->error &&
+	    (event == OBEX_EV_REQ ||
+	     event == OBEX_EV_REQCHECK ||
+	     event == OBEX_EV_STREAMEMPTY))
+	{
+		obex_send_response(handle, obj, data->error);
+		return;
+	}
+	if (!obex_object_headers(handle,obj)) {
+		obex_send_response(handle, obj, OBEX_RSP_BAD_REQUEST);
+		return;
+	}
+	switch (event) {
+	case OBEX_EV_REQHINT: /* A new request is coming in */
+		data->error = 0;
+		if (data->name) {
+			free(data->name);
+			data->name = NULL;
+		}
+		/* in case that there is no TYPE header */
+		data->type = strdup("text/x-vcard");
+		data->count += 1;
+		data->length = 0;
+		data->time = 0;
+		if (!script) {
+			/* There is no default object to get */
+			fprintf(stderr, "No script defined\n");
+			obex_send_response(handle, obj, OBEX_RSP_NOT_FOUND);
+			break;
+		}
+		break;
+
+	case OBEX_EV_REQ:
+	{
+		obex_headerdata_t hv;
+		
+		if (data->out == NULL) {
+			/* If there is a default object but the name header
+			 * is non-empty. Special case is that
+			 * type == x-obex/object-profile, then name contains the
+			 * real type
+			 */
+			/* TODO: allowing x-obex/folder-listing would essentially implement
+			 * obexftp. However, this requires the FBS-UUID and secure directory
+			 * traversal. That's not implemented, yet.
+			 */
+			if ((strcmp(data->type,"x-obex/object-profile") != 0 && data->name)
+			    || strcmp(data->type,"x-obex/folder-listing") == 0)
+			{
+				printf("%u.%u: %s\n", data->id, data->count,
+				       "Forbidden request");
+				obex_send_response(handle, obj, OBEX_RSP_FORBIDDEN);
+				break;
+			}
+
+			if (get_open(handle,script) < 0 ||
+			    data->length == 0)
+			{
+				data->out = NULL;
+				printf("%u.%u: %s\n", data->id, data->count,
+				       "Running script failed or no output data");
+				obex_send_response(handle, obj, OBEX_RSP_INTERNAL_SERVER_ERROR);
+				break;
+			}
+			if (event == OBEX_EV_REQCHECK)
+				break;
+		}
+
+		obex_send_response(handle, obj, OBEX_RSP_CONTINUE);
+		if (data->name) {
+			size_t size = utf16len(data->name);
+			if (size) {
+				size += 2;
+				hv.bs = malloc(size);
+				if (hv.bs) {
+					memcpy((char*)hv.bs,data->name,size);
+					ucs2_hton((uint16_t*)hv.bs,size);
+					(void)OBEX_ObjectAddHeader(handle,obj,OBEX_HDR_NAME,
+								   hv,size,0);
+					free((uint8_t*)hv.bs);
+				}
+			}
+		}
+		hv.bs = (const uint8_t*)data->type;
+		(void)OBEX_ObjectAddHeader(handle,obj,OBEX_HDR_TYPE,
+					   hv,strlen((char*)hv.bs),0);
+		hv.bq4 = data->length;
+		(void)OBEX_ObjectAddHeader(handle,obj,OBEX_HDR_LENGTH,
+					   hv,sizeof(hv.bq4),0);
+		hv.bs = NULL;
+		(void)OBEX_ObjectAddHeader(handle,obj,OBEX_HDR_BODY,
+					   hv,0,
+					   OBEX_FL_STREAM_START);
+	}
+		break;
+
+	case OBEX_EV_STREAMEMPTY:
+		len = get_read(handle,data->buffer,sizeof(data->buffer));
+		if (len >= 0) {
+			obex_headerdata_t hv;
+			hv.bs = data->buffer;
+			if (len == sizeof(data->buffer))
+				(void)OBEX_ObjectAddHeader(handle,obj,OBEX_HDR_BODY,
+							   hv,len,
+							   OBEX_FL_STREAM_DATA);
+			else
+				(void)OBEX_ObjectAddHeader(handle,obj,OBEX_HDR_BODY,
+							   hv,len,
+							   OBEX_FL_STREAM_DATAEND);			
+		} else {
+			perror("Reading script output failed");
+			obex_send_response(handle, obj, OBEX_RSP_INTERNAL_SERVER_ERROR);
+		}
+		break;
+
+	case OBEX_EV_LINKERR:
+	case OBEX_EV_PARSEERR:
+	case OBEX_EV_ABORT:
+	case OBEX_EV_REQDONE:
+	{
+		int err = get_close(handle);
+		if (err)
+			fprintf(stderr, "%s\n", strerror(-err));
+		if (data->name) {
+			free(data->name);
+			data->name = NULL;
+		}
+		if (data->type) {
+			free(data->type);
+			data->type = NULL;
+		}
+		data->length = 0;
+		data->time = 0;
+	}
+		break;
+	}
 }
