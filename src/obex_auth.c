@@ -39,6 +39,12 @@ void obex_auth_calc_digest (/*@out@*/ uint8_t digest[16],
 	MD5Final(digest, &context);
 }
 
+static size_t strlen16 (uint16_t* s) {
+	size_t n = 0;
+	if (s != 0)
+		while (s[n] != 0x0000) ++n;
+	return n;
+}
 
 /* Function for an OBEX server.
  */
@@ -49,9 +55,9 @@ int obex_auth_add_challenge (obex_t* handle,
 	int err = 0;
 	obex_headerdata_t ah;
         uint8_t* ptr;
-	size_t len = utf16len(chal->realm);
+	size_t len = strlen16(chal->realm);
 
-	ah.bs = malloc(2+sizeof(chal->nonce) + 3 + 2+2*(len+1));
+	ah.bs = malloc(2 + sizeof(chal->nonce) + 3 + 3 + 2*(len+1));
 	if (!ah.bs)
 		return -ENOMEM;
 	ptr = (uint8_t*)ah.bs;
@@ -69,13 +75,14 @@ int obex_auth_add_challenge (obex_t* handle,
 
 	/* add realm */
 	if (chal->realm != NULL && len != 0) {
-		++len;
+		size_t i = 0;
+
 		*ptr++ = 0x02;
 		*ptr++ = 2*len+1;
 		*ptr++ = 0xFF;
-		memcpy(ptr,chal->realm,2*len);
-		ucs2_hton((uint16_t*)ptr,len-1);
-		ptr += 2*len;
+		for (; i < len+1; ++i)
+			((uint16_t *)ptr)[i] = htons(chal->realm[i]);
+		ptr += 2*i;
 	}
 
 	errno = 0;
@@ -90,10 +97,10 @@ int obex_auth_unpack_response (obex_headerdata_t h,
 			       struct obex_auth_response* resp)
 {
 	uint32_t i = 0;
-	for (; i < size; i += h.bs[i+1]) {
+	for (; i < size; i += h.bs[i+1]+2) {
 		uint8_t htype = h.bs[i];
 		uint8_t hlen = h.bs[i+1];
-		const uint8_t* hdata = h.bs+i+2;
+		const uint8_t* hdata = h.bs+(i+2);
 
 		switch (htype){
 		case 0x00: /* digest */
@@ -148,10 +155,10 @@ int obex_auth_unpack_challenge (obex_headerdata_t h,
 	size_t k = 0;
 	size_t rsize = 0;
 
-	for (; i < hsize; i += h.bs[i+1]) {
+	for (; i < hsize; i += h.bs[i+1]+2) {
 		uint8_t htype = h.bs[i];
-		uint8_t hlen = h.bs[i+1];
-		const uint8_t* hdata = h.bs+i+2;
+		size_t hlen = h.bs[i+1];
+		const uint8_t* hdata = h.bs+(i+2);
 
 		switch (htype){
 		case 0x00: /* nonce */
@@ -164,7 +171,7 @@ int obex_auth_unpack_challenge (obex_headerdata_t h,
 			break;
 
 		case 0x01: /* options */
-			if ((size_t)hlen != 1)
+			if (hlen != 1)
 				return -1;
 			chal[k].opts = *hdata;
 			break;
@@ -172,19 +179,23 @@ int obex_auth_unpack_challenge (obex_headerdata_t h,
 		case 0x02: /* realm */
 			if (*hdata != 0xFF) /* only support unicode */
 				return -1;
+
+			if (chal[k].realm != NULL)
+				return -1;
+
 			--hlen;
 			++hdata;
 			
-			rsize = hlen;
 			if (hdata[hlen] != 0x00 ||
 			    hdata[hlen-1] != 0x00)
-				rsize += 2;
-			if (chal[k].realm != NULL)
-				return -1;
-			chal[k].realm = malloc(rsize);
-			memset(chal[k].realm,0,rsize);
-			memcpy(chal[k].realm,hdata,hlen);
-			ucs2_ntoh(chal[k].realm,hlen/2);
+				chal[k].realm = malloc(hlen+2);
+			else
+				chal[k].realm = malloc(hlen);
+			memset(chal[k].realm, 0, rsize);
+
+			hlen /= 2;
+			for (rsize=0; rsize < hlen; ++rsize)
+				chal[k].realm[rsize] = ntohs(((uint16_t *)hdata)[rsize]);
 			break;
 
 		default:
@@ -199,20 +210,16 @@ int obex_auth_challenge2response (obex_t* handle,
 				  struct obex_auth_response* r,
 				  obex_auth_pass_t get_pass)
 {
-	uint8_t* realm = utf16to8(c->realm);
 	uint8_t pass[32];
 	size_t plen;
 
-	if (!realm)
-		return 0;
-	memcpy(r->nonce,c->nonce,sizeof(r->nonce));
-	get_pass(handle,(char*)realm,(char*)r->user,&r->ulen,(char*)pass,&plen);
-	free(realm);
+	memcpy(r->nonce, c->nonce, sizeof(r->nonce));
+	get_pass(handle, c->realm, (char*)r->user, &r->ulen, (char*)pass, &plen);
 	if (r->ulen > sizeof(r->user) ||
 	    plen > sizeof(pass))
 		return 0;
-	obex_auth_calc_digest(r->digest,r->nonce,pass,plen);
-	memset(pass,0,sizeof(pass));
+	obex_auth_calc_digest(r->digest, r->nonce, pass, plen);
+	memset(pass, 0, sizeof(pass));
 	if ((c->opts & OBEX_AUTH_OPT_USER_REQ) != 0)
 		r->ulen = 0;
 
@@ -253,7 +260,9 @@ int obex_auth_add_response (obex_t* handle,
 	ptr += sizeof(resp->nonce);
 
 	errno = 0;
-	if (OBEX_ObjectAddHeader(handle,obj,OBEX_HDR_AUTHRESP,ah,(uint32_t)(ptr-ah.bs),OBEX_FL_FIT_ONE_PACKET) < 0)
+	if (0 > OBEX_ObjectAddHeader(handle, obj, OBEX_HDR_AUTHRESP, ah,
+				     (uint32_t)(ptr-ah.bs),
+				     OBEX_FL_FIT_ONE_PACKET))
 		err = ((errno != 0)? -errno: -EINVAL);
 	free((void*)ah.bs);
 	return err;

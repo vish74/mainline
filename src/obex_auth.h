@@ -1,6 +1,4 @@
 #include <inttypes.h>
-/* not needed here but needed if you ever need bluetooth elsewhere */
-#include <bluetooth/bluetooth.h>
 #include <openobex/obex.h>
 
 #define OBEX_AUTH_OPT_USER_REQ (1 << 0) /* request user identifier */
@@ -29,7 +27,7 @@ struct obex_auth_response {
 /* get user and password according to realm */
 typedef void (*obex_auth_pass_t) (
 	obex_t* handle,
-	const char* realm, /* UTF-8 */
+	const uint16_t* realm, /* UTF-16 */
 	/*@out@*/ char* user,
 	size_t* ulen,
 	/*@out@*/ char* pass,
