@@ -36,7 +36,7 @@
 
 int io_close (file_data_t* data)
 {
-	if (data->child) {
+	if (data->child != (pid_t)-1) {
 		int status;
 
 		kill(data->child, SIGKILL);
@@ -70,7 +70,7 @@ int io_close (file_data_t* data)
 	return 0;
 }
 
-int io_script_open (file_data_t* data, char* script, char** args)
+int io_script_open (file_data_t* data, const char* script, char** args)
 {
 	int err = 0;
 	int p[2] = { -1, -1};
@@ -84,9 +84,9 @@ int io_script_open (file_data_t* data, char* script, char** args)
 	if (err)
 		return err;
 
-	data->child = pipe_open(script, args, p);
-	if (!data->child)
-		return -errno;
+	err = pipe_open(script, args, p, &data->child);
+	if (err)
+		return err;
 
 	data->in = fdopen(p[0], "r");
 	if (data->in)

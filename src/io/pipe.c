@@ -28,6 +28,7 @@
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #if defined(USE_SPAWN)
 #include <spawn.h>
@@ -41,10 +42,11 @@ void pipe_close (int client_fds[2])
 	}		
 }
 
-pid_t pipe_open (
+int pipe_open (
 	const char* command,
-	char** args, 
-	int client_fds[2]
+	char** args,
+	int client_fds[2],
+	pid_t *pid
 )
 {
 	int fds[2][2] = {{ -1, -1 }, {-1, -1}};
@@ -115,5 +117,8 @@ pid_t pipe_open (
 		client_fds[0] = PIPE_SERVER_READ;
 		client_fds[1] = PIPE_SERVER_WRITE;
 	}
-	return p;
+	
+	if (pid)
+		*pid = p;
+	return 0;
 }
