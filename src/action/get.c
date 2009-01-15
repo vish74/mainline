@@ -21,8 +21,8 @@
 #include "utf.h"
 #include "io.h"
 #include "net.h"
-
-#include <openobex/obex.h>
+#include "action.h"
+#include "core.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -109,13 +109,12 @@ int get_close (obex_t* handle) {
 }
 
 static
-int get_open (obex_t* handle, char* script) {
+int get_open (obex_t* handle, const char* script) {
 	file_data_t* data = OBEX_GetUserData(handle);
 	int err = 0;
-	char* args[5] = { script, "get", NULL };
+	const char* args[] = { script, "get", NULL };
 
-
-	err = io_script_open(data, script, args);
+	err = io_script_open(data, script, (char**)args);
 	if (err == 0)
 		err = get_parse_headers(handle);
 
@@ -165,7 +164,7 @@ void obex_action_get (obex_t* handle, obex_object_t* obj, int event) {
 		data->count += 1;
 		data->length = 0;
 		data->time = 0;
-		if (!script) {
+		if (!get_io_script()) {
 			/* There is no default object to get */
 			fprintf(stderr, "No script defined\n");
 			obex_send_response(handle, obj, OBEX_RSP_NOT_FOUND);
@@ -196,7 +195,7 @@ void obex_action_get (obex_t* handle, obex_object_t* obj, int event) {
 				break;
 			}
 
-			if (get_open(handle,script) < 0 ||
+			if (get_open(handle, get_io_script()) < 0 ||
 			    data->length == 0)
 			{
 				data->out = NULL;

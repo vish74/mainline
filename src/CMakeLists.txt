@@ -5,10 +5,13 @@ list ( APPEND SOURCES
   obexpushd.c
   obex_auth.c
   md5.c
-  put.c
-  get.c
   checks.c
   utf.c
+  action/core.c
+  action/connect.c
+  action/disconnect.c
+  action/get.c
+  action/put.c
   io/core.c
   io/pipe.c
   net/auth.c

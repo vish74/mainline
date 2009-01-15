@@ -21,6 +21,8 @@
 #include "io.h"
 #include "utf.h"
 #include "net.h"
+#include "action.h"
+#include "core.h"
 
 #include <errno.h>
 #include <sys/types.h>
@@ -51,14 +53,14 @@ int put_wait_for_ok (FILE* f)
 }
 
 static
-int put_open (obex_t* handle, char* script) {
+int put_open (obex_t* handle, const char* script) {
 	file_data_t* data = OBEX_GetUserData(handle);
 	
 	if (script != NULL && strlen(script) > 0) {
 		int err = 0;
-		char* args[5] = { script, "put", NULL };
+		const char* args[] = { script, "put", NULL };
 		
-		err = io_script_open(data, script, args);
+		err = io_script_open(data, script, (char**)args);
 		if (err)
 			return err;
 		return put_wait_for_ok(data->in);
@@ -88,7 +90,7 @@ int put_revert (obex_t* handle) {
 	file_data_t* data = OBEX_GetUserData(handle);
 	int err = io_close(data);
 
-	if (!err && data->child < 0) {
+	if (!err && data->child == (pid_t)-1) {
 		uint8_t* n = utf16to8(data->name);		
 		if (unlink((char*)n) == -1) /* remove the file */
 			err = -errno;
@@ -132,7 +134,7 @@ void obex_action_put (obex_t* handle, obex_object_t* obj, int event) {
 
 	case OBEX_EV_REQCHECK:
 		if (data->out == NULL
-		    && put_open(handle,script) < 0)
+		    && put_open(handle, get_io_script()) < 0)
 			obex_send_response(handle, obj, OBEX_RSP_FORBIDDEN);
 		else
 			obex_send_response(handle, obj, OBEX_RSP_CONTINUE);
@@ -143,10 +145,10 @@ void obex_action_put (obex_t* handle, obex_object_t* obj, int event) {
 		const uint8_t* buf = NULL;
 		int len = OBEX_ObjectReadStream(handle,obj,&buf);
 
-		if (debug) printf("%u.%u: got %d bytes of streamed data\n",data->id,data->count,len);
+		dbg_printf(data, "got %d bytes of streamed data\n", len);
 		if (len) {
 			if ((data->out == NULL
-			     && put_open(handle,script) < 0)
+			     && put_open(handle, get_io_script()) < 0)
 			    || put_write(handle,buf,len))
 				obex_send_response(handle, obj, OBEX_RSP_FORBIDDEN);
 		}

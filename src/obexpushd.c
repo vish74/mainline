@@ -17,11 +17,13 @@
    
 #define _GNU_SOURCE
 
+#include <bluetooth/bluetooth.h>
 #include "obex_auth.h"
 #include "obexpushd.h"
 #include "io.h"
 #include "utf.h"
 #include "net.h"
+#include "action.h"
 
 #include <unistd.h>
 #include <stdlib.h>
@@ -36,6 +38,7 @@
 #include <errno.h>
 #include <string.h>
 #include <ctype.h>
+#include <stdarg.h>
 
 #if defined(USE_THREADS)
 #include <pthread.h>
@@ -45,27 +48,30 @@
 #include "version.h"
 #include "compiler.h"
 
-char* obex_events[] = {
-	"PROGRESS", "REQHINT", "REQ", "REQDONE",
-	"LINKERR", "PARSEERR", "ACCEPTHINT", "ABORT",
-	"STREAMEMPTY", "STREAMAVAIL", "UNEXPECTED", "REQCHECK",
-};
-
-char* _obex_commands[] = {
-	"CONNECT", "DISCONNECT", "PUT", "GET",
-	"SETPATH", "SESSION", "ABORT"
-};
-
 /* global settings */
-int debug = 0;
+static int debug = 0;
 static int nofork = 0;
 static int id = 0;
 static /*@null@*/ char* auth_file = NULL;
 static /*@null@*/ char* realm_file = NULL;
-char* script = NULL;
-
 
 #define EOL(n) ((n) == '\n' || (n) == '\r')
+
+void dbg_printf (file_data_t *data, const char *format, ...)
+{
+	if (debug) {
+		va_list ap;
+		if (data) {
+			if (data->count)
+				(void)fprintf(stdout, "%u.%u: ", data->id, data->count);
+			else
+				(void)fprintf(stdout, "%u: ", data->id);
+		}
+		va_start(ap, format);
+		vfprintf(stdout, format, ap);
+		va_end(ap);
+	}
+}
 
 /* return len(> 0), 0 if not found, or err codes(< 0) */
 ssize_t get_pass_for_user (char* file,
@@ -81,9 +87,9 @@ ssize_t get_pass_for_user (char* file,
 	if (!line)
 		return -ENOMEM;
 	if (file[0] == '|') {
-		char* args[2] = { file+1, (char*)user };
+		const char* args[2] = { file+1, (const char*)user };
 		int fds[2];
-		(void)pipe_open(args[0],args,fds);
+		int err = pipe_open(args[0], (char**)args, fds, NULL);
 		close(fds[1]);
 		status = fds[0];
 	} else {
@@ -199,16 +205,18 @@ ssize_t get_credentials_for_realm (char* file,
 
 static
 void get_creds (obex_t __unused *handle,
-		const char* realm, /* UTF-8 */
+		const uint16_t* realm, /* UTF-16 */
 		/*out*/ char* user,
 		size_t* ulen,
 		/*out*/ char* pass,
 		size_t* plen)
 {
+	uint8_t* realm8 = utf16to8(realm);
 	get_credentials_for_realm(realm_file,
-				  (const uint8_t*)realm,
+				  (const uint8_t*)realm8,
 				  (uint8_t*)user,ulen,
 				  (uint8_t*)pass,plen);
+	free(realm8);
 }
 
 int obex_auth_send_response (obex_t* handle,
@@ -231,20 +239,36 @@ int obex_auth_send_response (obex_t* handle,
 	return obex_auth_add_response(handle,obj,&resp);
 }
 
-char* obex_command_string(uint8_t cmd)
+const char* obex_event_string(uint8_t event)
 {
+	static const char* obex_events[] = {
+		"PROGRESS", "REQHINT", "REQ", "REQDONE",
+		"LINKERR", "PARSEERR", "ACCEPTHINT", "ABORT",
+		"STREAMEMPTY", "STREAMAVAIL", "UNEXPECTED", "REQCHECK",
+	};
+
+	return obex_events[event];
+}
+
+const char* obex_command_string(uint8_t cmd)
+{
+	static const char* obex_commands[] = {
+		"CONNECT", "DISCONNECT", "PUT", "GET",
+		"SETPATH", "SESSION", "ABORT"
+	};
+
 	switch (cmd) {
 	case OBEX_CMD_CONNECT:
 	case OBEX_CMD_DISCONNECT:
 	case OBEX_CMD_PUT:
 	case OBEX_CMD_GET:
-		return _obex_commands[cmd];
+		return obex_commands[cmd];
 	case OBEX_CMD_SETPATH:
-		return _obex_commands[4];
+		return obex_commands[4];
 	case OBEX_CMD_SESSION:
-		return _obex_commands[5];
+		return obex_commands[5];
 	case OBEX_CMD_ABORT:
-		return _obex_commands[6];
+		return obex_commands[6];
 	default:
 		return "UNKNOWN";
 	}
@@ -257,9 +281,8 @@ int obex_object_headers (obex_t* handle, obex_object_t* obj) {
 	file_data_t* data = OBEX_GetUserData(handle);
 
 	while (OBEX_ObjectGetNextHeader(handle,obj,&id,&value,&vsize)) {
-		if (debug)
-			printf("%u.%u: Got header 0x%02x with value length %u\n",
-			       data->id,data->count,(unsigned int)id,(unsigned int)vsize);
+		dbg_printf(data, "Got header 0x%02x with value length %u\n",
+			   (unsigned int)id, (unsigned int)vsize);
 		if (!vsize)
 			continue;
 		switch (id) {
@@ -275,11 +298,11 @@ int obex_object_headers (obex_t* handle, obex_object_t* obj) {
 				ucs2_ntoh(data->name,vsize/2);
 				if (debug) {
 					uint8_t* n = utf16to8(data->name);
-					printf("%u.%u: name: \"%s\"\n",data->id,data->count,(char*)n);
+					dbg_printf(data, "name: \"%s\"\n", (char*)n);
 					free(n);
 				}
 				if (!check_name(data->name)) {
-					printf("%u.%u: CHECK FAILED: Invalid name string\n",data->id,data->count);
+					dbg_printf(data, "CHECK FAILED: %s\n", "Invalid name string");
 					return 0;
 				}
 			}
@@ -294,10 +317,9 @@ int obex_object_headers (obex_t* handle, obex_object_t* obj) {
 					return 0;
 				memcpy(data->type,value.bs,vsize);
 				data->type[vsize] = '\0';
-				if (debug)
-					printf("%u.%u: type: \"%s\"\n",data->id,data->count,data->type);
+				dbg_printf(data, "type: \"%s\"\n", data->type);
 				if (!check_type(data->type)) {
-					printf("%u.%u: CHECK FAILED: Invalid type string\n",data->id,data->count);
+					dbg_printf(data, "CHECK FAILED: %s\n", "Invalid type string");
 					return 0;
 				}
 			}
@@ -306,7 +328,7 @@ int obex_object_headers (obex_t* handle, obex_object_t* obj) {
 		case OBEX_HDR_LENGTH:
 			if (data)
 				data->length = value.bq4;
-			if (debug) printf("%u.%u: size: %d bytes\n",data->id,data->count,value.bq4);
+			dbg_printf(data, "size: %d bytes\n", value.bq4);
 			break;
 
 		case OBEX_HDR_TIME:
@@ -318,7 +340,7 @@ int obex_object_headers (obex_t* handle, obex_object_t* obj) {
 				uint16_t* desc16 = (uint16_t*)value.bs;
 				if (desc16[vsize/2] == 0x0000) {
 					uint8_t* desc8 = utf16to8(desc16);
-					printf("%u.%u: description: \"%s\"\n",data->id,data->count,(char*)desc8);
+					dbg_printf(data, "description: \"%s\"\n", (char*)desc8);
 					free(desc8);
 				}
 			}
@@ -360,33 +382,6 @@ void obex_send_response (obex_t* handle, obex_object_t* obj, uint8_t respCode) {
 	}
 }
 
-void obex_action_connect (obex_t* handle, obex_object_t* obj, int event) {
-	file_data_t* data = OBEX_GetUserData(handle);
-	uint8_t code = OBEX_RSP_CONTINUE;
-	switch (event) {
-	case OBEX_EV_REQHINT: /* A new request is coming in */
-		if (!net_security_check(data->net_data))
-			code = net_security_init(data->net_data, obj);
-		obex_send_response(handle, obj, code);
-		break;
-	}
-}
-
-void obex_action_disconnect (obex_t* handle, obex_object_t* obj, int event) {
-	switch (event) {
-	case OBEX_EV_REQHINT: /* A new request is coming in */
-		obex_send_response(handle, obj, OBEX_RSP_CONTINUE);
-		break;
-
-	case OBEX_EV_REQDONE:
-		(void)OBEX_TransportDisconnect(handle);
-		break;
-	}
-}
-
-extern void obex_action_put (obex_t* handle, obex_object_t* obj, int event);
-extern void obex_action_get (obex_t* handle, obex_object_t* obj, int event);
-
 void client_eventcb (obex_t* handle, obex_object_t* obj,
 		     int __unused mode, int event,
 		     int obex_cmd, int __unused obex_rsp)
@@ -401,9 +396,9 @@ void client_eventcb (obex_t* handle, obex_object_t* obj,
 	else
 		last_obex_cmd = obex_cmd;
 
-	if (debug) printf("%u: OBEX_EV_%s, OBEX_CMD_%s\n",data->id,
-			  obex_events[event],
-			  obex_command_string(obex_cmd));
+	if (debug)
+		printf("%u: OBEX_EV_%s, OBEX_CMD_%s\n", data->id,
+		       obex_event_string(event), obex_command_string(obex_cmd));
 
 	switch (obex_cmd) {
 	case OBEX_CMD_CONNECT:
@@ -448,7 +443,7 @@ void* handle_client (void* arg) {
 		goto out1;
 	memset(data,0,sizeof(*data));
 	data->id = id++;
-	data->child = -1;
+	data->child = (pid_t)-1;
 
 	data->net_data = malloc(sizeof(*data->net_data));
 	if (!data->net_data)
@@ -488,9 +483,8 @@ void eventcb (obex_t* handle, obex_object_t __unused *obj,
 	      int __unused mode, int event,
 	      int __unused obex_cmd, int __unused obex_rsp)
 {
-	if (debug) printf("OBEX_EV_%s, OBEX_CMD_%s\n",
-			  obex_events[event],
-			  obex_command_string(obex_cmd));
+	dbg_printf(NULL, "OBEX_EV_%s, OBEX_CMD_%s\n",
+		   obex_event_string(event), obex_command_string(obex_cmd));
 	if (obj && !obex_object_headers(handle,obj)) {
 		(void)OBEX_ObjectSetRsp(obj,
 					OBEX_RSP_BAD_REQUEST,
@@ -800,7 +794,7 @@ int main (int argc, char** argv) {
 			break;
 
 		case 's':
-			script = optarg;
+			set_io_script(optarg);
 			break;
 
 		case 'h':

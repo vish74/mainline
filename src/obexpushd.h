@@ -25,8 +25,7 @@ typedef struct {
 
 int obex_object_headers (obex_t* handle, obex_object_t* obj);
 void obex_send_response (obex_t* handle, obex_object_t* obj, uint8_t respCode);
-extern int debug;
-extern char* script;
+void dbg_printf (file_data_t *data, const char *format, ...) __attribute__((format(printf,2,3)));
 
 int check_name (uint16_t* name);
 int check_type (char* type);
