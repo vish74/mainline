@@ -22,7 +22,7 @@
 #include <string.h>
 #include <stdio.h>
 
-size_t ucs2len (uint16_t* s) {
+size_t ucs2len (const uint16_t* s) {
 	size_t n = 0;
 	if (s != 0)
 		while (s[n] != 0x0000) ++n;
@@ -41,7 +41,7 @@ void ucs2_hton (uint16_t* s, size_t len) {
 		s[i] = htons(s[i]);
 }
 
-size_t utf16count(uint16_t* s) {
+size_t utf16count(const uint16_t* s) {
 	size_t n = 0;
 	size_t i = 0;
 	if (s != NULL)
@@ -55,7 +55,7 @@ size_t utf16count(uint16_t* s) {
 	return n;
 }
 
-size_t utf8count(uint8_t* s) {
+size_t utf8count(const uint8_t* s) {
 	size_t n = 0;
 	size_t i = 0;
 	if (s != NULL)
@@ -67,10 +67,10 @@ size_t utf8count(uint8_t* s) {
 }
 
 static
-int utf_convert (void* in, size_t len, const char* fromcode,
+int utf_convert (const void* in, size_t len, const char* fromcode,
 		 void* out, size_t size, const char* tocode)
 {
-	char* in_p = in;
+	char* in_p = (char*)in;
 	char* out_p = out;
 	size_t status = 0;
 	iconv_t cd = iconv_open(tocode,fromcode);
@@ -84,7 +84,7 @@ int utf_convert (void* in, size_t len, const char* fromcode,
 	return 0;
 }
 
-uint8_t* utf16to8 (uint16_t* c)
+uint8_t* utf16to8 (const uint16_t* c)
 {
 	size_t sc = utf16len(c);
 	size_t sd = 4*utf16count(c)+1;
@@ -103,7 +103,7 @@ uint8_t* utf16to8 (uint16_t* c)
 	return d;
 }
 
-uint16_t* utf8to16 (uint8_t* c)
+uint16_t* utf8to16 (const uint8_t* c)
 {
 	size_t sc = utf8len(c);
 	size_t sd = 4*utf8count(c)+2;
