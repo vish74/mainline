@@ -49,18 +49,20 @@ int check_name (uint16_t* name) {
 int check_type (char* type) {
 	size_t len = strlen(type);
 	size_t i = 0;
-	size_t k = 0;
+	const char s[] = ";.+-";
 
 	for (; i < len; ++i) {
-		if (type[i] == '/') {
-			++k;
-		} else if (type[i] == ';') {
-			if (k != 1)
-				return 0;
+		if (type[i] == '/')
 			break;
-		} else if (!isalnum((int)type[i]) || k > 1) {
+		if (!isascii((int)type[i]) || !isalpha((int)type[i]))
 			return 0;
-		}
+	}
+	if (++i >= len)
+		return 0;
+	for (; i < len; ++i) {
+		if (!isascii((int)type[i]) ||
+		    (!isalnum((int)type[i]) && !strchr(s,(int)type[i])))
+			return 0;
 	}
 	return 1;
 }
