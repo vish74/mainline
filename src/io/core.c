@@ -118,6 +118,10 @@ int io_script_open (file_data_t* data, const char* script, char** args)
 	return err;
 }
 
+#ifndef O_CLOEXEC
+#define O_CLOEXEC 0
+#endif
+
 int io_file_open (file_data_t* data, unsigned long io_flags)
 {
 	int err;
@@ -139,6 +143,9 @@ int io_file_open (file_data_t* data, unsigned long io_flags)
 				data->id, data->count, strerror(-err));
 			goto io_file_error;
 		}
+#if ! O_CLOEXEC
+		(void)fcntl(err, F_SETFD, FD_CLOEXEC);
+#endif
 		data->out = fdopen(err, "w");
 		if (data->out == NULL)
 			goto io_file_error;
