@@ -332,7 +332,24 @@ int obex_object_headers (obex_t* handle, obex_object_t* obj) {
 			break;
 
 		case OBEX_HDR_TIME:
-			//TODO
+			/* ISO8601 formatted ASCII string */
+			if (data) {
+				struct tm time;
+				char* tmp = malloc(vsize+1);
+				if (!tmp)
+					return 0;
+				memcpy(tmp, value.bs, vsize);
+				tmp[vsize] = '\0';
+				dbg_printf(data, "time: \"%s\"\n", tmp);
+				tzset();
+				strptime(tmp, "%Y-%m-%dT%H:%M:%S", &time); /* uses GNU extensions */
+				time.tm_isdst = -1;
+				data->time = mktime(&time);
+				if (tmp[17] == 'Z')
+					data->time -= timezone;
+				free(tmp);
+				tmp = NULL;
+			}
 			break;
 
 		case OBEX_HDR_DESCRIPTION:
