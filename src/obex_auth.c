@@ -23,6 +23,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <arpa/inet.h>
 
 static
 void obex_auth_calc_digest (/*@out@*/ uint8_t digest[16],
