@@ -59,8 +59,10 @@ if ( USE_THREADS )
   endif ( CMAKE_USE_PTHREADS_INIT )
 endif ( USE_THREADS )
 
-option ( ENABLE_AVAHI "Use the avahi-client library to publish the service" ON )
-find_package ( AvahiClient )
+option ( ENABLE_AVAHI "Use the avahi-client library to publish the service" OFF )
+if ( ENABLE_AVAHI )
+  find_package ( AvahiClient )
+endif ( ENABLE_AVAHI )
 if ( AvahiClient_FOUND )
   include_directories ( ${AvahiClient_INCLUDE_DIRS} )
   list ( APPEND obexpushd_DEFINITIONS ENABLE_AVAHI )
@@ -68,7 +70,9 @@ if ( AvahiClient_FOUND )
 endif ( AvahiClient_FOUND )
 
 option ( ENABLE_TCPWRAP "Use the tcp wrapper library to check for restrictions on incoming connections" ON )
-find_package ( TcpWrap )
+if ( ENABLE_TCPWRAP )
+  find_package ( TcpWrap )
+endif ( ENABLE_TCPWRAP )
 if ( TcpWrap_FOUND )
   include_directories ( ${TcpWrap_INCLUDE_DIRS} )
   list ( APPEND obexpushd_DEFINITIONS ENABLE_TCPWRAP )
@@ -79,9 +83,17 @@ target_link_libraries ( obexpushd
   ${OpenObex_LIBRARIES}
   ${Bluetooth_LIBRARIES}
   ${THREAD_LIBRARY}
-  ${AvahiClient_LIBRARIES}
-  ${TcpWrap_LIBRARIES}
 )
+if ( AvahiClient_FOUND )
+  target_link_libraries ( obexpushd
+    ${AvahiClient_LIBRARIES}
+  )
+endif ( AvahiClient_FOUND )
+if ( TcpWrap_FOUND )
+  target_link_libraries ( obexpushd
+    ${TcpWrap_LIBRARIES}
+  )
+endif ( TcpWrap_FOUND )
 
 set_property ( TARGET obexpushd PROPERTY
   COMPILE_DEFINITIONS ${obexpushd_DEFINITIONS}
