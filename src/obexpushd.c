@@ -90,6 +90,8 @@ ssize_t get_pass_for_user (char* file,
 		const char* args[2] = { file+1, (const char*)user };
 		int fds[2];
 		int err = pipe_open(args[0], (char**)args, fds, NULL);
+		if (err)
+			return err;
 		close(fds[1]);
 		status = fds[0];
 	} else {
