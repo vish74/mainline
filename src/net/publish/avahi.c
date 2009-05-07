@@ -159,6 +159,9 @@ void obex_avahi_cleanup (void *ptr)
 {
 	struct obex_avahi_data *oadata = ptr;
 
+	if (!oadata)
+		return;
+
 	if (oadata->p) {
 		obex_avahi_poll_quit(oadata->p);
 		obex_avahi_poll_free(oadata->p);
