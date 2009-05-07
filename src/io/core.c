@@ -15,10 +15,7 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
  */
 
-/* work around crappy GNU libc to define environ in unistd.h as
- * define in environ(3posix)
- */
-#define _GNU_SOURCE
+#define _POSIX_SOURCE
 
 #include <unistd.h>
 #include <errno.h>
@@ -28,6 +25,8 @@
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <signal.h>
+#include <utime.h>
 
 #include "obexpushd.h"
 #include "io.h"
@@ -53,19 +52,32 @@ int io_close (file_data_t* data)
 			fprintf(stderr, "%u.%u: script got signal %d\n",
 				data->id, data->count, WTERMSIG(status));
 		}
+
+		//prevent call of utime below
+		data->time = 0;
 	}
 
 	if (data->in) {
 		if (fclose(data->in) == EOF)
 			return -errno;
+		data->in = NULL;
 	}
-	data->in = NULL;
 
 	if (data->out) {
 		if (fclose(data->out) == EOF)
 			return -errno;
+		if (data->time) {
+			char* name = (char*)utf16to8(data->name);
+			struct utimbuf times;
+
+			times.actime = data->time;
+			times.modtime = data->time;
+			if (utime(name, &times) == -1)
+				perror("Setting time failed");
+			free(name);
+		}			
+		data->out = NULL;
 	}
-	data->out = NULL;
 
 	return 0;
 }
