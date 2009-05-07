@@ -8,7 +8,7 @@ if ( VERSION_PATCH GREATER 0 )
   set ( VERSION "${VERSION}.${VERSION_PATCH}" )
 endif ( VERSION_PATCH GREATER 0 )
 
-cmake_minimum_required ( VERSION 2.4.7 )
+cmake_minimum_required ( VERSION 2.6.3 FATAL_ERROR )
 
 if ( NOT CMAKE_BUILD_TYPE )
   set ( CMAKE_BUILD_TYPE Release
@@ -18,6 +18,13 @@ endif ( NOT CMAKE_BUILD_TYPE )
 list ( APPEND CMAKE_MODULE_PATH
   ${CMAKE_CURRENT_SOURCE_DIR}/CMakeModules
 )
+
+option ( MAINTAINER_MODE "Add additional compile-time checks" OFF )
+if ( MAINTAINER_MODE )
+  foreach ( type RELEASE DEBUG MINSIZEREL RELWITHDEBINFO )
+    set ( CMAKE_C_FLAGS_${type} "${CMAKE_C_FLAGS_${type}} -W -Wall -Wno-unused -std=c99 -pedantic" )
+  endforeach ( type )
+endif ( MAINTAINER_MODE )
 
 add_subdirectory ( src )
 add_subdirectory ( src/x-obex )
