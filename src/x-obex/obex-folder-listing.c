@@ -177,11 +177,33 @@ char* get_system_charset ()
 	return nl_langinfo(CODESET);
 }
 
+static
+char* get_parent_folder_name (const char* path)
+{
+	char* p = strdup(path);
+	char* tmp = NULL;
+
+	if (!p)
+		return NULL;
+
+	do {
+		tmp = strrchr(p,(int)'/');
+		if (!tmp) {
+			free(p);
+			return strdup(".");
+		}
+		tmp[0] = 0;
+	} while (tmp[1] == 0 || strcmp(tmp+1,".") == 0);
+
+	return p;
+}
+
 int obex_folder_listing (FILE* fd, char* name, int flags)
 {
 	mode_t m = 0;
 	int err = 0;
 	size_t namelen = (name? strlen(name): 0);
+	char* parent = get_parent_folder_name(name);
 
 #if _WIN32
 	/* backslash dir seperator must be converted to unix format*/
@@ -205,24 +227,12 @@ int obex_folder_listing (FILE* fd, char* name, int flags)
 	fprintf(fd,
 		"<!DOCTYPE folder-listing SYSTEM \"obex-folder-listing.dtd\">\n");
 	xml_open(fd,0,"folder-listing version=\"1.0\"");
-  
-	if (flags & OFL_FLAG_PARENT) {
-		char* p = strdup(name);
-		char* tmp = NULL;
 
-		if (p) do {
-			tmp = strrchr(p,(int)'/');
-			if (!tmp)
-				break;
-			tmp[0] = 0;
-		} while (tmp[1] == 0 || strcmp(tmp+1,".") == 0);
-
-		if (tmp != NULL) {
+	if (parent) {
+		if (flags & OFL_FLAG_PARENT)
 			xml_print(fd,1,"parent-folder",NULL,0);
-			if (p)
-				m = filemode(p);
-		}
-		free(p);
+		m = filemode(parent);
+		free(parent);
 	}
 
 	switch (filetype(filemode(name))) {
