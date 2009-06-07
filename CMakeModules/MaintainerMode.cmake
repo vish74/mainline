@@ -13,22 +13,20 @@ if ( USE_MAINTAINER_MODE )
       error
     )
     set ( MAINTAINER_MODE_FLAGS
-      pendantic
+      pedantic
       std=c99
     )
     foreach ( flag ${MAINTAINER_MODE_WARN_FLAGS} )
       list ( APPEND MAINTAINER_MODE_FLAGS "W${flag}" )
     endforeach ( flag )
 
-    message ( "${MAINTAINER_MODE_FLAGS}" )
     foreach ( flag ${MAINTAINER_MODE_FLAGS} )
-      set ( cflags "-${flag}" )
+      set ( cflag "-${flag}" )
       set ( CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${cflag}" )
       foreach ( type DEBUG RELEASE MINSIZEREL RELWITHDEBINFO )
 	set ( CMAKE_C_FLAGS_${type} "${CMAKE_C_FLAGS_${type}} ${cflag}" )
       endforeach ( type )
     endforeach ( flag )
-    message ( "${CMAKE_C_FLAGS}" )
 
   elseif ( MSVC )
     set ( MAINTAINER_MODE_FLAGS
@@ -38,10 +36,9 @@ if ( USE_MAINTAINER_MODE )
     foreach ( flag ${MAINTAINER_MODE_FLAGS} )
       set ( cflag "/${flag}" )
       set ( CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${cflag}" )
-      set ( CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS} ${cflag}" )
-      set ( CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS} ${cflag}" )
-      set ( CMAKE_C_FLAGS_MINSIZEREL "${CMAKE_C_FLAGS} ${cflag}" )
-      set ( CMAKE_C_FLAGS_RELWITHDEBINFO "${CMAKE_C_FLAGS} ${cflag}" )      
+      foreach ( type DEBUG RELEASE MINSIZEREL RELWITHDEBINFO )
+	set ( CMAKE_C_FLAGS_${type} "${CMAKE_C_FLAGS_${type}} ${cflag}" )
+      endforeach ( type )
     endforeach ( flag )
   endif ( CMAKE_COMPILER_IS_GNUCC )
 endif ( USE_MAINTAINER_MODE )
