@@ -19,26 +19,15 @@ list ( APPEND CMAKE_MODULE_PATH
   ${CMAKE_CURRENT_SOURCE_DIR}/CMakeModules
 )
 
-option ( MAINTAINER_MODE "Add additional compile-time checks" OFF )
-if ( MAINTAINER_MODE )
-  foreach ( type RELEASE DEBUG MINSIZEREL RELWITHDEBINFO )
-    set ( CMAKE_C_FLAGS_${type} "${CMAKE_C_FLAGS_${type}} -W -Wall -Wno-unused -std=c99 -pedantic" )
-  endforeach ( type )
-endif ( MAINTAINER_MODE )
+include ( MaintainerMode )
 
 add_subdirectory ( src )
 add_subdirectory ( src/x-obex )
-
-if ( NOT DOCUMENTS_DIRECTORY )
-  set ( DOCUMENTS_DIRECTORY "share/doc/${PROJECT_NAME}"
-        CACHE PATH "Where documentation files are copied to on installation" FORCE )
-endif ( NOT DOCUMENTS_DIRECTORY )
-
 add_subdirectory ( doc )
 
 install (
   FILES       README LICENSE GPLv2.txt
-  DESTINATION "${DOCUMENTS_DIRECTORY}"
+  DESTINATION "${DOCUMENTATION_INSTALL_DIR}"
   PERMISSIONS OWNER_READ OWNER_WRITE
               GROUP_READ
               WORLD_READ
