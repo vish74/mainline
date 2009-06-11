@@ -28,7 +28,7 @@
 #define PROGRAM_NAME "obex-folder-listing"
 #define PROGRAM_VERSION "0.1"
 
-void print_disclaimer () {
+static void print_disclaimer () {
 	fprintf(stderr,
 		PROGRAM_NAME" "PROGRAM_VERSION " Copyright (C) 2006 Hendrik Sattler\n"
 		"This software comes with ABSOLUTELY NO WARRANTY.\n"
@@ -36,7 +36,7 @@ void print_disclaimer () {
 		"under certain conditions.\n");
 }
 
-void print_help () {
+static void print_help () {
 	print_disclaimer();
 	fprintf(stderr,
 		"\n"

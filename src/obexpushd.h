@@ -1,3 +1,6 @@
+#ifndef OBEXPUSHD_H
+#define OBEXPUSHD_H
+
 #include <bluetooth/bluetooth.h>
 #include <openobex/obex.h>
 #include <inttypes.h>
@@ -29,3 +32,5 @@ void dbg_printf (file_data_t *data, const char *format, ...) __attribute__((form
 
 int check_name (uint16_t* name);
 int check_type (char* type);
+
+#endif

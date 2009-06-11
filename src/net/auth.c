@@ -1,4 +1,5 @@
 #include "md5.h"
+#include "core.h"
 
 #include <sys/types.h>
 #include <sys/stat.h>

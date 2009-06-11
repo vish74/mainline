@@ -18,6 +18,7 @@
 #define _GNU_SOURCE
 
 #include "utf.h"
+#include "obexpushd.h"
 
 #include <inttypes.h>
 #include <ctype.h>

@@ -20,6 +20,8 @@
  */
 #define _GNU_SOURCE
 
+#include "../io.h"
+
 #include <unistd.h>
 #include <errno.h>
 #include <sys/types.h>
@@ -57,6 +59,9 @@ int pipe_open (
 
 	int err = 0;
 	pid_t p;
+#if defined(USE_SPAWN)
+	posix_spawn_file_actions_t actions;
+#endif
 
 	if (pipe(fds[0]) == -1)
 		return -errno;
@@ -70,7 +75,6 @@ int pipe_open (
 #if defined(USE_SPAWN)
 	/* In theory, using spawn() is more efficient that fork()+exec().
 	 */
-	posix_spawn_file_actions_t actions;
 	if (posix_spawn_file_actions_init(&actions) ||
 	    posix_spawn_file_actions_addclose(&actions, PIPE_SERVER_WRITE) ||
 	    posix_spawn_file_actions_addclose(&actions, PIPE_SERVER_READ) ||

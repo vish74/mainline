@@ -1,3 +1,6 @@
+#include "../action.h"
+#include "core.h"
+
 #include <stdlib.h>
 
 static const char* action_script = NULL;

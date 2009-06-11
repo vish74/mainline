@@ -1,7 +1,9 @@
 #include <sys/types.h>
+#include "obexpushd.h"
 
 #define IO_FLAG_READ  (1 << 0)
 #define IO_FLAG_WRITE (1 << 1)
+
 int io_script_open (file_data_t* data, const char* script, char** args);
 int io_file_open (file_data_t* data, unsigned long io_flags);
 int io_close (file_data_t* data);

@@ -74,6 +74,7 @@ void dbg_printf (file_data_t *data, const char *format, ...)
 }
 
 /* return len(> 0), 0 if not found, or err codes(< 0) */
+static
 ssize_t get_pass_for_user (char* file,
 			   const uint8_t* user, size_t ulen,
 			   /*@out@*/ uint8_t* pass, size_t size)
@@ -146,6 +147,7 @@ ssize_t get_pass_for_user (char* file,
 	return ret;
 }
 
+static
 int obex_auth_verify_response (obex_t __unused *handle,
 			       obex_headerdata_t h,
 			       uint32_t size)
@@ -169,6 +171,7 @@ int obex_auth_verify_response (obex_t __unused *handle,
 }
 
 /* return len(> 0), 0 if not found, or err codes(< 0) */
+static
 ssize_t get_credentials_for_realm (char* file,
 				   const uint8_t* realm,
 				   /*@out@*/ uint8_t* user, size_t* usize,
@@ -221,6 +224,7 @@ void get_creds (obex_t __unused *handle,
 	free(realm8);
 }
 
+static
 int obex_auth_send_response (obex_t* handle,
 			     obex_object_t* obj,
 			     obex_headerdata_t h,
@@ -241,7 +245,7 @@ int obex_auth_send_response (obex_t* handle,
 	return obex_auth_add_response(handle,obj,&resp);
 }
 
-const char* obex_event_string(uint8_t event)
+static const char* obex_event_string(uint8_t event)
 {
 	static const char* obex_events[] = {
 		"PROGRESS", "REQHINT", "REQ", "REQDONE",
@@ -252,7 +256,7 @@ const char* obex_event_string(uint8_t event)
 	return obex_events[event];
 }
 
-const char* obex_command_string(uint8_t cmd)
+static const char* obex_command_string(uint8_t cmd)
 {
 	static const char* obex_commands[] = {
 		"CONNECT", "DISCONNECT", "PUT", "GET",
@@ -401,6 +405,7 @@ void obex_send_response (obex_t* handle, obex_object_t* obj, uint8_t respCode) {
 	}
 }
 
+static
 void client_eventcb (obex_t* handle, obex_object_t* obj,
 		     int __unused mode, int event,
 		     int obex_cmd, int __unused obex_rsp)
@@ -454,7 +459,7 @@ void client_eventcb (obex_t* handle, obex_object_t* obj,
 	}
 }
 
-void* handle_client (void* arg) {
+static void* handle_client (void* arg) {
 	file_data_t* data = malloc(sizeof(*data));
 	char buffer[256];
 
@@ -498,6 +503,7 @@ out1:
 	return NULL;
 }
 
+static
 void eventcb (obex_t* handle, obex_object_t __unused *obj,
 	      int __unused mode, int event,
 	      int __unused obex_cmd, int __unused obex_rsp)
@@ -548,11 +554,11 @@ void eventcb (obex_t* handle, obex_object_t __unused *obj,
 }
 
 #if defined(USE_THREADS)
-void obexpushd_listen_thread_cleanup (void* arg) {
+static void obexpushd_listen_thread_cleanup (void* arg) {
 	net_cleanup(arg);
 }
 
-void* obexpushd_listen_thread (void* arg) {
+static void* obexpushd_listen_thread (void* arg) {
 	struct net_data* data = arg;
 
 	pthread_cleanup_push(obexpushd_listen_thread_cleanup, arg);
@@ -574,14 +580,14 @@ void* obexpushd_listen_thread (void* arg) {
 }
 #endif
 
-void print_disclaimer () {
-	printf(PROGRAM_NAME " " OBEXPUSHD_VERSION " Copyright (C) 2006-2008 Hendrik Sattler\n"
+static void print_disclaimer () {
+	printf(PROGRAM_NAME " " OBEXPUSHD_VERSION " Copyright (C) 2006-2009 Hendrik Sattler\n"
 	       "This software comes with ABSOLUTELY NO WARRANTY.\n"
 	       "This is free software, and you are welcome to redistribute it\n"
 	       "under certain conditions.\n");
 }
 
-void print_help (char* me) {
+static void print_help (char* me) {
 	print_disclaimer();
 	printf("\n");
 	printf("Usage: %s [<interfaces>] [<options>]\n", me);
@@ -686,7 +692,7 @@ static struct net_data* handle[4] = {
 #define IRDA_EXTRA_HANDLE handle[2]  
 #define INET_HANDLE       handle[3]
 
-void obexpushd_shutdown (int sig) {
+static void obexpushd_shutdown (int sig) {
 	size_t i;
 	(void)signal(SIGINT, SIG_DFL);
 	(void)signal(SIGTERM, SIG_DFL);
@@ -700,7 +706,8 @@ void obexpushd_shutdown (int sig) {
 	(void)kill(getpid(), sig);
 }
 
-void obexpushd_wait (int sig) {
+#if ! defined(USE_THREADS)
+static void obexpushd_wait (int sig) {
 	pid_t pidOfChild;
 	int status;
 	if (sig != SIGCLD)
@@ -712,6 +719,7 @@ void obexpushd_wait (int sig) {
 	else if (WIFSIGNALED(status))
 		fprintf(stderr, "child got signal %d\n", WTERMSIG(status));
 }
+#endif
 
 int main (int argc, char** argv) {
 	size_t i;
