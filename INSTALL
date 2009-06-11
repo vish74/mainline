@@ -2,14 +2,17 @@ Requirements:
 =============
 
 You need the development files for:
-openobex >= 1.1 (> 1.3 recommended)
+openobex [>= 1.1 required, >= 1.5 recommended]
 bluez-lib
 
 You also must have installed:
-cmake (>= 2.6.0)
-pkg-config
-xmlto
+cmake [>= 2.6.3]
 
+Optionally you may also install:
+pkg-config (to find libraries more easily)
+xsltproc or saxon-6.5.x or xalan-2.x (to build documentation)
+Docbook XSL files (or the online catalogs will be used)
+TCP-Wrapper (to restrict TCP connections)
 
 Building:
 =========
@@ -23,32 +26,50 @@ If you want to change the installation location to "/usr", define the cmake
 variable CMAKE_INSTALL_PREFIX with the -D command line option:
 $ cmake -DCMAKE_INSTALL_PREFIX=/usr ..
 
-You can also use one of the provided interactive front-end to change project
-options:
-$ ccmake .
+You can also use one of the provided interactive front-ends:
+$ ccmake ..
+or
+$ cmake-gui ..
 
-or as replacement for the cmake calls above (see documentation of ccmake).
+as replacement for the cmake calls above (see documentation of ccmake).
 
-This will create Makefiles and thus you can run:
+This will create Makefiles and thus you can build the software:
 $ make
 
 
 Build options:
 ==============
 
-Build options are set with CMake variables by adding -DFOO=bar to the cmake command
-line ot set variable 'FOO' to the value 'var'.
+Build options are set with CMake variables by adding -DFOO=bar to the cmake
+command line ot set variable 'FOO' to the value 'var'.
 Boolean values take the values 'ON' or 'OFF'.
 
 The following build options are available:
-USE_SPAWN         Use POSIX function spawn() (instead of fork()+exec()) for external
-                  scripts. The default is ON and this is also the suggested value.
-USE_THREADS       Use POSIX threads (instead of fork()) for client connections. The
-                  default in ON and this is also the suggested value.
-BUILD_XOBEX_LIBS  Build libraries to handle xobex/* mime types in your own programs.
-                  Default if OFF and the binaries are linked statically.
+USE_SPAWN
+    Use POSIX function spawn() (instead of fork()+exec()) for external scripts.
+    The default is ON and this is also the suggested value.
+
+USE_THREADS
+    Use POSIX threads (instead of fork()) for client connections. The default is
+    ON and this is also the suggested value.
+
+BUILD_HELP_HTML
+    Build the HTML help files. Default off OFF.
+
+BUILD_HELP_MAN
+    Build the manpage files. Default is ON
+
+BUILD_XOBEX_LIBS
+    Build libraries to handle x-obex/* mime types in your own programs. Default
+    if OFF and the x-obex binaries are linked statically.
+
+DOCBOOK_XSLT_PROCESSOR
+    Choose the XSLT processor to use for creating of the help file. Supported
+    are xsltproc, saxon-6.5.x and xalan-2.x. The default is set automatically
+    from the list of installed ones.
 
 There are lots of other variables that affect the build.
+
 
 Installing:
 ===========

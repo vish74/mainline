@@ -39,13 +39,14 @@ You can check local service with
 $ sdptool browse local
 
 Some versions of Bluez contain a buggy SDP server that does not
-deregisterentries on disconnect or close, automatically. However,
+deregister entries on disconnect or close, automatically. However,
 some programs rely on that previously working and documented behaviour,
 e.g. kdebluetooth. As a work-around, either do not use those programs
 or restart the SDP server after doing so.
 Bluez-3.36 is known to fix those problem, thus it is _strongly_
 suggested to use this version. Since this bluez version also ships a
 obex-data-server, this may conflict with running obexpushd.
+
 
 Where does it save the files to?
 ================================
