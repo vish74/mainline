@@ -17,7 +17,6 @@
 
 #include "utf.h"
 #include <arpa/inet.h>
-#include <iconv.h>
 #include <errno.h>
 #include <string.h>
 #include <stdio.h>
@@ -66,22 +65,109 @@ size_t utf8count(const uint8_t* s) {
 	return n;
 }
 
-static
-int utf_convert (const void* in, size_t len, const char* fromcode,
-		 void* out, size_t size, const char* tocode)
+static uint8_t* utf8to32 (const uint8_t* in, uint32_t *out)
 {
-	char* in_p = (char*)in;
-	char* out_p = out;
-	size_t status = 0;
-	iconv_t cd = iconv_open(tocode,fromcode);
-	if (cd == (iconv_t)-1)
-		return -errno;
-	status = iconv(cd,&in_p,&len,&out_p,&size);
-	if (status == (size_t)-1)
-		return -errno;
-	if (iconv_close(cd))
-		return -errno;
-	return 0;
+	uint32_t onechar = 0;
+
+	if ((in[0] & 0x80) == 0x00) {
+		onechar = *(in++);
+
+	} else {
+		const uint8_t prefix[6] = { 0x00, 0xC0, 0xE0, 0xF0, 0xF8, 0xFC };
+		const uint8_t mask[6] = { 0x80, 0xE0, 0xF0, 0xF8, 0xFC, 0xFE };
+		size_t count = 0;
+
+		do {
+			++count;
+		} while ((in[count] & 0xC0) == 0x80 && count <= 6);
+
+		/* check the maximum number of bytes that can be
+		 * converted to 32bit integer.
+		 * check the first character to validate count value.
+		 */
+		if (count > 6 ||
+		    (in[0] & mask[count - 1]) != prefix[count - 1])
+			return NULL;
+
+		onechar = *(in++) ^ prefix[count - 1];
+		while (--count) {
+			onechar <<= 6;
+			onechar |= *(in++) & 0x3F;
+		}
+	}
+
+	*out = onechar;
+	return (uint8_t*)in;
+}
+
+static uint16_t* utf16to32 (const uint16_t* in, uint32_t *out)
+{
+	uint32_t onechar = 0;
+
+	/* surrogates */
+	if ((in[0] & 0xD800) == 0xD800)
+	{
+		if ((in[1] & 0xDC00) == 0xDC00) {
+			onechar |= (*(in++) & 0x03FF) << 10;
+			onechar |= *(in++) & 0x03FF;
+			onechar += 0x10000;
+		} else {
+			onechar = *(in++);
+		}
+	} else {
+		onechar = *(in++);
+	}
+	*out = onechar;
+	return (uint16_t*)in;
+}
+
+static uint8_t* utf32to8 (uint32_t in, uint8_t* out)
+{
+	if (in <= 0x7F) {
+		*(out++) = (in & 0x7F);
+	} else {
+		struct {
+			uint32_t max_value;
+			uint8_t mask;
+		} unicode[6] = {
+			{ 0x0000007F, 0x00 },
+			{ 0x000007FF, 0xC0 },
+			{ 0x0000FFFF, 0xE0 },
+			{ 0x001FFFFF, 0xF0 },
+			{ 0x03FFFFFF, 0xF8 },
+			{ 0x7FFFFFFF, 0xFC }
+		};
+		unsigned int i = 0, k = 1;
+		for (; i < 6; ++i) {
+			if (in <= unicode[i].max_value) {
+				break;
+			}
+		}
+		if (i >= 6)
+			return NULL;
+
+		*(out++) = unicode[i].mask | ((in >> (i * 6)) & (unicode[i].max_value >> (i * 6)));
+		for (; k <= i; ++k) {
+			*(out++) = 0x80 | ((in >> ((i - k) * 6)) & 0x3F);
+		}
+	}
+
+	return out;
+}
+
+static uint16_t* utf32to16 (uint32_t in, uint16_t* out)
+{
+	if (in <= 0xFFFF) {
+		*(out++) = (in & 0xFFFF);
+	} else if (in <= 0x10FFFF) {
+		in -= 0x10000;
+		*(out++) = 0xD800 | ((in >> 10) & 0x3FF);
+		*(out++) = 0xDC00 | (in & 0x3FF);
+	} else {
+		out = NULL;
+	}
+
+	return out;
 }
 
 uint8_t* utf16to8 (const uint16_t* c)
@@ -89,34 +175,91 @@ uint8_t* utf16to8 (const uint16_t* c)
 	size_t sc = utf16len(c);
 	size_t sd = 4*utf16count(c)+1;
 	uint8_t* d = malloc(sd);
-	int status;
+	unsigned int i;
 	
-	if (!d)
-		return NULL;
-	memset(d,0,sd);
-	status = utf_convert(c,2*sc,"UTF-16",d,sd,"UTF-8");
-	if (status) {
-		fprintf(stderr,"UTF conversion failure: %s\n",strerror(-status));
-		free(d);
-		return NULL;
+	memset(d, 0, sd);
+	for (i = 0; i < sc; ++i) {
+		uint32_t t;
+		c = utf16to32(c, &t);
+		if (!c)
+			return NULL;
+		d = utf32to8(t, d);
 	}
+
 	return d;
 }
 
 uint16_t* utf8to16 (const uint8_t* c)
 {
 	size_t sc = utf8len(c);
-	size_t sd = 4*utf8count(c)+2;
+	size_t sd = 2 * (utf8count(c) + 1);
 	uint16_t* d = malloc(sd);
-	int status;
-	
-	if (!d)
-		return NULL;
-	status = utf_convert(c,sc,"UTF-8",d,sd,"UTF-16");
-	if (status) {
-		fprintf(stderr,"UTF conversion failure: %s\n",strerror(-status));
-		free(d);
-		return NULL;
+	unsigned int i;
+
+	memset(d, 0, sd);
+	for (i = 0; i < sc; ++i) {
+		uint32_t t;
+		c = utf8to32(c, &t);
+		if (!c)
+			return NULL;
+		d = utf32to16(t, d);
+		if (!d)
+			return NULL;
 	}
+
 	return d;
 }
+
+#ifdef TEST
+static int test_utf8 (uint32_t from, uint32_t to) {
+	uint32_t i, k;
+	uint8_t tmp[4];
+	void *status;
+
+	printf("Testing UTF-8...\n");
+	for (i = from; i < to; ++i) {
+		printf("\rTest value: 0x%08x", i);
+		memset(tmp, 0, sizeof(tmp));
+		status = utf32to8(i, tmp);
+		if (!status)
+			return 0;
+		status = utf8to32(tmp, &k);
+		if (!status || i != k)
+			return 0;
+	}
+	return 1;
+}
+
+static int test_utf16 (uint32_t from, uint32_t to) {
+	uint32_t i, k;
+	uint16_t tmp[2];
+	void *status;
+
+	printf("Testing UTF-16...\n");
+	for (i = from; i < to; ++i) {
+		if (i == 0xD800 && 0xE000 < to)
+			i = 0xE000;
+		printf("\rTest value: 0x%08x", i);
+		memset(tmp, 0, sizeof(tmp));
+		status = utf32to16(i, tmp);
+		if (!status)
+			return 0;
+		status = utf16to32(tmp, &k);
+		if (!status || i != k)
+			return 0;
+	}
+	return 1;
+}
+
+int main () {
+	if (!test_utf16(0, 0x110000))
+		printf("\nfailed\n");
+	else
+		printf("\npassed\n");
+	if (!test_utf8(0, 0x110000))
+		printf("\nfailed\n");
+	else
+		printf("\npassed\n");
+	return 0;
+}
+#endif
