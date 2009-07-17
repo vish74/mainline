@@ -39,6 +39,11 @@
 #include <string.h>
 #include <ctype.h>
 #include <stdarg.h>
+#include <signal.h>
+
+#ifndef SIGCLD
+#define SIGCLD SIGCHLD
+#endif
 
 #if defined(USE_THREADS)
 #include <pthread.h>
