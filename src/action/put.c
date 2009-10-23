@@ -91,9 +91,12 @@ int put_revert (obex_t* handle) {
 	int err = io_close(data);
 
 	if (!err && data->child == (pid_t)-1) {
-		uint8_t* n = utf16to8(data->name);		
-		if (unlink((char*)n) == -1) /* remove the file */
-			err = -errno;
+		uint8_t* n = utf16to8(data->name);
+		if (n) {
+			if (unlink((char*)n) == -1) /* remove the file */
+				err = -errno;
+			free(n);
+		}
 	}
 
 	return err;
