@@ -8,6 +8,7 @@ size_t ucs2len (/*@null@*/const uint16_t* s);
 #define utf8len(s) ((s)? strlen((char*)(s)): 0)
 #define utf16len(s) ucs2len(s)
 
+uint16_t* ucs2dup (const uint16_t* s);
 
 /* convert to network byte order and back
  */

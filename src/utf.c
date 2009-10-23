@@ -28,6 +28,20 @@ size_t ucs2len (const uint16_t* s) {
 	return n;
 }
 
+uint16_t* ucs2dup (const uint16_t* s) {
+	size_t len = ucs2len(s) + 2;
+	uint16_t *s2;
+
+	if (!s)
+		return NULL;
+	s2 = malloc(len);
+	if (!s2)
+		return NULL;
+	memset(s2, 0, len);
+	memcpy(s2, s, len);
+	return s2;
+}
+
 void ucs2_ntoh (uint16_t* s, size_t len) {
 	size_t i = 0;
 	for (; i < len; ++i)
@@ -172,62 +186,80 @@ static uint16_t* utf32to16 (uint32_t in, uint16_t* out)
 
 uint8_t* utf16to8 (const uint16_t* c)
 {
-	size_t sc = utf16len(c);
-	size_t sd = 4*utf16count(c)+1;
-	uint8_t* d = malloc(sd);
-	unsigned int i;
-	
-	memset(d, 0, sd);
-	for (i = 0; i < sc; ++i) {
-		uint32_t t;
-		c = utf16to32(c, &t);
-		if (!c)
-			return NULL;
-		d = utf32to8(t, d);
+	size_t sd = (4 * utf16count(c)) + 1;
+	uint8_t *buf;
+
+	if (!c)
+		return NULL;
+
+	buf = malloc(sd);
+	if (buf) {
+		size_t sc = utf16len(c);
+		uint8_t *d = buf;
+		const uint16_t *k = c;
+
+		memset(d, 0, sd);
+		while (k < c+sc) {
+			uint32_t t;
+
+			k = utf16to32(k, &t);
+			d = utf32to8(t, d);
+		}
 	}
 
-	return d;
+	return buf;
 }
 
 uint16_t* utf8to16 (const uint8_t* c)
 {
-	size_t sc = utf8len(c);
-	size_t sd = 2 * (utf8count(c) + 1);
-	uint16_t* d = malloc(sd);
-	unsigned int i;
+	size_t sd = (2 * utf8count(c)) + 2;
+	uint16_t *buf;
 
-	memset(d, 0, sd);
-	for (i = 0; i < sc; ++i) {
-		uint32_t t;
-		c = utf8to32(c, &t);
-		if (!c)
-			return NULL;
-		d = utf32to16(t, d);
-		if (!d)
-			return NULL;
+	if (!c)
+		return NULL;
+
+	buf = malloc(sd);
+	if (buf) {
+		size_t sc = utf8len(c);
+		uint16_t *d = buf;
+		const uint8_t *k = c;
+
+		memset(d, 0, sd);
+		while (k && d && k < c+sc) {
+			uint32_t t;
+			k = utf8to32(k, &t);
+			if (k)
+				d = utf32to16(t, d);
+		}
 	}
 
-	return d;
+	return buf;
 }
 
 #ifdef TEST
 static int test_utf8 (uint32_t from, uint32_t to) {
 	uint32_t i, k;
-	uint8_t tmp[4];
+	uint8_t tmp[6];
 	void *status;
 
 	printf("Testing UTF-8...\n");
-	for (i = from; i < to; ++i) {
+	for (i = from; i <= to; ++i) {
 		printf("\rTest value: 0x%08x", i);
 		memset(tmp, 0, sizeof(tmp));
 		status = utf32to8(i, tmp);
-		if (!status)
-			return 0;
+		if (!status) {
+			printf("\nutf32to8() failed");
+			break;
+		}
 		status = utf8to32(tmp, &k);
-		if (!status || i != k)
-			return 0;
+		if (!status || i != k) {
+			printf("\nutf8to32() failed");
+			break;
+		}
 	}
-	return 1;
+	printf("\n");
+
+	return (i > to);
 }
 
 static int test_utf16 (uint32_t from, uint32_t to) {
@@ -236,30 +268,77 @@ static int test_utf16 (uint32_t from, uint32_t to) {
 	void *status;
 
 	printf("Testing UTF-16...\n");
-	for (i = from; i < to; ++i) {
+	for (i = from; i <= to; ++i) {
 		if (i == 0xD800 && 0xE000 < to)
 			i = 0xE000;
 		printf("\rTest value: 0x%08x", i);
 		memset(tmp, 0, sizeof(tmp));
 		status = utf32to16(i, tmp);
-		if (!status)
-			return 0;
+		if (!status) {
+			printf("\nutf32to16() failed");
+			break;
+		}
 		status = utf16to32(tmp, &k);
-		if (!status || i != k)
-			return 0;
+		if (!status || i != k) {
+			printf("\nutf16to32() failed");
+			break;
+		}
 	}
-	return 1;
+	printf("\n");
+
+	return (i > to);
+}
+
+static int test_string () {
+	uint8_t teststr[] = "abcdefghijklmnopqrstuvwxyz0123456789";
+	uint16_t *conv1;
+	uint8_t *conv2;
+	uint16_t *zeroconv1;
+	uint8_t *zeroconv2;
+	int ret = 0;
+
+	printf("Testing with test string...\n");
+	conv1 = utf8to16(teststr);
+	conv2 = utf16to8(conv1);
+	zeroconv1 = utf8to16(NULL);
+	zeroconv2 = utf16to8(NULL);
+
+	if (!conv1)
+		ret |= (1 << 0);
+	else 
+		free(conv1);
+	if (strcmp((char*)teststr, (char*)conv2) != 0)
+		ret |= (1 << 2);
+	if (!conv2)
+		ret |= (1 << 1);
+	else
+		free(conv2);
+	if (zeroconv1)
+		ret |= (1 << 2);
+	if (zeroconv2)
+		ret |= (1 << 2);
+
+	return ret;
 }
 
 int main () {
-	if (!test_utf16(0, 0x110000))
-		printf("\nfailed\n");
+	int ret;
+
+	if (!test_utf16(0, 0x10FFFF))
+		printf("failed\n");
 	else
-		printf("\npassed\n");
-	if (!test_utf8(0, 0x110000))
-		printf("\nfailed\n");
+		printf("passed\n");
+
+	if (!test_utf8(0, 0x10FFFF))
+		printf("failed\n");
 	else
-		printf("\npassed\n");
+		printf("passed\n");
+
+	ret = test_string();
+	if (ret)
+		printf("failed (0x%x)\n", ret);
+	else
+		printf("passed\n");
 	return 0;
 }
 #endif
