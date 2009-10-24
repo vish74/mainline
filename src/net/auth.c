@@ -1,4 +1,3 @@
-#include "md5.h"
 #include "core.h"
 
 #include <sys/types.h>
@@ -13,16 +12,14 @@ int get_nonce (
 )
 {
 	int fd = open(RANDOM_FILE, O_RDONLY);
-	uint8_t n[16];
 	int status;
 	if (fd < 0)
 		return -errno;
-	status = (int)read(fd, n, sizeof(n));
+	status = (int)read(fd, nonce, 16);
 	if (status < 0)
 		return -errno;
-	if (status == 0)
+	if (status != 16)
 		return -EIO;
-	MD5(nonce, n, (size_t)status);
 	(void)close(fd);
 	return 0;
 }

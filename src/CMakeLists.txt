@@ -3,8 +3,6 @@
 #
 list ( APPEND SOURCES
   obexpushd.c
-  obex_auth.c
-  md5.c
   checks.c
   utf.c
   action/core.c
@@ -78,8 +76,11 @@ if ( TcpWrap_FOUND )
   list ( APPEND obexpushd_DEFINITIONS ENABLE_TCPWRAP )
 endif ( TcpWrap_FOUND )
 
+add_subdirectory ( obex_auth )
+
 add_executable ( obexpushd ${SOURCES} )
 target_link_libraries ( obexpushd
+  obex_auth
   ${OpenObex_LIBRARIES}
   ${Bluetooth_LIBRARIES}
   ${THREAD_LIBRARY}

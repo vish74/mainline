@@ -167,12 +167,12 @@ int obex_auth_verify_response (obex_t __unused *handle,
 	memset(&resp,0,sizeof(resp));
 	memset(pass,0,sizeof(pass));
 
-	if (obex_auth_unpack_response(h,size,&resp) < 0)
+	if (OBEX_AuthUnpackResponse(h,size,&resp) < 0)
 		return 0;
 	len = (int)get_pass_for_user(auth_file,resp.user,resp.ulen,pass,sizeof(pass));
 	if (len < 0)
 		return 0;
-	return obex_auth_check_response(&resp,pass,(size_t)len);
+	return OBEX_AuthCheckResponse(&resp,pass,(size_t)len);
 }
 
 /* return len(> 0), 0 if not found, or err codes(< 0) */
@@ -216,16 +216,16 @@ ssize_t get_credentials_for_realm (char* file,
 static
 void get_creds (obex_t __unused *handle,
 		const uint16_t* realm, /* UTF-16 */
-		/*out*/ char* user,
+		/*out*/ uint8_t* user,
 		size_t* ulen,
-		/*out*/ char* pass,
+		/*out*/ uint8_t* pass,
 		size_t* plen)
 {
 	uint8_t* realm8 = utf16to8(realm);
 	get_credentials_for_realm(realm_file,
 				  (const uint8_t*)realm8,
-				  (uint8_t*)user,ulen,
-				  (uint8_t*)pass,plen);
+				  user,ulen,
+				  pass,plen);
 	free(realm8);
 }
 
@@ -238,16 +238,25 @@ int obex_auth_send_response (obex_t* handle,
 	struct obex_auth_challenge chal;
 	struct obex_auth_response resp;
 	ssize_t len;
+	uint16_t *realm;
+	uint8_t user[32];
+	size_t ulen = sizeof(user);
+	uint8_t pass[32];
+	size_t plen = sizeof(pass);
 	
 	if (!realm_file)
 		return -EINVAL;
 	memset(&chal,0,sizeof(chal));
-	len = (ssize_t)obex_auth_unpack_challenge(h,size,&chal,1);
+	len = (ssize_t)OBEX_AuthUnpackChallenge(h,size,&chal,1);
 	if (len < 0)
 		return -EINVAL;
-	obex_auth_challenge2response(handle,&chal,&resp,get_creds);
-	free(chal.realm);
-	return obex_auth_add_response(handle,obj,&resp);
+	get_creds(handle, chal.realm, user, &ulen, pass, &plen);
+	OBEX_AuthChallenge2Response(handle, &resp, &chal,
+				    user, ulen, pass, plen);
+	realm = (uint16_t*)chal.realm;
+	chal.realm = NULL;
+	free(realm);
+	return OBEX_AuthAddResponse(handle,obj,&resp);
 }
 
 static const char* obex_event_string(uint8_t event)

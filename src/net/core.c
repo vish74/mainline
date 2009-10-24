@@ -52,7 +52,7 @@ uint8_t net_security_init (
 		memcpy(data->nonce, chal.nonce, sizeof(data->nonce));
 		chal.opts = (OBEX_AUTH_OPT_USER_REQ | OBEX_AUTH_OPT_FULL_ACC);
 		chal.realm = NULL;
-		(void)obex_auth_add_challenge(data->obex, obj, &chal);
+		(void)OBEX_AuthAddChallenges(data->obex, obj, &chal, 1);
 		return OBEX_RSP_UNAUTHORIZED;
 	}
 	return OBEX_RSP_CONTINUE;

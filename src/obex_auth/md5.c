@@ -55,7 +55,7 @@ void byteSwap(uint32_t *buf, unsigned int words)
  * Start MD5 accumulation.  Set bit count to 0 and buffer to mysterious
  * initialization constants.
  */
-void MD5Init(/*@out@*/ struct MD5Context *ctx)
+void MD5Init(struct MD5Context *ctx)
 {
 	ctx->buf[0] = 0x67452301;
 	ctx->buf[1] = 0xefcdab89;
@@ -210,7 +210,7 @@ void MD5Update(struct MD5Context *ctx, uint8_t const *buf, size_t len)
  * Final wrapup - pad to 64-byte boundary with the bit pattern 
  * 1 0* (64-bit count of bits processed, MSB-first)
  */
-void MD5Final(/*@out@*/ uint8_t digest[16], struct MD5Context *ctx)
+void MD5Final(uint8_t digest[16], struct MD5Context *ctx)
 {
 	ssize_t count = (ssize_t)(ctx->bytes[0] & 0x3f); /* Bytes in ctx->in */
 	uint8_t *p = (uint8_t *)ctx->in + count; /* First unused byte */
@@ -241,7 +241,7 @@ void MD5Final(/*@out@*/ uint8_t digest[16], struct MD5Context *ctx)
 	memset(ctx,0,sizeof(ctx));
 }
 
-void MD5(/*@out@*/ uint8_t* dest, uint8_t const *orig, size_t len)
+void MD5(uint8_t* dest, uint8_t const *orig, size_t len)
 {
 	struct MD5Context context;
 
