@@ -111,8 +111,8 @@ int auth_init (struct auth_handler *self, obex_t *handle, obex_object_t *obj)
 		chal = malloc(count * sizeof(*chal));
 		if (!chal)
 			return 0;
+		memset(chal, 0, count * sizeof(*chal));
 		for (i = 0; i < count; ++i) {
-			memset(&chal, 0, count * sizeof(chal));
 			memcpy(chal[i].nonce, self->session[i].nonce, sizeof(chal->nonce));
 			if (self->ops && self->ops->get_realm_name)
 				chal[i].realm = self->ops->get_realm_name(self, i);
