@@ -24,6 +24,7 @@ typedef struct {
 	uint8_t buffer[1000];
 
 	struct net_data* net_data;
+	struct auth_handler *auth;
 } file_data_t;
 
 int obex_object_headers (obex_t* handle, obex_object_t* obj);

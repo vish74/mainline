@@ -1,4 +1,5 @@
 #include "net.h"
+#include "auth.h"
 #include <obex_auth.h>
 
 #include <stdlib.h>
@@ -42,19 +43,26 @@ void net_init (
 
 uint8_t net_security_init (
 	struct net_data* data,
+	struct auth_handler* auth,
 	obex_object_t* obj
 )
-{	
-	if (data->auth_level & AUTH_LEVEL_OBEX) {
-		struct obex_auth_challenge chal;
-		if (get_nonce(chal.nonce) < 0)
-			return OBEX_RSP_SERVICE_UNAVAILABLE;
-		memcpy(data->nonce, chal.nonce, sizeof(data->nonce));
-		chal.opts = (OBEX_AUTH_OPT_USER_REQ | OBEX_AUTH_OPT_FULL_ACC);
-		chal.realm = NULL;
-		(void)OBEX_AuthAddChallenges(data->obex, obj, &chal, 1);
-		return OBEX_RSP_UNAUTHORIZED;
+{
+	if ((data->auth_level & AUTH_LEVEL_TRANSPORT) &&
+	    data->funcs && data->funcs->security_check &&
+	    !data->funcs->security_check(data->arg, data->obex))
+	{
+		return OBEX_RSP_FORBIDDEN;
 	}
+
+	if ((data->auth_level & AUTH_LEVEL_OBEX) &&
+	    !data->auth_success)
+	{
+		if (auth && auth_init(auth, data->obex, obj))
+			return OBEX_RSP_UNAUTHORIZED;
+		else
+			return OBEX_RSP_SERVICE_UNAVAILABLE;
+	}
+
 	return OBEX_RSP_CONTINUE;
 }
 
@@ -66,12 +74,17 @@ void net_security_cleanup (struct net_data* data)
 
 int net_security_check (struct net_data* data)
 {
-	int transport = 0;
+	int transport = 1;
+	int obex = 1;
+
 	if ((data->auth_level & AUTH_LEVEL_TRANSPORT) &&
 	    data->funcs && data->funcs->security_check)
 		transport = data->funcs->security_check(data->arg, data->obex);
 
-	return (transport == 0) && (!(data->auth_level & AUTH_LEVEL_OBEX) || data->auth_success);
+	if ((data->auth_level & AUTH_LEVEL_OBEX))
+		obex = data->auth_success;
+
+	return transport && obex;
 }
 
 void net_get_peer (struct net_data* data, char* buffer, size_t bufsiz)

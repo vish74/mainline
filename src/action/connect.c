@@ -21,12 +21,9 @@
 
 void obex_action_connect (obex_t* handle, obex_object_t* obj, int event) {
 	file_data_t* data = OBEX_GetUserData(handle);
-	uint8_t code = OBEX_RSP_CONTINUE;
 	switch (event) {
 	case OBEX_EV_REQ: /* A new request is coming in */
-		if (!net_security_check(data->net_data))
-			code = net_security_init(data->net_data, obj);
-		obex_send_response(handle, obj, code);
+		obex_send_response(handle, obj, net_security_init(data->net_data, data->auth, obj));
 		break;
 	}
 }

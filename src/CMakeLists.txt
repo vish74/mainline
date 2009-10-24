@@ -10,9 +10,10 @@ list ( APPEND SOURCES
   action/disconnect.c
   action/get.c
   action/put.c
+  auth/core.c
+  auth/file.c
   io/core.c
   io/pipe.c
-  net/auth.c
   net/core.c
   net/btobex.c
   net/publish/sdp.c

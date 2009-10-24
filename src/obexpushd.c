@@ -57,8 +57,7 @@
 static int debug = 0;
 static int nofork = 0;
 static int id = 0;
-static /*@null@*/ char* auth_file = NULL;
-static /*@null@*/ char* realm_file = NULL;
+static struct auth_handler* auth = NULL;
 
 #define EOL(n) ((n) == '\n' || (n) == '\r')
 
@@ -76,187 +75,6 @@ void dbg_printf (file_data_t *data, const char *format, ...)
 		vfprintf(stdout, format, ap);
 		va_end(ap);
 	}
-}
-
-/* return len(> 0), 0 if not found, or err codes(< 0) */
-static
-ssize_t get_pass_for_user (char* file,
-			   const uint8_t* user, size_t ulen,
-			   /*@out@*/ uint8_t* pass, size_t size)
-{
-	ssize_t ret = 0;
-	size_t lsize = ulen+1+size+3;
-	char* line = malloc(lsize);
-	int status = 0;
-	FILE* f;
-	
-	if (!line)
-		return -ENOMEM;
-	if (file[0] == '|') {
-		const char* args[2] = { file+1, (const char*)user };
-		int fds[2];
-		int err = pipe_open(args[0], (char**)args, fds, NULL);
-		if (err)
-			return err;
-		close(fds[1]);
-		status = fds[0];
-	} else {
-		status = open(file, O_RDONLY);
-		if (status == -1)
-			status = -errno;
-	}
-	if (status < 0) {
-		free(line);
-		return status;
-	}
-	f = fdopen(status,"r");
-	if (!f) {
-		ret = (ssize_t)-errno;
-		free(line);
-		return ret;
-	}
-	while (1) {
-		size_t len = 0;
-		if (fgets(line,(int)lsize,f) == NULL)
-			break;
-		len = strlen(line);
-
-		/* test that we read a whole line */
-		if (!EOL(line[len-1])) {
-			ret = -EINVAL; /* password in file too large */
-			break;
-		}
-
-		if (line[len-1] == '\n')
-			--len;
-		if (line[len-1] == '\r')
-			--len;
-
-		if (ulen > len ||
-		    memcmp(line,user,ulen) != 0 ||
-		    line[ulen] != ':')
-			continue;
-		/* since the above matches the user id and the delimiter
-		 * the rest of the line must be the password
-		 */
-		ret = (ssize_t)(len-ulen-1);
-		if ((size_t)ret > size) {
-			ret = -EINVAL; /* password in file too large */
-			break;
-		}
-		memcpy(pass,line+ulen+1,(size_t)ret);
-	}
-
-	(void)fclose(f);
-	free(line);
-	return ret;
-}
-
-static
-int obex_auth_verify_response (obex_t __unused *handle,
-			       obex_headerdata_t h,
-			       uint32_t size)
-{
-	struct obex_auth_response resp;
-	uint8_t pass[1024];
-	int len;
-
-	if (!auth_file)
-		return 0;
-
-	memset(&resp,0,sizeof(resp));
-	memset(pass,0,sizeof(pass));
-
-	if (OBEX_AuthUnpackResponse(h,size,&resp) < 0)
-		return 0;
-	len = (int)get_pass_for_user(auth_file,resp.user,resp.ulen,pass,sizeof(pass));
-	if (len < 0)
-		return 0;
-	return OBEX_AuthCheckResponse(&resp,pass,(size_t)len);
-}
-
-/* return len(> 0), 0 if not found, or err codes(< 0) */
-static
-ssize_t get_credentials_for_realm (char* file,
-				   const uint8_t* realm,
-				   /*@out@*/ uint8_t* user, size_t* usize,
-				   /*@out@*/ uint8_t* pass, size_t* psize)
-{
-	ssize_t ret = 0;
-	size_t size = *usize+1+*psize+1;
-	uint8_t* buffer = malloc(size);
-	uint8_t* r = NULL;
-	
-	if (!buffer)
-		return -ENOMEM;
-	/* the format for both files is basicly the same */
-	ret = get_pass_for_user(file,realm,utf8len(r),buffer,size);
-
-	if (ret > 0) {
-		r = (uint8_t*)strchr((char*)buffer,(int)':');
-		if (r == NULL ||
-		    (usize != 0 && (size_t)(r-buffer) > *usize) ||
-		    (size_t)((buffer+ret)-(r+1)) > *psize) {
-			free(buffer);
-			return -EINVAL;
-		}
-		if (usize) {
-			*usize = (size_t)(r-buffer);
-			if (user)
-				memcpy(user,buffer,*usize);
-		}
-
-		*psize = (size_t)((buffer+ret)-(r+1));
-		memcpy(pass,r+1,*psize);
-	}
-	free(buffer);
-	return ret;
-}
-
-static
-void get_creds (obex_t __unused *handle,
-		const uint16_t* realm, /* UTF-16 */
-		/*out*/ uint8_t* user,
-		size_t* ulen,
-		/*out*/ uint8_t* pass,
-		size_t* plen)
-{
-	uint8_t* realm8 = utf16to8(realm);
-	get_credentials_for_realm(realm_file,
-				  (const uint8_t*)realm8,
-				  user,ulen,
-				  pass,plen);
-	free(realm8);
-}
-
-static
-int obex_auth_send_response (obex_t* handle,
-			     obex_object_t* obj,
-			     obex_headerdata_t h,
-			     uint32_t size)
-{
-	struct obex_auth_challenge chal;
-	struct obex_auth_response resp;
-	ssize_t len;
-	uint16_t *realm;
-	uint8_t user[32];
-	size_t ulen = sizeof(user);
-	uint8_t pass[32];
-	size_t plen = sizeof(pass);
-	
-	if (!realm_file)
-		return -EINVAL;
-	memset(&chal,0,sizeof(chal));
-	len = (ssize_t)OBEX_AuthUnpackChallenge(h,size,&chal,1);
-	if (len < 0)
-		return -EINVAL;
-	get_creds(handle, chal.realm, user, &ulen, pass, &plen);
-	OBEX_AuthChallenge2Response(handle, &resp, &chal,
-				    user, ulen, pass, plen);
-	realm = (uint16_t*)chal.realm;
-	chal.realm = NULL;
-	free(realm);
-	return OBEX_AuthAddResponse(handle,obj,&resp);
 }
 
 static const char* obex_event_string(uint8_t event)
@@ -384,12 +202,11 @@ int obex_object_headers (obex_t* handle, obex_object_t* obj) {
 			break;
 
 		case OBEX_HDR_AUTHCHAL:
-			if (realm_file && data->net_data->auth_success)
-				(void)obex_auth_send_response(handle,obj,value,vsize);
+			/* not implemented */
 			break;
 
 		case OBEX_HDR_AUTHRESP:
-			data->net_data->auth_success = obex_auth_verify_response(handle,value,vsize);
+			data->net_data->auth_success = auth_verify(data->auth,value,vsize);
 			break;
 
 		default:
@@ -483,6 +300,7 @@ static void* handle_client (void* arg) {
 	data->id = id++;
 	data->child = (pid_t)-1;
 
+	data->auth = auth_copy(auth);
 	data->net_data = malloc(sizeof(*data->net_data));
 	if (!data->net_data)
 		goto out2;
@@ -826,12 +644,15 @@ int main (int argc, char** argv) {
 			break;
 
 		case 'a':
-			auth_file = optarg;
+			if (auth)
+				auth_destroy(auth);
+			auth = auth_file_init(optarg, NULL, OBEX_AUTH_OPT_USER_REQ);
 			auth_level |= AUTH_LEVEL_OBEX;
 			break;
 
 		case 'r':
-			realm_file = optarg;
+			fprintf(stderr, "This version does not support obex server authentication.\n");
+			return EXIT_FAILURE;
 			break;
 
 		case 's':
