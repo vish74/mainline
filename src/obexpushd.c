@@ -439,7 +439,6 @@ static void print_help (char* me) {
 	       " -p <file>      write pid to file when getting detached\n"
 	       " -A             use transport layer specific access rules if available\n"
 	       " -a <file>      authenticate against credentials from file (EXPERIMENTAL)\n"
-	       " -r <file>      use realm credentials from file (EXPERIMENTAL)\n"
 	       " -s <file>      define script/program for input/output\n"
 	       " -h             this help message\n"
 	       " -v             show version\n");

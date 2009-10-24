@@ -46,7 +46,6 @@
 	<arg choice="opt"><option>-p</option> <replaceable>file</replaceable></arg>
 	<arg choice="opt"><option>-A</option></arg>
 	<arg choice="opt"><option>-a</option> <replaceable>file</replaceable></arg>
-	<arg choice="opt"><option>-r</option> <replaceable>file</replaceable></arg>
 	<arg choice="opt"><option>-s</option> <replaceable>file</replaceable></arg>
 	<group choice="opt">
 	  <arg choice="plain"><option>-n</option></arg>
@@ -138,31 +137,8 @@
 	      Read <replaceable>user</replaceable>:<replaceable>password</replaceable>
 	      pairs from each line of <replaceable>file</replaceable>.
 	      Note that many client cannot handle authentication and will stop working when using this
-	      option. A realm of "obexpushd" will be sent to the client.
+	      option.
 	      Note that no encoding is used, the plain byte sequence will be matched.
-	      The user identifier must not be longer than 20 bytes and
-	      the password must not be longer than 128 bytes.
-	      If <replaceable>file</replaceable> starts with a pipe symbol, the file after the pipe
-	      symbol will be executed with one argument, the user name. The output shall be the
-	      same as a file line.
-	    </para>
-	  </listitem>
-	</varlistentry>
-	<varlistentry>
-	  <term><option>-r</option></term>
-	  <listitem>
-	    <para>
-	      Read <replaceable>realm</replaceable>:<replaceable>user</replaceable>:<replaceable>password</replaceable>
-	      triples from each line of <replaceable>file</replaceable>.
-	      This is only needed if a client wants a server that authenticates itself. The realm
-	      is a value sent by the client. User and password from the first realm match are used.
-	      The value of realm can have zero length, else it must be encoded in UTF-8.
-	      The values for user and password to not have any encoding, the plain byte sequence will be used.
-	      The user identifier must not be longer than 20 bytes and
-	      the password must not be longer than 128 bytes.
-	      If <replaceable>file</replaceable> starts with a pipe symbol, the file after the pipe
-	      symbol will be executed with one argument, the realm. The output shall be the
-	      same as a file line.
 	    </para>
 	  </listitem>
 	</varlistentry>
