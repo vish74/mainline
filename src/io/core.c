@@ -15,170 +15,136 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
  */
 
-#define _POSIX_SOURCE
-
-#include <unistd.h>
-#include <errno.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <sys/wait.h>
-#include <fcntl.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <signal.h>
-#include <utime.h>
-
-#include "obexpushd.h"
 #include "io.h"
-#include "utf.h"
-#include "net.h"
+#include "errno.h"
 
-int io_close (file_data_t* data)
+#include <stdlib.h>
+#include <string.h>
+
+struct io_handler * io_copy (
+	struct io_handler *h
+)
 {
-	if (data->child != (pid_t)-1) {
-		int status;
+	if (!h)
+		return NULL;
 
-		kill(data->child, SIGKILL);
-		if (waitpid(data->child, &status, 0) < 0)
-			return -errno;
+	if (h && h->ops && h->ops->copy) {
+		/* deep copy */
+		return h->ops->copy(h);
 
-		data->child = (pid_t)-1;
-
-		if (WIFEXITED(status)) {
-			fprintf(stderr, "%u.%u: script exited with exit code %d\n",
-				data->id, data->count, WEXITSTATUS(status));
-
-		} else if (WIFSIGNALED(status)) {
-			fprintf(stderr, "%u.%u: script got signal %d\n",
-				data->id, data->count, WTERMSIG(status));
-		}
-
-		//prevent call of utime below
-		data->time = 0;
+	} else {
+		/* flat copy */
+		struct io_handler *hnew = malloc(sizeof(*hnew));
+		if (hnew)
+			memcpy(hnew, h, sizeof(*hnew));
+		return hnew;
 	}
-
-	if (data->in) {
-		if (fclose(data->in) == EOF)
-			return -errno;
-		data->in = NULL;
-	}
-
-	if (data->out) {
-		if (fclose(data->out) == EOF)
-			return -errno;
-		if (data->time) {
-			char* name = (char*)utf16to8(data->name);
-			struct utimbuf times;
-
-			times.actime = data->time;
-			times.modtime = data->time;
-			if (utime(name, &times) == -1)
-				perror("Setting time failed");
-			free(name);
-		}			
-		data->out = NULL;
-	}
-
-	return 0;
 }
 
-int io_script_open (file_data_t* data, const char* script, char** args)
+void io_destroy (struct io_handler* h)
 {
-	int err = 0;
-	int p[2] = { -1, -1};
-	char from[256];
-	uint8_t* name = utf16to8(data->name);
-
-	if (!name)
-		return -EINVAL;
-
-	err = io_close(data);
-	if (err)
-		return err;
-
-	err = pipe_open(script, args, p, &data->child);
-	if (err)
-		return err;
-
-	data->in = fdopen(p[0], "r");
-	if (data->in)
-		data->out = fdopen(p[1], "w");
-	if (!data->in || !data->out) {
-		err = errno;
-		pipe_close(p);
-		io_close(data);
-		return -err;
+	if (h) {
+		if (h->ops && h->ops->cleanup)
+			h->ops->cleanup(h);
+		free(h);
 	}
-
-	memset(from, 0, sizeof(from));
-	net_get_peer(data->net_data, from, sizeof(from));
-
-	/* headers can be written here */
-	fprintf(data->out, "From: %s\n", (strlen(from)? from: "unknown"));
-	fprintf(data->out, "Name: %s\n", name);
-	if (data->length)
-		fprintf(data->out, "Length: %zu\n", data->length);
-	if (data->type)
-		fprintf(data->out, "Type: %s\n", data->type);
-
-	free(name);
-	
-	/* empty line signals that data follows */
-	fprintf(data->out, "\n");
-	fflush(data->out);
-
-	return err;
 }
 
-#ifndef O_CLOEXEC
-#define O_CLOEXEC 0
-#endif
-
-int io_file_open (file_data_t* data, unsigned long io_flags)
+unsigned long io_state(
+	struct io_handler *self
+)
 {
-	int err;
-	uint8_t* name = utf16to8(data->name);
+	if (!self)
+		return 0;
+	else
+		return self->state;
+}
 
-	if (!name)
-		return -EINVAL;
+int io_open (
+	struct io_handler *self,
+	struct io_transfer_data *transfer,
+	enum io_type t
+)
+{
+	if (!self)
+		return -EBADF;
 
-	err = io_close(data);
-	if (err)
-		return err;
+	if (self->ops && self->ops->open)
+		return self->ops->open(self, transfer, t);
+	else
+		return 0;
+}
 
-	if (io_flags & IO_FLAG_WRITE) {
-		printf("%u.%u: Creating file \"%s\"\n", data->id, data->count, (char*)name);
-		err = open((char*)name, O_WRONLY|O_CREAT|O_EXCL|O_CLOEXEC,
-			      S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH|S_IWOTH);
-		if (err == -1) {
-			fprintf(stderr, "%u.%u: Error: cannot create file: %s\n",
-				data->id, data->count, strerror(-err));
-			goto io_file_error;
+int io_close (
+	struct io_handler *self,
+	struct io_transfer_data *transfer,
+	bool keep
+)
+{
+	if (!self)
+		return -EBADF;
+
+	if (self->ops && self->ops->close)
+	  return self->ops->close(self, transfer, keep);
+	else
+		return 0;
+}
+
+ssize_t io_readline(struct io_handler *self, void *buf, size_t bufsize) {
+	ssize_t retval = 0;
+	ssize_t err;
+	char *cbuf = buf;
+
+	if (bufsize == 0)
+		return 0;
+
+	do {
+		char tmp;
+
+		err = io_read(self, &tmp, 1);
+		if (err < 0) {
+			retval = err;
+		} else if (err > 0) {
+			*cbuf = tmp;
+			++retval;
 		}
-#if ! O_CLOEXEC
-		(void)fcntl(err, F_SETFD, FD_CLOEXEC);
-#endif
-		data->out = fdopen(err, "w");
-		if (data->out == NULL)
-			goto io_file_error;
-	}
+	} while (--bufsize && *(cbuf++) != '\n' && err > 0);
 
-	if (io_flags & IO_FLAG_READ) {
-		err = open((char*)name, O_RDONLY|O_CLOEXEC);
-		if (err == -1)
-			goto io_file_error;
-		data->in = fdopen(err, "r");
-		if (data->in == NULL)
-			goto io_file_error;
-	}
+	return retval;
+}
 
-	free(name);
-	return 0;
+ssize_t io_read(
+	struct io_handler *self,
+	void *buf,
+	size_t bufsize
+)
+{
+	if (!self)
+		return -EBADF;
 
-io_file_error:
-	err = -errno;
-	free(name);
-	(void)io_close(data);
+	if (bufsize == 0)
+		return 0;
 
-	return err;
+	if (self->ops && self->ops->read)
+		return self->ops->read(self, buf, bufsize);
+	else
+		return 0;
+}
+
+ssize_t io_write(
+	struct io_handler *self,
+	const void *buf,
+	size_t len
+)
+{
+	if (!self)
+		return -EBADF;
+
+	if (len == 0)
+		return 0;
+
+	if (self->ops && self->ops->write)
+		return self->ops->write(self, buf, len);
+	else
+		return 0;
 }

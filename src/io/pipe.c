@@ -63,14 +63,29 @@ int pipe_open (
 	posix_spawn_file_actions_t actions;
 #endif
 
+#ifdef O_CLOEXEC
+	if (pipe2(fds[0], O_CLOEXEC) == -1)
+		return -errno;
+
+	if (pipe2(fds[1], O_CLOEXEC) == -1) {
+		err = errno;
+		pipe_close(fds[0]);
+		return -err;
+	}
+#else
 	if (pipe(fds[0]) == -1)
 		return -errno;
+	(void)fcntl(PIPE_CLIENT_STDIN, F_SETFD, FD_CLOEXEC);
+	(void)fcntl(PIPE_SERVER_WRITE, F_SETFD, FD_CLOEXEC);
 
 	if (pipe(fds[1]) == -1) {
 		err = errno;
 		pipe_close(fds[0]);
 		return -err;
 	}
+	(void)fcntl(PIPE_SERVER_READ, F_SETFD, FD_CLOEXEC);
+	(void)fcntl(PIPE_CLIENT_STDOUT, F_SETFD, FD_CLOEXEC);
+#endif
 
 #if defined(USE_SPAWN)
 	/* In theory, using spawn() is more efficient that fork()+exec().
@@ -80,6 +95,8 @@ int pipe_open (
 	    posix_spawn_file_actions_addclose(&actions, PIPE_SERVER_READ) ||
 	    posix_spawn_file_actions_adddup2(&actions, PIPE_CLIENT_STDIN, STDIN_FILENO) ||
 	    posix_spawn_file_actions_adddup2(&actions, PIPE_CLIENT_STDOUT, STDOUT_FILENO) ||
+	    posix_spawn_file_actions_addclose(&actions, PIPE_CLIENT_STDIN) ||
+	    posix_spawn_file_actions_addclose(&actions, PIPE_CLIENT_STDOUT) ||
 	    posix_spawnp(&p, command, &actions, NULL, args, environ) ||
 	    posix_spawn_file_actions_destroy(&actions))
 	{

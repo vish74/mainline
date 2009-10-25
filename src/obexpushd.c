@@ -58,6 +58,7 @@ static int debug = 0;
 static int nofork = 0;
 static int id = 0;
 static struct auth_handler* auth = NULL;
+static struct io_handler* io = NULL;
 
 #define EOL(n) ((n) == '\n' || (n) == '\r')
 
@@ -117,7 +118,12 @@ int obex_object_headers (obex_t* handle, obex_object_t* obj) {
 	obex_headerdata_t value;
 	uint32_t vsize;
 	file_data_t* data = OBEX_GetUserData(handle);
+	struct io_transfer_data *transfer;
 
+	if (!data)
+		return 0;
+
+	transfer = &data->transfer;
 	while (OBEX_ObjectGetNextHeader(handle,obj,&id,&value,&vsize)) {
 		dbg_printf(data, "Got header 0x%02x with value length %u\n",
 			   (unsigned int)id, (unsigned int)vsize);
@@ -125,53 +131,48 @@ int obex_object_headers (obex_t* handle, obex_object_t* obj) {
 			continue;
 		switch (id) {
 		case OBEX_HDR_NAME:
-			if (data) {
-				if (data->name)
-					free(data->name);
-				data->name = malloc(vsize+2);
-				if (!data->name)
-					return 0;
-				memset(data->name,0,vsize+2);
-				memcpy(data->name,value.bs,vsize);
-				ucs2_ntoh(data->name,vsize/2);
-				if (debug) {
-					uint8_t* n = utf16to8(data->name);
-					dbg_printf(data, "name: \"%s\"\n", (char*)n);
-					free(n);
-				}
-				if (!check_name(data->name)) {
-					dbg_printf(data, "CHECK FAILED: %s\n", "Invalid name string");
-					return 0;
-				}
+			if (transfer->name)
+				free(transfer->name);
+			transfer->name = malloc(vsize+2);
+			if (!transfer->name)
+				return 0;
+			memset(transfer->name,0,vsize+2);
+			memcpy(transfer->name,value.bs,vsize);
+			ucs2_ntoh(transfer->name,vsize/2);
+			if (debug) {
+				uint8_t* n = utf16to8(transfer->name);
+				dbg_printf(data, "name: \"%s\"\n", (char*)n);
+				free(n);
+			}
+			if (!check_name(transfer->name)) {
+				dbg_printf(data, "CHECK FAILED: %s\n", "Invalid name string");
+				return 0;
 			}
 			break;
 
 		case OBEX_HDR_TYPE:
-			if (data) {
-				if (data->type)
-					free(data->type);
-				data->type = malloc(vsize+1);
-				if (!data->type)
-					return 0;
-				memcpy(data->type,value.bs,vsize);
-				data->type[vsize] = '\0';
-				dbg_printf(data, "type: \"%s\"\n", data->type);
-				if (!check_type(data->type)) {
-					dbg_printf(data, "CHECK FAILED: %s\n", "Invalid type string");
-					return 0;
-				}
+			if (transfer->type)
+				free(transfer->type);
+			transfer->type = malloc(vsize+1);
+			if (!transfer->type)
+				return 0;
+			memcpy(transfer->type,value.bs,vsize);
+			transfer->type[vsize] = '\0';
+			dbg_printf(data, "type: \"%s\"\n", transfer->type);
+			if (!check_type(transfer->type)) {
+				dbg_printf(data, "CHECK FAILED: %s\n", "Invalid type string");
+				return 0;
 			}
 			break;
 
 		case OBEX_HDR_LENGTH:
-			if (data)
-				data->length = value.bq4;
+			transfer->length = value.bq4;
 			dbg_printf(data, "size: %d bytes\n", value.bq4);
 			break;
 
 		case OBEX_HDR_TIME:
 			/* ISO8601 formatted ASCII string */
-			if (data) {
+		        {
 				struct tm time;
 				char* tmp = malloc(vsize+1);
 				if (!tmp)
@@ -182,16 +183,16 @@ int obex_object_headers (obex_t* handle, obex_object_t* obj) {
 				tzset();
 				strptime(tmp, "%Y-%m-%dT%H:%M:%S", &time); /* uses GNU extensions */
 				time.tm_isdst = -1;
-				data->time = mktime(&time);
+				transfer->time = mktime(&time);
 				if (tmp[17] == 'Z')
-					data->time -= timezone;
+					transfer->time -= timezone;
 				free(tmp);
 				tmp = NULL;
 			}
 			break;
 
 		case OBEX_HDR_DESCRIPTION:
-			if (debug) {
+		        {
 				uint16_t* desc16 = (uint16_t*)value.bs;
 				if (desc16[vsize/2] == 0x0000) {
 					uint8_t* desc8 = utf16to8(desc16);
@@ -298,9 +299,9 @@ static void* handle_client (void* arg) {
 		goto out1;
 	memset(data,0,sizeof(*data));
 	data->id = id++;
-	data->child = (pid_t)-1;
 
 	data->auth = auth_copy(auth);
+	data->io = io_copy(io);
 	data->net_data = malloc(sizeof(*data->net_data));
 	if (!data->net_data)
 		goto out2;
@@ -325,10 +326,10 @@ out2:
 			OBEX_Cleanup(data->net_data->obex);
 			free(data->net_data);
 		}
-		if (data->name)
-			free(data->name);
-		if (data->type)
-			free(data->type);
+		if (data->transfer.name)
+			free(data->transfer.name);
+		if (data->transfer.type)
+			free(data->transfer.type);
 		free(data);
 	}
 out1:
@@ -559,8 +560,10 @@ int main (int argc, char** argv) {
 	pthread_t thread[sizeof(handle)/sizeof(*handle)];
 #endif
 	uint8_t auth_level = 0;
-
 	int c;
+
+	io = io_file_init();
+
 	while ((c = getopt(argc,argv,"B::I::N::Aa:dhnp:r:s:v")) != -1) {
 		switch (c) {
 		case 'B':
@@ -655,7 +658,9 @@ int main (int argc, char** argv) {
 			break;
 
 		case 's':
-			set_io_script(optarg);
+			if (io)
+				io_destroy(io);
+			io = io_script_init(optarg);
 			break;
 
 		case 'h':

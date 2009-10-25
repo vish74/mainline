@@ -21,8 +21,8 @@
 #include "io.h"
 #include "utf.h"
 #include "net.h"
-#include "action.h"
 #include "core.h"
+#include "action.h"
 
 #include <errno.h>
 #include <sys/types.h>
@@ -37,73 +37,46 @@ static
 int put_close (obex_t* handle) {
 	file_data_t* data = OBEX_GetUserData(handle);
 
-	return io_close(data);
+	return io_close(data->io, &data->transfer, true);
 }
 
 static
-int put_wait_for_ok (FILE* f)
-{
-	char ret[4+1];
-	memset(ret, 0, sizeof(ret));
-	fgets(ret, sizeof(ret), f);
-	if (strncmp(ret, "OK\n", 3) != 0 ||
-	    strncmp(ret, "OK\r\n", 4) != 0)
-		return -EPERM;
-	return 0;
-}
-
-static
-int put_open (obex_t* handle, const char* script) {
+int put_open (obex_t* handle) {
 	file_data_t* data = OBEX_GetUserData(handle);
-	
-	if (script != NULL && strlen(script) > 0) {
-		int err = 0;
-		const char* args[] = { script, "put", NULL };
-		
-		err = io_script_open(data, script, (char**)args);
-		if (err)
-			return err;
-		return put_wait_for_ok(data->in);
+	int err;
 
-	} else
-		return io_file_open(data, IO_FLAG_WRITE);
+	if (io_state(data->io) & IO_STATE_OPEN)
+		return 0;
+
+	err = io_open(data->io, &data->transfer, IO_TYPE_PUT);
+	if (err)
+		return err;
+
+	return 0;
 }
 
 static
 int put_write (obex_t* handle, const uint8_t* buf, int len) {
 	file_data_t* data = OBEX_GetUserData(handle);
-	int err;
 
-	if (!buf)
-		return -EINVAL;
-	if (!data->out)
-		return -EBADF;
-	(void)fwrite(buf,(size_t)len,1,data->out);
-	err = ferror(data->out);
-	if (err)
-		return -err;
-	return 0;
+	if (!(io_state(data->io) & IO_STATE_OPEN)) {
+		int err = put_open(handle);
+		if(err)
+			return err;
+	}
+
+	return io_write(data->io, buf,(size_t)len);
 }
 
 static
 int put_revert (obex_t* handle) {
 	file_data_t* data = OBEX_GetUserData(handle);
-	int err = io_close(data);
-
-	if (!err && data->child == (pid_t)-1) {
-		uint8_t* n = utf16to8(data->name);
-		if (n) {
-			if (unlink((char*)n) == -1) /* remove the file */
-				err = -errno;
-			free(n);
-		}
-	}
-
-	return err;
+	return io_close(data->io, &data->transfer, false);
 }
 
 void obex_action_put (obex_t* handle, obex_object_t* obj, int event) {
 	file_data_t* data = OBEX_GetUserData(handle);
+	struct io_transfer_data *transfer = &data->transfer;
 
 	if (data->error &&
 	    (event == OBEX_EV_REQ ||
@@ -121,23 +94,21 @@ void obex_action_put (obex_t* handle, obex_object_t* obj, int event) {
 	case OBEX_EV_REQHINT: /* A new request is coming in */
 		(void)OBEX_ObjectReadStream(handle,obj,NULL);
 		data->error = 0;
-		if (data->name) {
-			free(data->name);
-			data->name = NULL;
+		if (transfer->name) {
+			free(transfer->name);
+			transfer->name = NULL;
 		}
-		if (data->type) {
-			free(data->type);
-			data->type = NULL;
+		if (transfer->type) {
+			free(transfer->type);
+			transfer->type = NULL;
 		}
 		data->count += 1;
-		data->length = 0;
-		data->time = 0;
-		data->out = NULL;
+		transfer->length = 0;
+		transfer->time = 0;
 		break;
 
 	case OBEX_EV_REQCHECK:
-		if (data->out == NULL
-		    && put_open(handle, get_io_script()) < 0)
+		if (put_open(handle))
 			obex_send_response(handle, obj, OBEX_RSP_FORBIDDEN);
 		else
 			obex_send_response(handle, obj, OBEX_RSP_CONTINUE);
@@ -150,9 +121,8 @@ void obex_action_put (obex_t* handle, obex_object_t* obj, int event) {
 
 		dbg_printf(data, "got %d bytes of streamed data\n", len);
 		if (len) {
-			if ((data->out == NULL
-			     && put_open(handle, get_io_script()) < 0)
-			    || put_write(handle,buf,len))
+			int err = put_write(handle,buf,len);
+			if (err)
 				obex_send_response(handle, obj, OBEX_RSP_FORBIDDEN);
 		}
 		break;
@@ -160,16 +130,16 @@ void obex_action_put (obex_t* handle, obex_object_t* obj, int event) {
 
 	case OBEX_EV_REQDONE:
 		(void)put_close(handle);
-		if (data->name) {
-			free(data->name);
-			data->name = NULL;
+		if (transfer->name) {
+			free(transfer->name);
+			transfer->name = NULL;
 		}
-		if (data->type) {
-			free(data->type);
-			data->type = NULL;
+		if (transfer->type) {
+			free(transfer->type);
+			transfer->type = NULL;
 		}
-		data->length = 0;
-		data->time = 0;
+		transfer->length = 0;
+		transfer->time = 0;
 		break;
 
 	case OBEX_EV_ABORT:

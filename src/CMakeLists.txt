@@ -14,6 +14,8 @@ list ( APPEND SOURCES
   auth/file.c
   io/core.c
   io/pipe.c
+  io/file.c
+  io/script.c
   net/core.c
   net/btobex.c
   net/publish/sdp.c

@@ -8,23 +8,21 @@
 #include <stdlib.h>
 #include <sys/types.h>
 
+#include "io.h"
+
 /* private data for a client connection */
 typedef struct {
 	unsigned int id;
 	unsigned int count;
 	uint8_t error;
 
-	uint16_t* name;
-	char* type;
-	size_t length;
-	time_t time;
-
-	FILE *in, *out;
-	pid_t child;
 	uint8_t buffer[1000];
 
 	struct net_data* net_data;
 	struct auth_handler *auth;
+
+	struct io_handler *io;
+	struct io_transfer_data transfer;
 } file_data_t;
 
 int obex_object_headers (obex_t* handle, obex_object_t* obj);

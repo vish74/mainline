@@ -21,42 +21,44 @@
 #include "utf.h"
 #include "io.h"
 #include "net.h"
-#include "action.h"
 #include "core.h"
+#include "action.h"
 
+#include <sys/types.h>
+#include <sys/wait.h>
 #include <stdio.h>
 #include <string.h>
 #include <limits.h>
 #include <errno.h>
-#include <sys/types.h>
-#include <sys/wait.h>
 #include <fcntl.h>
 #include <ctype.h>
 #include <unistd.h>
+#include <time.h>
 
 #define EOL(n) ((n) == '\n' || (n) == '\r')
 
 static
-int get_parse_headers (obex_t* handle) {
+int parse_script_headers (obex_t* handle) {
 	file_data_t* data = OBEX_GetUserData(handle);
+	struct io_transfer_data *transfer = &data->transfer;
 	char buffer[512+1];
 
 	while (1) {
 		size_t len = 0;
-		if (fgets(buffer,sizeof(buffer),data->out) == NULL) {
-			if (!feof(data->out))
-				return -ferror(data->out);
-			else
-				return -EINVAL;
+		int err = io_readline(data->io, buffer, sizeof(buffer));
+		if (err < 0) {
+			return err;
+		} else if (err == 0) {
+			return -EINVAL;
 		}
 		len = strlen(buffer);
 
-		if (!EOL(buffer[len-1]) && feof(data->out))
+		if (len == 0 || !EOL(buffer[len-1]))
 			return -EINVAL;
 		
-		if (buffer[len-1] == '\n')
+		if (len && buffer[len-1] == '\n')
 			--len;
-		if (buffer[len-1] == '\r')
+		if (len && buffer[len-1] == '\r')
 			--len;
 		buffer[len] = 0;
 
@@ -73,9 +75,9 @@ int get_parse_headers (obex_t* handle) {
 				free(name);
 				return -EINVAL;
 			}
-			if (data->name)
-				free(data->name);
-			data->name = name;
+			if (transfer->name)
+				free(transfer->name);
+			transfer->name = name;
 
 		} else if (strncasecmp(buffer,"Length: ",8) == 0) {
 			char* endptr;
@@ -84,7 +86,7 @@ int get_parse_headers (obex_t* handle) {
 				return -errno;
 
 			if (endptr != 0 && (0 <= dlen && dlen <= UINT32_MAX)) {
-				data->length = (uint32_t)dlen;
+				transfer->length = (uint32_t)dlen;
 				continue;
 			}
 
@@ -92,9 +94,22 @@ int get_parse_headers (obex_t* handle) {
 			char* type = buffer+6;
 			if (!check_type(type))
 				return -EINVAL;
-			if (data->type)
-				free(data->type);
-			data->type = strdup(type);
+			if (transfer->type)
+				free(transfer->type);
+			transfer->type = strdup(type);
+
+		} else if (strncasecmp(buffer, "Time: ", 6) == 0) {
+			char* timestr = buffer+6;
+			struct tm time;
+
+			tzset();
+			/* uses GNU extensions */
+			strptime(timestr, "%Y-%m-%dT%H:%M:%S", &time);
+			time.tm_isdst = -1;
+			transfer->time = mktime(&time);
+			if (strlen(timestr) > 17 && timestr[17] == 'Z')
+				transfer->time -= timezone;
+
 		} else
 			continue;
 	}
@@ -102,21 +117,78 @@ int get_parse_headers (obex_t* handle) {
 }
 
 static
-int get_close (obex_t* handle) {
+void add_headers(obex_t* handle, obex_object_t* obj) {
 	file_data_t* data = OBEX_GetUserData(handle);
+	struct io_transfer_data *transfer = &data->transfer;
+	obex_headerdata_t hv;
 
-	return io_close(data);
+	if (transfer->name) {
+		size_t size = utf16len(transfer->name);
+		if (size) {
+			void *bs;
+			size += 2;
+			bs = malloc(size);
+			if (bs) {
+				memcpy(bs, transfer->name, size);
+				ucs2_hton(bs, size);
+				hv.bs = bs;
+				(void)OBEX_ObjectAddHeader(handle,obj,OBEX_HDR_NAME,
+							   hv,size,0);
+				hv.bs = NULL;
+				free(bs);
+			}
+		}
+	}
+
+	if (transfer->type) {
+		hv.bs = (uint8_t *)transfer->type;
+		(void)OBEX_ObjectAddHeader(handle,obj,OBEX_HDR_TYPE,
+					   hv,strlen((char*)hv.bs),0);
+	}
+
+	hv.bq4 = transfer->length;
+	(void)OBEX_ObjectAddHeader(handle,obj,OBEX_HDR_LENGTH,
+				   hv,sizeof(hv.bq4),0);
+	if (transfer->time) {
+		void *bs = malloc(17);
+		if (bs) {
+			struct tm t;
+			(void)gmtime_r(&transfer->time, &t);
+			memset(bs, 0, 17);
+			if (strftime(bs, 17, "%Y%m%dT%H%M%SZ", &t) == 16) {
+				hv.bs = bs;
+				(void)OBEX_ObjectAddHeader(handle,obj,OBEX_HDR_TIME,
+							   hv,strlen(bs),0);
+				hv.bs = NULL;
+			}
+			free(bs);
+		}
+	}
+
+	hv.bs = NULL;
+	(void)OBEX_ObjectAddHeader(handle,obj,OBEX_HDR_BODY,
+				   hv,0,OBEX_FL_STREAM_START);
 }
 
 static
-int get_open (obex_t* handle, const char* script) {
+int get_close (obex_t* handle) {
 	file_data_t* data = OBEX_GetUserData(handle);
-	int err = 0;
-	const char* args[] = { script, "get", NULL };
 
-	err = io_script_open(data, script, (char**)args);
+	return io_close(data->io, &data->transfer, true);
+}
+
+static
+int get_open (obex_t* handle) {
+	file_data_t* data = OBEX_GetUserData(handle);
+	struct io_transfer_data *transfer = &data->transfer;
+	int err = 0;
+	
+	if (strncmp(transfer->type, "x-obex/", 7) == 0)
+		err = io_open(data->io, transfer, IO_TYPE_XOBEX);
+	else
+		err = io_open(data->io, transfer, IO_TYPE_GET);
 	if (err == 0)
-		err = get_parse_headers(handle);
+		err = parse_script_headers(handle);
 
 	return err;
 }
@@ -124,20 +196,13 @@ int get_open (obex_t* handle, const char* script) {
 static
 int get_read (obex_t* handle, uint8_t* buf, size_t size) {
 	file_data_t* data = OBEX_GetUserData(handle);
-	size_t status;
 
-	if (!data->out)
-		return -EBADF;
-	status = fread(buf, sizeof(*buf), size, data->out);
-	
-	if (status < size && !feof(data->out))		
-		return -ferror(data->out);
-	else
-		return status;
+	return (int)io_read(data->io, buf, size);
 }
 
 void obex_action_get (obex_t* handle, obex_object_t* obj, int event) {
 	file_data_t* data = OBEX_GetUserData(handle);
+	struct io_transfer_data *transfer = &data->transfer;
 	int len = 0;
 
 	if (data->error &&
@@ -155,85 +220,53 @@ void obex_action_get (obex_t* handle, obex_object_t* obj, int event) {
 	switch (event) {
 	case OBEX_EV_REQHINT: /* A new request is coming in */
 		data->error = 0;
-		if (data->name) {
-			free(data->name);
-			data->name = NULL;
+		if (transfer->name) {
+			free(transfer->name);
+			transfer->name = NULL;
 		}
 		/* in case that there is no TYPE header */
-		data->type = strdup("text/x-vcard");
+		transfer->type = strdup("text/x-vcard");
 		data->count += 1;
-		data->length = 0;
-		data->time = 0;
-		if (!get_io_script()) {
-			/* There is no default object to get */
-			fprintf(stderr, "No script defined\n");
-			obex_send_response(handle, obj, OBEX_RSP_NOT_FOUND);
-			break;
-		}
+		transfer->length = 0;
+		transfer->time = 0;
 		break;
 
+	case OBEX_EV_REQCHECK:
 	case OBEX_EV_REQ:
-	{
-		obex_headerdata_t hv;
-		
-		if (data->out == NULL) {
-			/* If there is a default object but the name header
-			 * is non-empty. Special case is that
-			 * type == x-obex/object-profile, then name contains the
-			 * real type
+		if (strncmp(transfer->type, "x-obex/", 7) == 0) {
+			/* Also, allowing x-obex/folder-listing would essentially implement
+			 * file browsing service. However, this requires the FBS-UUID and
+			 * secure directory traversal. That's not implemented, yet.
 			 */
-			/* TODO: allowing x-obex/folder-listing would essentially implement
-			 * obexftp. However, this requires the FBS-UUID and secure directory
-			 * traversal. That's not implemented, yet.
-			 */
-			if ((strcmp(data->type,"x-obex/object-profile") != 0 && data->name)
-			    || strcmp(data->type,"x-obex/folder-listing") == 0)
-			{
-				printf("%u.%u: %s\n", data->id, data->count,
-				       "Forbidden request");
+
+			if (strcmp(transfer->type+7,"folder-listing") == 0) {
+				dbg_printf(data, "%s\n", "Forbidden request");
 				obex_send_response(handle, obj, OBEX_RSP_FORBIDDEN);
 				break;
 			}
 
-			if (get_open(handle, get_io_script()) < 0 ||
-			    data->length == 0)
-			{
-				data->out = NULL;
-				printf("%u.%u: %s\n", data->id, data->count,
-				       "Running script failed or no output data");
-				obex_send_response(handle, obj, OBEX_RSP_INTERNAL_SERVER_ERROR);
+		} else {
+			/* A non-x-obex type was specified but also a name was given, thus
+			 * requesting not only a default object. This is not allowed.
+			 */
+			if (transfer->name) {
+				dbg_printf(data, "%s\n", "Forbidden request");
+				obex_send_response(handle, obj, OBEX_RSP_FORBIDDEN);
 				break;
 			}
-			if (event == OBEX_EV_REQCHECK)
-				break;
 		}
 
-		obex_send_response(handle, obj, OBEX_RSP_CONTINUE);
-		if (data->name) {
-			size_t size = utf16len(data->name);
-			if (size) {
-				size += 2;
-				hv.bs = malloc(size);
-				if (hv.bs) {
-					memcpy((char*)hv.bs,data->name,size);
-					ucs2_hton((uint16_t*)hv.bs,size);
-					(void)OBEX_ObjectAddHeader(handle,obj,OBEX_HDR_NAME,
-								   hv,size,0);
-					free((uint8_t*)hv.bs);
-				}
-			}
+		if (get_open(handle) < 0 || transfer->length == 0) {
+			dbg_printf(data, "%s\n", "Running script failed or no output data");
+			obex_send_response(handle, obj, OBEX_RSP_INTERNAL_SERVER_ERROR);
+			break;
 		}
-		hv.bs = (const uint8_t*)data->type;
-		(void)OBEX_ObjectAddHeader(handle,obj,OBEX_HDR_TYPE,
-					   hv,strlen((char*)hv.bs),0);
-		hv.bq4 = data->length;
-		(void)OBEX_ObjectAddHeader(handle,obj,OBEX_HDR_LENGTH,
-					   hv,sizeof(hv.bq4),0);
-		hv.bs = NULL;
-		(void)OBEX_ObjectAddHeader(handle,obj,OBEX_HDR_BODY,
-					   hv,0,
-					   OBEX_FL_STREAM_START);
-	}
+
+		if (event == OBEX_EV_REQCHECK)
+			break;
+
+		obex_send_response(handle, obj, OBEX_RSP_CONTINUE);
+		add_headers(handle, obj);
 		break;
 
 	case OBEX_EV_STREAMEMPTY:
@@ -262,17 +295,17 @@ void obex_action_get (obex_t* handle, obex_object_t* obj, int event) {
 	{
 		int err = get_close(handle);
 		if (err)
-			fprintf(stderr, "%s\n", strerror(-err));
-		if (data->name) {
-			free(data->name);
-			data->name = NULL;
+			dbg_printf(data, "%s\n", strerror(-err));
+		if (transfer->name) {
+			free(transfer->name);
+			transfer->name = NULL;
 		}
-		if (data->type) {
-			free(data->type);
-			data->type = NULL;
+		if (transfer->type) {
+			free(transfer->type);
+			transfer->type = NULL;
 		}
-		data->length = 0;
-		data->time = 0;
+		transfer->length = 0;
+		transfer->time = 0;
 	}
 		break;
 	}
