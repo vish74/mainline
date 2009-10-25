@@ -191,6 +191,23 @@ int obex_object_headers (obex_t* handle, obex_object_t* obj) {
 			}
 			break;
 
+		case OBEX_HDR_TIME2:
+			/* seconds since Januar 1st, 1970 */
+			transfer->time = value.bq4;
+			if (debug && transfer->time) {
+				struct tm t;
+				char *tmp = malloc(17);
+				(void)gmtime_r(&transfer->time, &t);
+				if (tmp) {
+					memset(tmp, 0, 17);
+					if (strftime(tmp, 17, "%Y%m%dT%H%M%SZ", &t) == 16) {
+						dbg_printf(data, "time: \"%s\"\n", tmp);
+					}
+					free(tmp);
+				}
+			}
+			break;
+
 		case OBEX_HDR_DESCRIPTION:
 		        {
 				uint16_t* desc16 = (uint16_t*)value.bs;
