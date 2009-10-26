@@ -76,11 +76,12 @@ static int io_file_close (
 
 				times.actime = transfer->time;
 				times.modtime = transfer->time;
-				if (utime(name, &times) == -1)
-					perror("Setting time failed");
-				free(name);
+				/* setting the time is non-critical */
+				(void)utime(name, &times);
 			}
-		}			
+		}
+		if (name)
+			free(name);
 	}
 	self->state = 0;
 
