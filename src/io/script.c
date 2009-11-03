@@ -58,9 +58,9 @@ static int io_script_close (
 		if (!keep) {
 			/* signal 'undo' and give it time to react */
 			kill(data->child, SIGUSR1);
-			sleep(2);
+			//sleep(2);
 		}
-		kill(data->child, SIGKILL);
+		//kill(data->child, SIGKILL);
 		if (waitpid(data->child, &status, 0) < 0)
 			return -errno;
 
