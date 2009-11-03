@@ -21,6 +21,19 @@ list ( APPEND CMAKE_MODULE_PATH
 
 include ( MaintainerMode )
 
+if ( CMAKE_COMPILER_IS_GNUCC )
+  set ( C_COMPILER_FLAGS
+    std=c99
+  )
+  foreach ( flag ${C_COMPILER_FLAGS} )
+    set ( cflag "-${flag}" )
+    set ( CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${cflag}" )
+    foreach ( type DEBUG RELEASE MINSIZEREL RELWITHDEBINFO )
+      set ( CMAKE_C_FLAGS_${type} "${CMAKE_C_FLAGS_${type}} ${cflag}" )
+    endforeach ( type )
+  endforeach ( flag )
+endif ( CMAKE_COMPILER_IS_GNUCC )
+
 add_subdirectory ( src )
 add_subdirectory ( src/x-obex )
 add_subdirectory ( doc )
