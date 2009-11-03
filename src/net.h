@@ -5,13 +5,46 @@
 #include "net/core.h"
 #include "auth.h"
 
+struct net_handler;
+struct net_handler_ops {
+	obex_t* (*init)(struct net_handler*, obex_event_t);
+	void (*cleanup)(struct net_handler*);
+
+	/* Functions to implement authentication
+	 */
+	int (*security_init)(struct net_handler*, obex_t*);
+	int (*security_check)(struct net_handler*, obex_t*);
+
+	/* Writes the peer address string
+	 *   "<protocol>/[<numeric address>]\0"
+         * to buffer and cuts at bufsiz.
+         * The return value is the valid length of buffer
+	 * or a negated error number (see errno) on error.
+	 */
+	int  (*get_peer)(obex_t*, char* buffer, size_t bufsiz);
+};
+
+struct net_handler {
+	struct net_handler_ops* ops;
+	void* args;
+};
+struct net_handler* net_handler_alloc(struct net_handler_ops *ops, size_t argsize);
+void net_handler_cleanup(struct net_handler*);
+
+struct net_handler* bluetooth_setup(char* device_addr, uint8_t);
+struct net_handler* irda_setup(char*);
+#if OPENOBEX_TCPOBEX
+struct net_handler* tcp_setup(const char*, uint16_t);
+#else /* OPENOBEX_TCPOBEX */
+struct net_handler* inet_setup();
+#endif /* OPENOBEX_TCPOBEX */
+
+
 struct net_data {
-	void* arg;
 	obex_t* obex;
-	struct net_funcs* funcs;
+	struct net_handler *handler;
 
 	/* auth */
-	uint8_t nonce[16];
 	int auth_success;
 #define AUTH_LEVEL_OBEX      (1 << 0)
 #define AUTH_LEVEL_TRANSPORT (1 << 1)
@@ -28,15 +61,5 @@ int net_security_check (struct net_data* data);
 void net_security_cleanup (struct net_data* data);
 void net_get_peer (struct net_data* data, char* buffer, size_t bufsiz);
 void net_cleanup (struct net_data* data);
-
-#if OPENOBEX_TCPOBEX
-int tcp_setup(struct net_data*, const char*, uint16_t);
-#else /* OPENOBEX_TCPOBEX */
-int inet_setup(struct net_data* data);
-#endif /* OPENOBEX_TCPOBEX */
-
-int bluetooth_setup(struct net_data*, char* device_addr, uint8_t);
-
-int irda_setup(struct net_data*, char*);
 
 #endif /* OBEXPUSHD_NET_H */

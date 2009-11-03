@@ -309,24 +309,27 @@ void client_eventcb (obex_t* handle, obex_object_t* obj,
 }
 
 static void* handle_client (void* arg) {
+	obex_t *obex = arg;
 	file_data_t* data = malloc(sizeof(*data));
+	struct net_data *net;
 	char buffer[256];
 
 	if (!data)
 		goto out1;
 	memset(data,0,sizeof(*data));
-	data->id = id++;
 
+	data->id = id++;
 	data->auth = auth_copy(auth);
 	data->io = io_copy(io);
-	data->net_data = malloc(sizeof(*data->net_data));
-	if (!data->net_data)
+
+	net = net_data_new();
+	if (!net)
 		goto out2;
-	memcpy(data->net_data, OBEX_GetUserData(arg), sizeof(*data->net_data));
-	data->net_data->obex = arg;
-	if (!data->net_data->obex)
-		goto out2;
-	OBEX_SetUserData(data->net_data->obex, data);
+	memcpy(net, OBEX_GetUserData(arg), sizeof(*net));
+	net->obex = obex;
+	data->net_data = net;
+
+	OBEX_SetUserData(obex, data);
 
 	memset(buffer, 0, sizeof(buffer));
 	net_get_peer(data->net_data, buffer, sizeof(buffer));
@@ -533,25 +536,24 @@ static char* parse_ip_arg (char* optarg, uint16_t* port)
 }
 #endif
 
-static struct net_data* handle[4] = {
-	NULL, NULL, NULL, NULL
-};
-#define BT_HANDLE         handle[0]
-#define IRDA_HANDLE       handle[1]
-#define IRDA_EXTRA_HANDLE handle[2]  
-#define INET_HANDLE       handle[3]
+enum net_index {
+	IDX_BT = 0,
+	IDX_IRDA,
+	IDX_IRDA_EXTRA,
+	IDX_INET,
 
+	NET_INDEX_MAX
+};
+
+static struct net_data data[NET_INDEX_MAX];
 static void obexpushd_shutdown (int sig) {
 	size_t i;
+
 	(void)signal(SIGINT, SIG_DFL);
 	(void)signal(SIGTERM, SIG_DFL);
-	for (i = 0; i < sizeof(handle)/sizeof(*handle); ++i) {
-		if (handle[i]) {
-			struct net_data* h = handle[i];
-			handle[i] = NULL;
-			net_cleanup(h);
-		}
-	}
+	for (i = 0; i < NET_INDEX_MAX; ++i)
+		net_cleanup(&data[i]);
+
 	(void)kill(getpid(), sig);
 }
 
@@ -574,12 +576,18 @@ int main (int argc, char** argv) {
 	size_t i;
 	char* pidfile = NULL;
 #if defined(USE_THREADS)
-	pthread_t thread[sizeof(handle)/sizeof(*handle)];
+	pthread_t thread[NET_INDEX_MAX];
 #endif
 	uint8_t auth_level = 0;
 	int c;
+	struct net_handler* handle[NET_INDEX_MAX];
 
 	io = io_file_init();
+
+	for (i = 0; i < NET_INDEX_MAX; ++i) {
+		handle[i] = NULL;
+	}
+	memset(data, 0, sizeof(data));
 
 	while ((c = getopt(argc,argv,"B::I::N::Aa:dhnp:r:s:v")) != -1) {
 		switch (c) {
@@ -587,36 +595,34 @@ int main (int argc, char** argv) {
 		{
 			char* device = NULL;
 			uint8_t btchan = 9;
-			if (BT_HANDLE)
-				net_cleanup(BT_HANDLE);
-			BT_HANDLE = net_data_new();
+
+			if (handle[IDX_BT])
+				net_handler_cleanup(handle[IDX_BT]);
 			if (optarg) {
 				device = parse_bluetooth_arg(optarg, &btchan);
 			}
-			if (bluetooth_setup(BT_HANDLE, device, btchan)) {
-				net_cleanup(BT_HANDLE);
-				BT_HANDLE = NULL;
+			handle[IDX_BT] = bluetooth_setup(device, btchan);
+			if (!handle[IDX_BT]) {
+				perror("Setting up bluetooth failed");
 			}
 			break;
 		}
 
 		case 'I':
-			if (IRDA_EXTRA_HANDLE) {
-				net_cleanup(IRDA_EXTRA_HANDLE);
-				IRDA_EXTRA_HANDLE = NULL;
+			if (handle[IDX_IRDA_EXTRA]) {
+				net_handler_cleanup(handle[IDX_IRDA_EXTRA]);
+				handle[IDX_IRDA_EXTRA] = NULL;
 			}
-			if (IRDA_HANDLE)
-				net_cleanup(IRDA_HANDLE);
-			IRDA_HANDLE = net_data_new();
-			if (irda_setup(IRDA_HANDLE, NULL)) {
-				net_cleanup(IRDA_HANDLE);
-				IRDA_HANDLE = NULL;
+			if (handle[IDX_IRDA])
+				net_handler_cleanup(handle[IDX_IRDA]);
+			handle[IDX_IRDA] = irda_setup(NULL);
+			if (!handle[IDX_IRDA]) {
+				perror("Setting up IrDA failed");
 			}
 			if (optarg) {
-				IRDA_EXTRA_HANDLE = net_data_new();
-				if (irda_setup(IRDA_EXTRA_HANDLE, optarg)) {
-					net_cleanup(IRDA_EXTRA_HANDLE);
-					IRDA_EXTRA_HANDLE = NULL;
+				handle[IDX_IRDA_EXTRA] = irda_setup(optarg);
+				if (!handle[IDX_IRDA_EXTRA]) {
+					perror("Setting up IrDA failed");
 				}
 			}
 			break;
@@ -631,17 +637,15 @@ int main (int argc, char** argv) {
 				address = parse_ip_arg(optarg, &port);
 			}
 #endif
-			if (INET_HANDLE)
-				net_cleanup(INET_HANDLE);
-			INET_HANDLE = net_data_new();
+			if (handle[IDX_INET])
+				net_handler_cleanup(handle[IDX_INET]);
 #if OPENOBEX_TCPOBEX
-			if (tcp_setup(INET_HANDLE, address, port))
+			handle[IDX_INET] = tcp_setup(address, port);
 #else
-			if (inet_setup(INET_HANDLE))
+			handle[IDX_INET] = inet_setup();
 #endif
-			{
-				net_cleanup(INET_HANDLE);
-				INET_HANDLE = NULL;
+			if (!handle[IDX_INET]){
+				perror("Setting up TCP failed");
 			}
 			break;
 		}
@@ -691,18 +695,18 @@ int main (int argc, char** argv) {
 	}
 
 	/* check that at least one listener was enabled */
-	for (i = 0; i < sizeof(handle)/sizeof(*handle); ++i) {
+	for (i = 0; i < NET_INDEX_MAX; ++i) {
 		if (handle[i])
 			break;
 	}
-	if (i == sizeof(handle)/sizeof(*handle)) {
-		BT_HANDLE = net_data_new();
-		if (bluetooth_setup(BT_HANDLE, NULL, 9)) {
-			net_cleanup(BT_HANDLE);
+	if (i == NET_INDEX_MAX) {
+		handle[IDX_BT] = bluetooth_setup(NULL, 9);
+		if (!handle[IDX_BT]) {
+			perror("Setting up bluetooth failed");
 			exit(EXIT_FAILURE);
 		}
 	}
-		
+
 	/* fork if allowed (detach from terminal) */
 	if (nofork < 1) {
 		if (daemon(1,0) < 0) {
@@ -726,16 +730,17 @@ int main (int argc, char** argv) {
 
 #if defined(USE_THREADS)
 	/* initialize all enabled listeners */
-	for (i = 0; i < sizeof(handle)/sizeof(*handle); ++i) {
+	for (i = 0; i < NET_INDEX_MAX; ++i) {
 		if (!handle[i])
 			continue;
-		handle[i]->auth_level = auth_level;
-		if (pthread_create(&thread[i], NULL, obexpushd_listen_thread, handle[i]) != 0)
+		data[i].handler = handle[i];
+		data[i].auth_level = auth_level;
+		if (pthread_create(&thread[i], NULL, obexpushd_listen_thread, &data[i]) != 0)
 			perror("pthread_create()");
 	}
 
-	for (i = 0; i < sizeof(handle)/sizeof(*handle); ++i) {
-		if (handle[i]) {
+	for (i = 0; i < NET_INDEX_MAX; ++i) {
+		if (data[i].handler) {
 			void* retval;
 			pthread_join(thread[i], &retval);
 		}
@@ -746,15 +751,16 @@ int main (int argc, char** argv) {
 	(void)signal(SIGCHLD, obexpushd_wait);
 
 	/* initialize all enabled listeners */
-	for (i = 0; i < sizeof(handle)/sizeof(*handle); ++i) {
+	for (i = 0; i < NET_INDEX_MAX; ++i) {
 		int fd = -1;
 		if (!handle[i])
 			continue;
-		handle[i]->auth_level = auth_level;
-		net_init(handle[i], eventcb);
-		if (!handle[i]->obex)
+		data[i].handler = handle[i];
+		data[i].auth_level = auth_level;
+		net_init(&data[i], eventcb);
+		if (!data[i].obex)
 			exit(EXIT_FAILURE);
-		fd = OBEX_GetFD(handle[i]->obex);
+		fd = OBEX_GetFD(data[i].obex);
 		if (fd == -1) {
 			perror("OBEX_GetFD()");
 			exit(EXIT_FAILURE);
@@ -766,11 +772,11 @@ int main (int argc, char** argv) {
 		int topfd = 0;
 		fd_set fds;
 		FD_ZERO(&fds);
-		for (i = 0; i < sizeof(handle)/sizeof(*handle); ++i) {
-			if (!handle[i])
+		for (i = 0; i < NET_INDEX_MAX; ++i) {
+			if (!data[i].handler)
 				continue;
-			if (handle[i]->obex) {
-				int fd = OBEX_GetFD(handle[i]->obex);
+			if (data[i].obex) {
+				int fd = OBEX_GetFD(data[i].obex);
 				if (fd == -1) {
 					perror("OBEX_GetFD()");
 					exit(EXIT_FAILURE);
@@ -781,15 +787,15 @@ int main (int argc, char** argv) {
 			}
 		}
 		select(topfd+1, &fds, NULL, NULL, NULL);
-		for (i = 0; i < sizeof(handle)/sizeof(*handle); ++i) {
+		for (i = 0; i < NET_INDEX_MAX; ++i) {
 			int fd = -1;
-			if (!handle[i])
+			if (!data[i].handler)
 				continue;
-			if (!handle[i]->obex)
+			if (!data[i].obex)
 				continue;
-			fd = OBEX_GetFD(handle[i]->obex);
+			fd = OBEX_GetFD(data[i].obex);
 			if (FD_ISSET(fd,&fds))
-				(void)OBEX_HandleInput(handle[i]->obex,1);
+				(void)OBEX_HandleInput(data[i].obex,1);
 		}			
 	} while (1);
 #endif

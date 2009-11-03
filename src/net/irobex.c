@@ -13,13 +13,13 @@ struct irda_args {
 	char* service;
 };
 
-/*@null@*/
 static
-obex_t* _irda_init (
-	struct irda_args* args,
+obex_t* irda_init (
+	struct net_handler *h,
 	obex_event_t eventcb
 )
 {
+	struct irda_args* args = h->args;
 	obex_t* handle = OBEX_Init(OBEX_TRANS_IRDA,eventcb,OBEX_FL_KEEPSERVER);
 	
 	if (!handle)
@@ -31,15 +31,6 @@ obex_t* _irda_init (
 	}
 	fprintf(stderr,"Listening on IrDA service \"%s\"\n", args->service);
 	return handle;
-}
-
-static
-obex_t* irda_init(
-	void* arg,
-	obex_event_t eventcb
-)
-{
-	return _irda_init((struct irda_args*)arg, eventcb);
 }
 
 static
@@ -74,31 +65,37 @@ int irda_get_peer(
 }
 
 static
-struct net_funcs irda_funcs = {
+struct net_handler_ops irda_ops = {
 	.init = irda_init,
 	.get_peer = irda_get_peer
 };
 
-int irda_setup(
-	struct net_data* data,
+struct net_handler* irda_setup(
 	char* service
 )
 {
-	struct irda_args* args = malloc(sizeof(*args));
-	data->arg = args;
-	if (!args)
-		return -errno;
-	
+	struct irda_args* args;
+	struct net_handler *h = net_handler_alloc(&irda_ops, sizeof(*args));
+
+	if (!h)
+		return NULL;
+
+	args = h->args;
+
 	if (service) {
 		size_t slen = 5 + strlen(service) + 1;
 		char* s = malloc(slen);
-		if (!s)
-			return -errno;
+		if (!s) {
+			int err = errno;
+			net_handler_cleanup(h);
+			errno = err;
+			return NULL;
+		}
 		(void)snprintf(s,slen,"OBEX:%s",service);
 		args->service = s;
 	} else {
 		args->service = strdup("OBEX");
 	}
-	data->funcs = &irda_funcs;
+
 	return 0;
 }

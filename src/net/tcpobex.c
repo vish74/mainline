@@ -28,11 +28,12 @@ struct tcp_args {
 };
 
 static
-obex_t* _tcp_init (
-	struct tcp_args* args,
+obex_t* tcp_init (
+	struct net_handler *h,
 	obex_event_t eventcb
 )
 {
+	struct tcp_args* args = h->args;
 	obex_t* handle = OBEX_Init(OBEX_TRANS_INET,eventcb,OBEX_FL_KEEPSERVER);
 	
 	if (!handle)
@@ -93,39 +94,25 @@ obex_t* _tcp_init (
 	return handle;
 }
 
+#ifdef ENABLE_AVAHI
 static
-void _tcp_cleanup (
-	struct tcp_args *args,
-	obex_t __unused *handle
+void tcp_cleanup (
+	struct net_handler *h
 )
 {
-#ifdef ENABLE_AVAHI
+	struct tcp_args* args = h->args;
+
 	if (args->avahi)
 		obex_avahi_cleanup(args->avahi);
+}
+#define TCP_CLEANUP_FUNC tcp_cleanup
+#else
+#define TCP_CLEANUP_FUNC NULL
 #endif
-}
-
-static
-void tcp_cleanup(
-	void* arg,
-	obex_t* handle
-)
-{
-	_tcp_cleanup((struct tcp_args*)arg, handle);
-}
-
-static
-obex_t* tcp_init(
-	void* arg,
-	obex_event_t eventcb
-)
-{
-	return _tcp_init((struct tcp_args*)arg, eventcb);
-}
 
 static
 int tcp_security_check(
-	void __unused *arg,
+	struct net_handler __unused *h,
 	obex_t *ptr
 )
 {
@@ -196,30 +183,38 @@ int tcp_get_peer(
 }
 
 static
-struct net_funcs tcp_funcs = {
+struct net_handler_ops tcp_ops = {
 	.init = tcp_init,
-	.cleanup = tcp_cleanup,
+	.cleanup = TCP_CLEANUP_FUNC,
 	.get_peer = tcp_get_peer,
 	.security_check = tcp_security_check,
 };
 
-int tcp_setup(
-	struct net_data* data,
+struct net_handler* tcp_setup(
 	const char* address,
 	uint16_t port
 )
 {
-	struct tcp_args* args = malloc(sizeof(*args));
-	data->arg = args;
-	if (!args)
-		return -errno;
+	struct tcp_args* args;
+	struct net_handler *h = net_handler_alloc(&tcp_ops, sizeof(*args));
 
-	if (address)
+	if (!h)
+		return NULL;
+
+	args = h->args;
+
+	if (address) {
 		args->address = strdup(address);
-	else
+		if (!args->address) {
+			int err = errno;
+			net_handler_cleanup(h);
+			errno = err;
+			return NULL;
+		}
+	} else
 		args->address = NULL;
 	args->port = port;
 	args->intf = NULL;
-	data->funcs = &tcp_funcs;
+
 	return 0;
 }

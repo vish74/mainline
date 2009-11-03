@@ -17,12 +17,11 @@ static void *avahi_handle = NULL;
 
 static
 obex_t* inet_init (
-	void* arg,
+	struct net_handler __unused *h,
 	obex_event_t eventcb
 )
 {
 	obex_t* handle = OBEX_Init(OBEX_TRANS_INET,eventcb,OBEX_FL_KEEPSERVER);
-	(void)arg;
 	
 	if (!handle)
 		return NULL;
@@ -45,7 +44,7 @@ obex_t* inet_init (
 
 static
 void inet_cleanup (
-	void* args,
+	struct net_handler __unused *h,
 	obex_t* handle
 )
 {
@@ -57,7 +56,7 @@ void inet_cleanup (
 
 static
 int inet_security_check(
-	void* arg,
+	struct net_handler *h,
 	obex_t* ptr
 )
 {
@@ -140,13 +139,12 @@ int inet_get_peer(
 }
 
 static
-struct net_funcs inet_funcs = {
+struct net_handler_ops inet_ops = {
 	.init = inet_init,
 	.get_peer = inet_get_peer,
 	.security_check = inet_security_check,
 };
 
-int inet_setup(struct net_data* data) {
-	data->funcs = &inet_funcs;
-	return 0;
+struct net_handler* inet_setup() {
+	return net_handler_alloc(&inet_ops, 0);
 }

@@ -17,13 +17,13 @@ struct bluetooth_args {
 	uint8_t channel;
 };
 
-/*@null@*/
 static
-obex_t* _bluetooth_init (
-	struct bluetooth_args* args,
+obex_t* bluetooth_init (
+	struct net_handler *h,
 	obex_event_t eventcb
 )
 {
+	struct bluetooth_args* args = h->args;
 	obex_t* handle = OBEX_Init(OBEX_TRANS_BLUETOOTH,eventcb,OBEX_FL_KEEPSERVER);
 	char device[18];
   
@@ -47,20 +47,12 @@ obex_t* _bluetooth_init (
 }
 
 static
-obex_t* bluetooth_init(
-	void* arg,
-	obex_event_t eventcb
+void bluetooth_cleanup(
+	struct net_handler *h
 )
 {
-	return _bluetooth_init((struct bluetooth_args*)arg, eventcb);
-}
+	struct bluetooth_args* args = h->args;
 
-static
-void _bluetooth_cleanup(
-	struct bluetooth_args *args,
-	obex_t __unused *ptr
-)
-{
 	if (args->session_data) {
 		bt_sdp_session_close(args->session_data, &args->device);
 		args->session_data = NULL;
@@ -68,17 +60,8 @@ void _bluetooth_cleanup(
 }
 
 static
-void bluetooth_cleanup(
-	void* arg,
-	obex_t* ptr
-)
-{
-	_bluetooth_cleanup((struct bluetooth_args*)arg, ptr);
-}
-
-static
 int bluetooth_security_init(
-	void __unused *arg,
+	struct net_handler __unused *h,
 	obex_t *ptr
 )
 {
@@ -144,38 +127,41 @@ int bluetooth_get_peer(
 }
 
 static
-struct net_funcs bluetooth_funcs = {
+struct net_handler_ops bluetooth_ops = {
 	.init = bluetooth_init,
 	.cleanup = bluetooth_cleanup,
 	.get_peer = bluetooth_get_peer,
 	.security_init = bluetooth_security_init
 };
 
-int bluetooth_setup(
-	struct net_data* data,
+struct net_handler* bluetooth_setup(
 	char* device,
 	uint8_t channel
 )
 {
-	struct bluetooth_args* args = malloc(sizeof(*args));
+	struct bluetooth_args* args;
+	struct net_handler *h = net_handler_alloc(&bluetooth_ops, sizeof(*args));
 	int hciId  = -1;
-	data->arg = args;
-	if (!args)
-		return -errno;
+
+	if (!h)
+		return NULL;
+
+	args = h->args;
 
 	if (device) {
+		int id;
 		if (strlen(device) == 17) /* 11:22:33:44:55:66 */
-			hciId = hci_devid(device);
-		else if (1 != sscanf(device, "hci%d", &hciId))
-			return -1;
+			id = hci_devid(device);
+		else if (1 != sscanf(device, "hci%d", &id))
+			id = -1;
+		hciId = id;
 	}
 
 	if (hciId >= 0)
 		hci_devba(hciId, &args->device);
 	else
 		bacpy(&args->device, BDADDR_ANY);
-
 	args->channel = channel;
-	data->funcs = &bluetooth_funcs;
-	return 0;
+
+	return h;
 }
