@@ -34,10 +34,7 @@
 #include "io.h"
 #include "utf.h"
 #include "net.h"
-
-#ifndef O_CLOEXEC
-#define O_CLOEXEC 0
-#endif
+#include "closexec.h"
 
 struct io_file_data {
 	char *basedir;
@@ -130,27 +127,23 @@ static int io_file_open (
 	switch (t) {
 	case IO_TYPE_PUT:
 		fprintf(stderr, "Creating file \"%s\"\n", name);
-		err = open(name, O_WRONLY|O_CREAT|O_EXCL|O_CLOEXEC,
-			      S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH|S_IWOTH);
+		err = open_closexec(name, O_WRONLY|O_CREAT|O_EXCL,
+				    S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH|S_IWOTH);
 		if (err == -1) {
 			fprintf(stderr, "Error: cannot create file: %s\n", strerror(-err));
 			goto io_file_error;
 		}
-#if ! O_CLOEXEC
-		(void)fcntl(err, F_SETFD, FD_CLOEXEC);
-#endif
+
 		data->out = fdopen(err, "w");
 		if (data->out == NULL)
 			goto io_file_error;
 		break;
 
 	case IO_TYPE_GET:
-		err = open(name, O_RDONLY|O_CLOEXEC);
+		err = open_closexec(name, O_RDONLY, 0);
 		if (err == -1)
 			goto io_file_error;
-#if ! O_CLOEXEC
-		(void)fcntl(err, F_SETFD, FD_CLOEXEC);
-#endif
+
 		data->in = fdopen(err, "r");
 		if (data->in == NULL)
 			goto io_file_error;

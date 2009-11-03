@@ -12,6 +12,7 @@
 #include <fcntl.h>
 
 #include "compiler.h"
+#include "closexec.h"
 
 struct auth_file_data {
 	struct {
@@ -74,10 +75,6 @@ static uint8_t get_realm_opts(struct auth_handler *self,
 		return 0;
 }
 
-#ifndef O_CLOEXEC
-#define O_CLOEXEC 0
-#endif
-
 static int verify (struct auth_handler *self,
 		   const uint16_t *realm,
 		   const uint8_t *user, size_t ulen,
@@ -94,12 +91,10 @@ static int verify (struct auth_handler *self,
 	if (id < 0)
 		goto out;
 
-	fd = open(data->realm[id].filename, O_RDONLY|O_CLOEXEC);
+	fd = open_closexec(data->realm[id].filename, O_RDONLY, 0);
 	if (fd == -1)
 		goto out;
-#if ! O_CLOEXEC
-	(void)fcntl(fd, F_SETFD, FD_CLOEXEC);
-#endif
+
 	/* user + separator ':' + pass (minimum length 1) + line end */
 	if (fstat(fd, &fdinfo) != 0)
 		goto out;

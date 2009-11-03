@@ -33,10 +33,6 @@
 #include "io.h"
 #include "utf.h"
 
-#ifndef O_CLOEXEC
-#define O_CLOEXEC 0
-#endif
-
 struct io_script_data {
 	pid_t child;
 	const char* script;
