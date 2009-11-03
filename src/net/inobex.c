@@ -30,10 +30,9 @@ obex_t* inet_init (
 		if (InOBEX_ServerRegister(handle) == -1) {
 			perror("InOBEX_ServerRegister");
 			return NULL;
-		} else {
-			fprintf(stderr,"Listening on tcp/*:650\n");
 		}
-
+		OBEX_SetTransportMTU(handle, OBEX_MAXIMUM_MTU, OBEX_MAXIMUM_MTU);
+		fprintf(stderr,"Listening on tcp/*:650\n");
 #ifdef ENABLE_AVAHI
 		avahi_handle = obex_avahi_setup(AF_INET, 650, NULL);
 #endif

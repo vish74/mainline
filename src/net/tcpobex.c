@@ -80,12 +80,11 @@ obex_t* tcp_init (
 			perror("TcpOBEX_ServerRegister");
 			return NULL;
 
-		} else {
-			fprintf(stderr, "Listening on tcp/%s:%d\n",
-				(args->address? args->address: "*"),
-				args->port);
 		}
-
+		OBEX_SetTransportMTU(handle, OBEX_MAXIMUM_MTU, OBEX_MAXIMUM_MTU);
+		fprintf(stderr, "Listening on tcp/%s:%d\n",
+			(args->address? args->address: "*"),
+			args->port);
 #ifdef ENABLE_AVAHI
 		args->avahi = obex_avahi_setup(af, args->port, args->intf);
 #endif

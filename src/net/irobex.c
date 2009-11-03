@@ -29,6 +29,7 @@ obex_t* irda_init (
 		perror("IrOBEX_ServerRegister");
 		return NULL;
 	}
+	OBEX_SetTransportMTU(handle, OBEX_IRDA_OPT_MTU, OBEX_IRDA_OPT_MTU);
 	fprintf(stderr,"Listening on IrDA service \"%s\"\n", args->service);
 	return handle;
 }

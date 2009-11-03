@@ -53,6 +53,7 @@ obex_t* bluetooth_init (
 		}
 		args->channel = (uint8_t)i;
 	}
+	OBEX_SetTransportMTU(handle, OBEX_MAXIMUM_MTU, OBEX_MAXIMUM_MTU);
 	(void)ba2str(&args->device, device);
 	fprintf(stderr, "Listening on bluetooth/[%s]:%u\n", device, (unsigned int)args->channel);
 
