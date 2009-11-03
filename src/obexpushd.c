@@ -40,14 +40,7 @@
 #include <ctype.h>
 #include <stdarg.h>
 #include <signal.h>
-
-#ifndef SIGCLD
-#define SIGCLD SIGCHLD
-#endif
-
-#if defined(USE_THREADS)
-#include <pthread.h>
-#endif
+#include <time.h>
 
 #define PROGRAM_NAME "obexpushd"
 #include "version.h"
@@ -356,6 +349,22 @@ out1:
 	return NULL;
 }
 
+int obexpushd_create_instance (void* (*cb)(void*), void *cbdata);
+int obexpushd_start (struct net_data *data, unsigned int count);
+
+static
+void create_instance (void* (*cb)(void*), void *cbdata) {
+	if (nofork >= 2) {
+		(void)cb(cbdata);
+	} else {
+		int err = obexpushd_create_instance(cb, cbdata);
+		if (err != 0) {
+			errno = -err;
+			perror("Failed to create instance");
+		}
+	}
+}
+
 static
 void eventcb (obex_t* handle, obex_object_t __unused *obj,
 	      int __unused mode, int event,
@@ -377,60 +386,14 @@ void eventcb (obex_t* handle, obex_object_t __unused *obj,
 		fd = OBEX_GetFD(client);
 		if (fd >= 0)
 			(void)fcntl(fd, F_SETFD, FD_CLOEXEC);
-		if (nofork >= 2) {
-			(void)handle_client(client);
-		} else {
-#if defined(USE_THREADS)
-			pthread_t t;
-			pthread_attr_t attr;
-			pthread_attr_init(&attr);
-			pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
-			if (pthread_create(&t, &attr, handle_client, client) != 0)
-				perror("pthread_create()");
+		create_instance(handle_client, client);
+	}
+}
 
+#if defined(USE_THREADS)
+#include "pthreads.c"
 #else
-			pid_t p = fork();
-			switch (p) {
-			case 0:
-				(void)signal(SIGCHLD, SIG_DFL);
-				(void)signal(SIGINT, SIG_DFL);
-				(void)signal(SIGTERM, SIG_DFL);
-				(void)handle_client(client);
-				exit(EXIT_SUCCESS);
-
-			case -1:
-				perror("fork()");
-			}
-#endif
-		}
-	}
-}
-
-#if defined(USE_THREADS)
-static void obexpushd_listen_thread_cleanup (void* arg) {
-	net_cleanup(arg);
-}
-
-static void* obexpushd_listen_thread (void* arg) {
-	struct net_data* data = arg;
-
-	pthread_cleanup_push(obexpushd_listen_thread_cleanup, arg);
-	net_init(data, eventcb);
-	if (!data->obex) {
-		fprintf(stderr, "net_init() failed\n");
-		pthread_exit(NULL);
-	}
-	do {
-		if (OBEX_HandleInput(data->obex, 3600) < 0) {
-			/* OpenOBEX sometimes return -1 anyway, must be a bug
-			 * thus the break is commented -> go on anyway
-			 */
-			//break;
-		}
-	} while (1);
-	pthread_cleanup_pop(1);
-	return NULL;
-}
+#include "fork.c"
 #endif
 
 static void print_disclaimer () {
@@ -557,29 +520,11 @@ static void obexpushd_shutdown (int sig) {
 	(void)kill(getpid(), sig);
 }
 
-#if ! defined(USE_THREADS)
-static void obexpushd_wait (int sig) {
-	pid_t pidOfChild;
-	int status;
-	if (sig != SIGCLD)
-		return;
-
-	pidOfChild = wait(&status);
-	if (WIFEXITED(status))
-		fprintf(stderr, "child exited with exit code %d\n", WEXITSTATUS(status));
-	else if (WIFSIGNALED(status))
-		fprintf(stderr, "child got signal %d\n", WTERMSIG(status));
-}
-#endif
-
 int main (int argc, char** argv) {
 	size_t i;
 	char* pidfile = NULL;
-#if defined(USE_THREADS)
-	pthread_t thread[NET_INDEX_MAX];
-#endif
 	uint8_t auth_level = 0;
-	int c;
+	int c = 0;
 	struct net_handler* handle[NET_INDEX_MAX];
 
 	io = io_file_init(".");
@@ -589,8 +534,12 @@ int main (int argc, char** argv) {
 	}
 	memset(data, 0, sizeof(data));
 
-	while ((c = getopt(argc,argv,"B::I::N::Aa:dhnp:r:o:s:v")) != -1) {
+	while (c != -1) {
+		c = getopt(argc,argv,"B::I::N::Aa:dhnp:r:o:s:v");
 		switch (c) {
+		case -1: /* processed all options, no error */
+			break;
+
 		case 'B':
 		{
 			char* device = NULL;
@@ -740,77 +689,16 @@ int main (int argc, char** argv) {
 	(void)signal(SIGINT, obexpushd_shutdown);
 	(void)signal(SIGTERM, obexpushd_shutdown);
 
-#if defined(USE_THREADS)
 	/* initialize all enabled listeners */
 	for (i = 0; i < NET_INDEX_MAX; ++i) {
 		if (!handle[i])
 			continue;
 		data[i].handler = handle[i];
 		data[i].auth_level = auth_level;
-		if (pthread_create(&thread[i], NULL, obexpushd_listen_thread, &data[i]) != 0)
-			perror("pthread_create()");
 	}
 
-	for (i = 0; i < NET_INDEX_MAX; ++i) {
-		if (data[i].handler) {
-			void* retval;
-			pthread_join(thread[i], &retval);
-		}
-	}
-	pthread_exit(NULL);
-
-#else
-	(void)signal(SIGCHLD, obexpushd_wait);
-
-	/* initialize all enabled listeners */
-	for (i = 0; i < NET_INDEX_MAX; ++i) {
-		int fd = -1;
-		if (!handle[i])
-			continue;
-		data[i].handler = handle[i];
-		data[i].auth_level = auth_level;
-		net_init(&data[i], eventcb);
-		if (!data[i].obex)
-			exit(EXIT_FAILURE);
-		fd = OBEX_GetFD(data[i].obex);
-		if (fd == -1) {
-			perror("OBEX_GetFD()");
-			exit(EXIT_FAILURE);
-		}
-	}
-	
-	/* run the multiplexer */
-	do {
-		int topfd = 0;
-		fd_set fds;
-		FD_ZERO(&fds);
-		for (i = 0; i < NET_INDEX_MAX; ++i) {
-			if (!data[i].handler)
-				continue;
-			if (data[i].obex) {
-				int fd = OBEX_GetFD(data[i].obex);
-				if (fd == -1) {
-					perror("OBEX_GetFD()");
-					exit(EXIT_FAILURE);
-				}
-				if (fd > topfd)
-					topfd = fd;
-				FD_SET(fd, &fds);
-			}
-		}
-		select(topfd+1, &fds, NULL, NULL, NULL);
-		for (i = 0; i < NET_INDEX_MAX; ++i) {
-			int fd = -1;
-			if (!data[i].handler)
-				continue;
-			if (!data[i].obex)
-				continue;
-			fd = OBEX_GetFD(data[i].obex);
-			if (FD_ISSET(fd,&fds))
-				(void)OBEX_HandleInput(data[i].obex,1);
-		}			
-	} while (1);
-#endif
+	if (obexpushd_start(data, NET_INDEX_MAX) != 0)
+		perror("Failed to start");
 
 	/* never reached */
 	return EXIT_FAILURE;
