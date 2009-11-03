@@ -15,7 +15,7 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
  */
 
-#define _POSIX_SOURCE
+#define _GNU_SOURCE
 
 #include "obexpushd.h"
 
@@ -27,6 +27,7 @@
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <signal.h>
 #include <utime.h>
 
@@ -39,6 +40,8 @@
 #endif
 
 struct io_file_data {
+	char *basedir;
+
 	FILE *in;
 	FILE *out;
 };
@@ -94,12 +97,31 @@ static int io_file_open (
 	enum io_type t
 )
 {
-	int err;
-	uint8_t* name = utf16to8(transfer->name);
+	int err = 0;
+	char *name = NULL;
 	struct io_file_data *data = self->private_data;
 
-	if (!name)
+	if (!transfer->name)
 		return -EINVAL;
+	else {
+		char* namebase = (char*)utf16to8(transfer->name);
+
+		if (!namebase)
+			err = -errno;
+		else if (strcmp(data->basedir, ".") == 0)
+			name = namebase;
+		else {
+			size_t namesize = strlen(data->basedir) + 1 + strlen(namebase) + 1;
+			name = malloc(namesize);
+			if (!name)
+				err = -errno;
+			else
+				snprintf(name, namesize, "%s/%s", data->basedir, namebase);
+			free(namebase);
+		}
+		if (err)
+			return err;
+	}
 
 	err = io_file_close(self, transfer, true);
 	if (err)
@@ -107,8 +129,8 @@ static int io_file_open (
 
 	switch (t) {
 	case IO_TYPE_PUT:
-		fprintf(stderr, "Creating file \"%s\"\n", (char*)name);
-		err = open((char*)name, O_WRONLY|O_CREAT|O_EXCL|O_CLOEXEC,
+		fprintf(stderr, "Creating file \"%s\"\n", name);
+		err = open(name, O_WRONLY|O_CREAT|O_EXCL|O_CLOEXEC,
 			      S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH|S_IWOTH);
 		if (err == -1) {
 			fprintf(stderr, "Error: cannot create file: %s\n", strerror(-err));
@@ -123,7 +145,7 @@ static int io_file_open (
 		break;
 
 	case IO_TYPE_GET:
-		err = open((char*)name, O_RDONLY|O_CLOEXEC);
+		err = open(name, O_RDONLY|O_CLOEXEC);
 		if (err == -1)
 			goto io_file_error;
 #if ! O_CLOEXEC
@@ -210,7 +232,9 @@ static ssize_t io_file_write(struct io_handler *self, const void *buf, size_t le
 
 static struct io_handler* io_file_copy(struct io_handler *self)
 {
-	return io_file_init();
+	struct io_file_data *data = self->private_data;
+
+	return io_file_init(data->basedir);
 }
 
 static struct io_handler_ops io_file_ops = {
@@ -222,18 +246,46 @@ static struct io_handler_ops io_file_ops = {
 	.write = io_file_write,
 };
 
-struct io_handler * io_file_init() {
-	struct io_handler *handle = malloc(sizeof(*handle));
-	struct io_file_data *data = malloc(sizeof(*data));
+struct io_handler * io_file_init(const char *basedir) {
+	struct io_handler *handle = NULL;
+	struct io_file_data *data = NULL;
 
-	if (!handle || !data)
-		return NULL;
+	if (!basedir || strlen(basedir) == 0) {
+		errno = EINVAL;
+		goto out;
+	}
 
+	handle = malloc(sizeof(*handle));
+	if (!handle)
+		goto out;
 	memset(handle, 0, sizeof(*handle));
 	handle->ops = &io_file_ops;
+
+	data = malloc(sizeof(*data));
+	if (!data)
+		goto out_err;
+	memset(data, 0, sizeof(*data));
+	data->basedir = strdup(basedir);
+	if (!data->basedir)
+		goto out_err;
 	handle->private_data = data;
 
-	memset(data, 0, sizeof(*data));
 
 	return handle;
+
+out_err:
+	{
+		int err = errno;
+		if (data) {
+			if (data->basedir)
+				free(data->basedir);
+			free(data);
+		}
+		if (handle) {
+			free(handle);
+		}
+		errno = err;
+	}
+out:
+	return NULL;
 }

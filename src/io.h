@@ -43,7 +43,7 @@ struct io_handler {
 };
 
 struct io_handler* io_script_init(const char *script);
-struct io_handler* io_file_init();
+struct io_handler* io_file_init(const char *basedir);
 struct io_handler* io_copy (struct io_handler *h);
 void io_destroy (struct io_handler *h);
 

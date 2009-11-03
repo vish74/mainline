@@ -582,14 +582,14 @@ int main (int argc, char** argv) {
 	int c;
 	struct net_handler* handle[NET_INDEX_MAX];
 
-	io = io_file_init();
+	io = io_file_init(".");
 
 	for (i = 0; i < NET_INDEX_MAX; ++i) {
 		handle[i] = NULL;
 	}
 	memset(data, 0, sizeof(data));
 
-	while ((c = getopt(argc,argv,"B::I::N::Aa:dhnp:r:s:v")) != -1) {
+	while ((c = getopt(argc,argv,"B::I::N::Aa:dhnp:r:o:s:v")) != -1) {
 		switch (c) {
 		case 'B':
 		{
@@ -678,6 +678,12 @@ int main (int argc, char** argv) {
 			return EXIT_FAILURE;
 			break;
 
+		case 'o':
+			if (io)
+				io_destroy(io);
+			io = io_file_init(optarg);
+			break;
+
 		case 's':
 			if (io)
 				io_destroy(io);
@@ -692,6 +698,12 @@ int main (int argc, char** argv) {
 			printf("%s\n",OBEXPUSHD_VERSION);
 			exit(EXIT_SUCCESS);
 		}
+	}
+
+	/* check that the file/script output is valid */
+	if (!io) {
+		fprintf(stderr, "Invalid output options\n");
+		exit(EXIT_SUCCESS);
 	}
 
 	/* check that at least one listener was enabled */
