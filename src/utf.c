@@ -32,8 +32,10 @@ uint16_t* ucs2dup (const uint16_t* s) {
 	size_t len = ucs2len(s) + 2;
 	uint16_t *s2;
 
-	if (!s)
+	if (!s) {
+		errno = EINVAL;
 		return NULL;
+	}
 	s2 = malloc(len);
 	if (!s2)
 		return NULL;
@@ -100,8 +102,10 @@ static uint8_t* utf8to32 (const uint8_t* in, uint32_t *out)
 		 * check the first character to validate count value.
 		 */
 		if (count > 6 ||
-		    (in[0] & mask[count - 1]) != prefix[count - 1])
+		    (in[0] & mask[count - 1]) != prefix[count - 1]) {
+			errno = EILSEQ;
 			return NULL;
+		}
 
 		onechar = *(in++) ^ prefix[count - 1];
 		while (--count) {
@@ -157,8 +161,10 @@ static uint8_t* utf32to8 (uint32_t in, uint8_t* out)
 				break;
 			}
 		}
-		if (i >= 6)
+		if (i >= 6) {
+			errno = ERANGE;
 			return NULL;
+		}
 
 		*(out++) = unicode[i].mask | ((in >> (i * 6)) & (unicode[i].max_value >> (i * 6)));
 		for (; k <= i; ++k) {
@@ -178,6 +184,7 @@ static uint16_t* utf32to16 (uint32_t in, uint16_t* out)
 		*(out++) = 0xD800 | ((in >> 10) & 0x3FF);
 		*(out++) = 0xDC00 | (in & 0x3FF);
 	} else {
+		errno = ERANGE;
 		out = NULL;
 	}
 
@@ -189,8 +196,10 @@ uint8_t* utf16to8 (const uint16_t* c)
 	size_t sd = (4 * utf16count(c)) + 1;
 	uint8_t *buf;
 
-	if (!c)
+	if (!c) { 
+		errno = EINVAL;
 		return NULL;
+	}
 
 	buf = malloc(sd);
 	if (buf) {
@@ -215,8 +224,10 @@ uint16_t* utf8to16 (const uint8_t* c)
 	size_t sd = (2 * utf8count(c)) + 2;
 	uint16_t *buf;
 
-	if (!c)
+	if (!c) {
+		errno = EINVAL;
 		return NULL;
+	}
 
 	buf = malloc(sd);
 	if (buf) {
