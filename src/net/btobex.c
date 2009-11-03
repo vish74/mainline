@@ -30,9 +30,28 @@ obex_t* bluetooth_init (
 	if (!handle)
 		return NULL;
 
-	if (BtOBEX_ServerRegister(handle, &args->device, args->channel) == -1) {
-		perror("BtOBEX_ServerRegister");
-		return NULL;
+	if (args->channel) {
+		/* the user selected a specific channel */
+		if (BtOBEX_ServerRegister(handle, &args->device, args->channel) == -1) {
+			perror("BtOBEX_ServerRegister");
+			return NULL;
+		}
+	} else {
+		/* automatically find a free channel:
+		 * Our previous default was channel 9, so try it first.
+		 */
+		unsigned int i = 9;
+		if (BtOBEX_ServerRegister(handle, &args->device, i) != -1) {
+			for (i = 1; i < UINT8_MAX; ++i) {
+				if (i != 9 && BtOBEX_ServerRegister(handle, &args->device, i) != -1)
+					break;
+			}
+		}
+		if (i >= UINT8_MAX) {
+			fprintf(stderr, "Cannot find a free RFCOMM channel\n");
+			return NULL;
+		}
+		args->channel = (uint8_t)i;
 	}
 	(void)ba2str(&args->device, device);
 	fprintf(stderr, "Listening on bluetooth/[%s]:%u\n", device, (unsigned int)args->channel);
