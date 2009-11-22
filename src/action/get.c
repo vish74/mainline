@@ -204,6 +204,7 @@ void obex_action_get (obex_t* handle, obex_object_t* obj, int event) {
 	file_data_t* data = OBEX_GetUserData(handle);
 	struct io_transfer_data *transfer = &data->transfer;
 	int len = 0;
+	int err;
 
 	if (data->error &&
 	    (event == OBEX_EV_REQ ||
@@ -256,8 +257,9 @@ void obex_action_get (obex_t* handle, obex_object_t* obj, int event) {
 			}
 		}
 
-		if (get_open(handle) < 0 || transfer->length == 0) {
-			dbg_printf(data, "%s\n", "Running script failed or no output data");
+		err = get_open(handle);
+		if (err < 0 || transfer->length == 0) {
+			dbg_printf(data, "%s: %s\n", "Running script failed or no output data", strerror(-err));
 			obex_send_response(handle, obj, OBEX_RSP_INTERNAL_SERVER_ERROR);
 			break;
 		}
