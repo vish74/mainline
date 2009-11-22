@@ -215,5 +215,5 @@ struct net_handler* tcp_setup(
 	args->port = port;
 	args->intf = NULL;
 
-	return 0;
+	return h;
 }

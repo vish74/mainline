@@ -98,5 +98,5 @@ struct net_handler* irda_setup(
 		args->service = strdup("OBEX");
 	}
 
-	return 0;
+	return h;
 }
