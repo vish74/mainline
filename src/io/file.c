@@ -88,6 +88,33 @@ static int io_file_close (
 	return 0;
 }
 
+static char* io_file_get_fullname(const char *basedir, const uint16_t *filename)
+{
+	char* namebase = (char*)utf16to8(filename);
+
+	if (!namebase)
+		return NULL;
+
+	else if (strcmp(basedir, ".") == 0)
+		return namebase;
+
+	else {
+		int err = 0;
+		char *name;
+		size_t namesize = strlen(basedir) + 1 + strlen(namebase) + 1;
+
+		name = malloc(namesize);
+		if (!name)
+			err = -errno;
+		else
+			snprintf(name, namesize, "%s/%s", basedir, namebase);
+		free(namebase);
+		if (err)
+			errno = -err;
+		return name;
+	}
+}
+
 static int io_file_open (
 	struct io_handler *self,
 	struct io_transfer_data *transfer,
@@ -101,23 +128,9 @@ static int io_file_open (
 	if (!transfer->name)
 		return -EINVAL;
 	else {
-		char* namebase = (char*)utf16to8(transfer->name);
-
-		if (!namebase)
-			err = -errno;
-		else if (strcmp(data->basedir, ".") == 0)
-			name = namebase;
-		else {
-			size_t namesize = strlen(data->basedir) + 1 + strlen(namebase) + 1;
-			name = malloc(namesize);
-			if (!name)
-				err = -errno;
-			else
-				snprintf(name, namesize, "%s/%s", data->basedir, namebase);
-			free(namebase);
-		}
-		if (err)
-			return err;
+		name = io_file_get_fullname(data->basedir, transfer->name);
+		if (!name)
+			return -errno;
 	}
 
 	err = io_file_close(self, transfer, true);
