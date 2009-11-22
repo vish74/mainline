@@ -272,10 +272,16 @@ static struct io_handler_ops io_script_ops = {
 
 struct io_handler * io_script_init(const char* script) {
 	struct io_handler *handle = malloc(sizeof(*handle));
-	struct io_script_data *data = malloc(sizeof(*data));
+	struct io_script_data *data;
 
-	if (!handle || !data)
+	if (!handle)
 		return NULL;
+
+	data = malloc(sizeof(*data));
+	if (!data) {
+		free(handle);
+		return NULL;
+	}
 
 	memset(handle, 0, sizeof(*handle));
 	handle->ops = &io_script_ops;
@@ -284,6 +290,8 @@ struct io_handler * io_script_init(const char* script) {
 	memset(data, 0, sizeof(*data));
 	data->child = (pid_t)-1;
 	data->script = script;
+
+	fprintf(stderr, "Using script \"%s\" for output.\n", script);
 
 	return handle;
 }
