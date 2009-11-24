@@ -61,7 +61,6 @@ get)
 	;;
 
 xobex)
-	echo "testtest" > test.txt
 	test "${OBEX_CMD}" || exit 1
 	FILE=$(mktemp)
 	${OBEX_CMD} >${FILE} 2>/dev/null
