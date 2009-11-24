@@ -54,7 +54,8 @@ int check_type (char* type) {
 	for (; i < len; ++i) {
 		if (type[i] == '/')
 			break;
-		if (!isascii((int)type[i]) || !isalpha((int)type[i]))
+		if (!isascii((int)type[i]) ||
+		    !(isalpha((int)type[i]) || type[i] == '-' || type[i] == '.')) /* "x-", "vnd.", "prs." */
 			return 0;
 	}
 	if (++i >= len)

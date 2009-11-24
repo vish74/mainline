@@ -134,9 +134,6 @@ static int io_script_open (
 		return -ENOTSUP;
 	}
 
-	if (!name)
-		return -EINVAL;
-
 	err = io_script_close(self, transfer, true);
 	if (err)
 		return err;
@@ -177,8 +174,12 @@ static int io_script_open (
 		/* no break */
 
 	case IO_TYPE_GET:
-		fprintf(data->out, "Name: %s\n", name);
-		if (transfer->type)
+		if (!name && !transfer->type)
+			return -EINVAL;
+
+		if (name) 
+			fprintf(data->out, "Name: %s\n", name);
+		else if (transfer->type)
 			fprintf(data->out, "Type: %s\n", transfer->type);
 		break;
 
@@ -227,10 +228,10 @@ static ssize_t io_script_read(struct io_handler *self, void *buf, size_t bufsize
 	if (feof(data->in))
 		self->state |= IO_STATE_EOF;
 
-	if (status < bufsize && !feof(data->in))
+	if (status != 1 && !feof(data->in))
 		return -ferror(data->in);
 	else
-		return status;
+		return status*bufsize;
 }
 
 static ssize_t io_script_write(struct io_handler *self, const void *buf, size_t len)

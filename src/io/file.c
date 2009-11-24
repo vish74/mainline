@@ -209,10 +209,10 @@ static ssize_t io_file_read(struct io_handler *self, void *buf, size_t bufsize)
 	if (feof(data->in))
 		self->state |= IO_STATE_EOF;
 
-	if (status < bufsize && !feof(data->in))
+	if (status != 1 && !feof(data->in))
 		return -ferror(data->in);
 	else
-		return status;
+		return status*bufsize;
 }
 
 static ssize_t io_file_write(struct io_handler *self, const void *buf, size_t len)

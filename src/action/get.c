@@ -45,7 +45,10 @@ int parse_script_headers (obex_t* handle) {
 
 	while (1) {
 		size_t len = 0;
-		int err = io_readline(data->io, buffer, sizeof(buffer));
+		int err;
+
+		memset(buffer, 0, sizeof(buffer));
+		err = io_readline(data->io, buffer, sizeof(buffer));
 		if (err < 0) {
 			return err;
 		} else if (err == 0) {
@@ -82,11 +85,12 @@ int parse_script_headers (obex_t* handle) {
 		} else if (strncasecmp(buffer,"Length: ",8) == 0) {
 			char* endptr;
 			long dlen = strtol(buffer+8, &endptr, 10);
+
 			if ((dlen == LONG_MIN || dlen == LONG_MAX) && errno == ERANGE)
 				return -errno;
 
 			if (endptr != 0 && (0 <= dlen && dlen <= UINT32_MAX)) {
-				transfer->length = (uint32_t)dlen;
+				transfer->length = (size_t)dlen;
 				continue;
 			}
 
@@ -203,6 +207,7 @@ int get_read (obex_t* handle, uint8_t* buf, size_t size) {
 void obex_action_get (obex_t* handle, obex_object_t* obj, int event) {
 	file_data_t* data = OBEX_GetUserData(handle);
 	struct io_transfer_data *transfer = &data->transfer;
+	size_t tLen;
 	int len = 0;
 	int err;
 
@@ -272,18 +277,18 @@ void obex_action_get (obex_t* handle, obex_object_t* obj, int event) {
 		break;
 
 	case OBEX_EV_STREAMEMPTY:
-		len = get_read(handle,data->buffer,sizeof(data->buffer));
+		tLen = sizeof(data->buffer);
+		if (transfer->length < tLen)
+			tLen = transfer->length;
+		len = get_read(handle, data->buffer, tLen);
 		if (len >= 0) {
 			obex_headerdata_t hv;
+			unsigned int flags = OBEX_FL_STREAM_DATA;
 			hv.bs = data->buffer;
-			if (len == sizeof(data->buffer))
-				(void)OBEX_ObjectAddHeader(handle,obj,OBEX_HDR_BODY,
-							   hv,len,
-							   OBEX_FL_STREAM_DATA);
-			else
-				(void)OBEX_ObjectAddHeader(handle,obj,OBEX_HDR_BODY,
-							   hv,len,
-							   OBEX_FL_STREAM_DATAEND);			
+			if (len == 0)
+				flags = OBEX_FL_STREAM_DATAEND;
+			(void)OBEX_ObjectAddHeader(handle, obj, OBEX_HDR_BODY, hv, len, flags);
+			transfer->length -= len;
 		} else {
 			perror("Reading script output failed");
 			obex_send_response(handle, obj, OBEX_RSP_INTERNAL_SERVER_ERROR);

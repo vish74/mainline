@@ -23,6 +23,7 @@ while read LINE; do
     Name)   NAME="${VALUE}";;
     Type)   TYPE="${VALUE}";;
     Length) LENGTH="${VALUE}";;
+    X-OBEX-Type) OBEX_CMD="obex-${VALUE}";;
     esac
 done
 
@@ -53,14 +54,17 @@ put)
 
 get)
 	FILE=$(mktemp)
-	case "${TYPE}" in
-	x-obex/capability)
-		obex-capability >${FILE} 2>/dev/null
-		;;
+	stat --printf="Length: %s\n" ${FILE}
+	echo ""
+	cat ${FILE}
+	rm -f ${FILE}
+	;;
 
-	*)
-		;;
-	esac
+xobex)
+	echo "testtest" > test.txt
+	test "${OBEX_CMD}" || exit 1
+	FILE=$(mktemp)
+	${OBEX_CMD} >${FILE} 2>/dev/null
 	stat --printf="Length: %s\n" ${FILE}
 	echo ""
 	cat ${FILE}
