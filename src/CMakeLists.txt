@@ -5,7 +5,6 @@ list ( APPEND SOURCES
   obexpushd.c
   checks.c
   utf.c
-  action/core.c
   action/connect.c
   action/disconnect.c
   action/get.c
