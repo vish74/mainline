@@ -21,7 +21,6 @@
 #include "utf.h"
 #include "io.h"
 #include "net.h"
-#include "core.h"
 #include "action.h"
 
 #include <sys/types.h>

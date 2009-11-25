@@ -21,7 +21,6 @@
 #include "io.h"
 #include "utf.h"
 #include "net.h"
-#include "core.h"
 #include "action.h"
 
 #include <errno.h>
