@@ -292,7 +292,5 @@ struct io_handler * io_script_init(const char* script) {
 	data->child = (pid_t)-1;
 	data->script = script;
 
-	fprintf(stderr, "Using script \"%s\" for output.\n", script);
-
 	return handle;
 }
