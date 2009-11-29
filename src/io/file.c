@@ -35,6 +35,8 @@
 #include "utf.h"
 #include "net.h"
 #include "closexec.h"
+#include "x-obex/obex-capability.h"
+#include "x-obex/obex-folder-listing.h"
 
 struct io_file_data {
 	char *basedir;
@@ -124,10 +126,9 @@ static int io_file_open (
 	int err = 0;
 	char *name = NULL;
 	struct io_file_data *data = self->private_data;
+	struct stat s;
 
-	if (!transfer->name)
-		return -EINVAL;
-	else {
+	if (transfer->name) {
 		name = io_file_get_fullname(data->basedir, transfer->name);
 		if (!name)
 			return -errno;
@@ -139,6 +140,8 @@ static int io_file_open (
 
 	switch (t) {
 	case IO_TYPE_PUT:
+		if (!name)
+			return -EINVAL;
 		fprintf(stderr, "Creating file \"%s\"\n", name);
 		err = open_closexec(name, O_WRONLY|O_CREAT|O_EXCL,
 				    S_IRUSR|S_IWUSR|S_IRGRP|S_IWGRP|S_IROTH|S_IWOTH);
@@ -153,6 +156,8 @@ static int io_file_open (
 		break;
 
 	case IO_TYPE_GET:
+		if (!name)
+			return -EINVAL;
 		err = open_closexec(name, O_RDONLY, 0);
 		if (err == -1)
 			goto io_file_error;
@@ -160,13 +165,38 @@ static int io_file_open (
 		data->in = fdopen(err, "r");
 		if (data->in == NULL)
 			goto io_file_error;
-		if (feof(data->in))
-			self->state |= IO_STATE_EOF;
+		if (fstat(err, &s) == -1)
+			return -errno;
+		transfer->length = s.st_size;
+		transfer->time = s.st_mtime;
 		break;
 
 	case IO_TYPE_XOBEX:
 	default:
-		return -ENOTSUP;
+		data->in = tmpfile();
+		if (data->in == NULL)
+			goto io_file_error;
+
+		if (strcmp(transfer->type+7, "capability") == 0) {
+			struct obex_capability caps = {
+				.general = {
+					.vendor = NULL,
+					.model = NULL,
+				},
+			};
+			err = obex_capability(data->in, &caps);
+
+		} else if (strcmp(transfer->type+7, "folder-listing") == 0)
+			err = obex_folder_listing(data->in, ".", 0);
+		else
+			err = -ENOTSUP;
+
+		if (err)
+			goto out;
+
+		transfer->length = ftell(data->in);
+		(void)fseek(data->in, 0L, SEEK_SET);
+		break;
 	}
 
 	free(name);
@@ -177,6 +207,7 @@ static int io_file_open (
 
 io_file_error:
 	err = -errno;
+out:
 	free(name);
 	(void)io_file_close(self, transfer, true);
 	

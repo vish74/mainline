@@ -19,11 +19,91 @@
 #include "net.h"
 #include "action.h"
 
+
+static uint8_t obex_target_map[OBEX_TARGET_MAX_NB-1][16] = {
+	{ /* FTP */
+		0xF9, 0xEC, 0x7B, 0xC4, 0x95, 0x3C, 0x11, 0xD2,
+		0x98, 0x4E, 0x52, 0x54, 0x00, 0xDC, 0x9E, 0x09
+	}
+};
+
+
+static int check_connect_headers (obex_t* handle, obex_object_t* obj) {
+	uint8_t id = 0;
+	obex_headerdata_t value;
+	uint32_t vsize;
+	file_data_t* data = OBEX_GetUserData(handle);
+	struct io_transfer_data *transfer;
+
+	if (!data)
+		return 0;
+
+	transfer = &data->transfer;
+	while (OBEX_ObjectGetNextHeader(handle,obj,&id,&value,&vsize)) {
+		dbg_printf(data, "Got header 0x%02x with value length %u\n",
+			   (unsigned int)id, (unsigned int)vsize);
+		if (!vsize)
+			continue;
+		switch (id) {
+		case OBEX_HDR_DESCRIPTION:
+			/* this would be a self-description of the client */
+			break;
+
+		case OBEX_HDR_TARGET:
+			if (vsize <= sizeof(obex_target_map[0])) {
+				enum obex_target t = OBEX_TARGET_FTP;
+				for (; t < OBEX_TARGET_MAX_NB; ++t) {
+					if (memcmp(value.bs, obex_target_map[t-1], vsize) == 0) {
+						data->target = t;
+						break;
+					}
+				}
+				if (t == OBEX_TARGET_MAX_NB)
+					return 0;
+			}
+			break;
+
+		case OBEX_HDR_AUTHCHAL:
+			/* not implemented: when the client wants the server to authenticate itself */
+			break;
+
+		case OBEX_HDR_AUTHRESP:
+			data->net_data->auth_success = auth_verify(data->auth,value,vsize);
+			break;
+
+		default:
+			break;
+		}
+	}
+	return 1;
+}
+
 void obex_action_connect (obex_t* handle, obex_object_t* obj, int event) {
 	file_data_t* data = OBEX_GetUserData(handle);
+	uint8_t respCode = OBEX_RSP_SUCCESS;
+
 	switch (event) {
 	case OBEX_EV_REQ: /* A new request is coming in */
-		obex_send_response(handle, obj, net_security_init(data->net_data, data->auth, obj));
+		if (!check_connect_headers(handle,obj))
+			respCode = OBEX_RSP_BAD_REQUEST;
+		else {
+			if (data->target == OBEX_TARGET_FTP) {
+				obex_headerdata_t hv;
+
+				/* add connection header */
+				hv.bq4 = data->id;
+				OBEX_ObjectAddHeader(handle, obj, OBEX_HDR_CONNECTION, hv, 4,
+						     OBEX_FL_FIT_ONE_PACKET);
+
+				/* add who header with same content as target header from client */
+				hv.bs = obex_target_map[data->target-1];
+				OBEX_ObjectAddHeader(handle, obj, OBEX_HDR_WHO, hv,
+						     sizeof(obex_target_map[data->target-1]),
+						     OBEX_FL_FIT_ONE_PACKET);
+			}
+			respCode = net_security_init(data->net_data, data->auth, obj);
+		}
+		obex_send_response(handle, obj, respCode);
 		break;
 	}
 }

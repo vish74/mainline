@@ -11,7 +11,6 @@ MODE="$1"
 FROM=""
 NAME=""
 LENGTH="0"
-TYPE=""
 while read LINE; do
     if ( test -z "${LINE}" ); then
 	break
@@ -21,7 +20,6 @@ while read LINE; do
     case $TAG in
     From)   FROM="${VALUE}";;
     Name)   NAME="${VALUE}";;
-    Type)   TYPE="${VALUE}";;
     Length) LENGTH="${VALUE}";;
     X-OBEX-Type) OBEX_CMD="obex-${VALUE}";;
     esac
@@ -29,13 +27,8 @@ done
 
 case "${MODE}" in
 put)
-	if ( test -z "${NAME}" ); then
-	    exit 1;
-	fi
-	
-	if ( test -e "${NAME}" ); then
-	    exit 1
-	fi
+	test "${NAME}" || exit 1
+	test -e "${NAME}" && exit 1
 
         #tell obexpushd to go on
 	${DIALOG} --title "Obex-Push" \
@@ -53,15 +46,18 @@ put)
 	;;
 
 get)
-	FILE=$(mktemp)
-	stat --printf="Length: %s\n" ${FILE}
+	test "${NAME}" || exit 1
+	test -f "${NAME}" || exit 1
+
+	FILE=${NAME}
+	stat --printf="Length: %s\n" ${NAME}
 	echo ""
-	cat ${FILE}
-	rm -f ${FILE}
+	cat ${NAME}
 	;;
 
 xobex)
 	test "${OBEX_CMD}" || exit 1
+
 	FILE=$(mktemp)
 	${OBEX_CMD} >${FILE} 2>/dev/null
 	stat --printf="Length: %s\n" ${FILE}

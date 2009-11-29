@@ -35,7 +35,6 @@ if ( CMAKE_COMPILER_IS_GNUCC )
 endif ( CMAKE_COMPILER_IS_GNUCC )
 
 add_subdirectory ( src )
-add_subdirectory ( src/x-obex )
 add_subdirectory ( doc )
 
 install (

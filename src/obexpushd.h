@@ -10,6 +10,13 @@
 
 #include "io.h"
 
+enum obex_target {
+  OBEX_TARGET_OPP = 0,
+  OBEX_TARGET_FTP,
+
+  OBEX_TARGET_MAX_NB
+};
+
 /* private data for a client connection */
 typedef struct {
 	unsigned int id;
@@ -17,6 +24,7 @@ typedef struct {
 	uint8_t error;
 
 	uint8_t buffer[1000];
+	enum obex_target target;
 
 	struct net_data* net_data;
 	struct auth_handler *auth;
@@ -25,8 +33,9 @@ typedef struct {
 	struct io_transfer_data transfer;
 } file_data_t;
 
-int obex_object_headers (obex_t* handle, obex_object_t* obj);
 void obex_send_response (obex_t* handle, obex_object_t* obj, uint8_t respCode);
+
+extern int debug;
 void dbg_printf (file_data_t *data, const char *format, ...) __attribute__((format(printf,2,3)));
 
 int check_name (uint16_t* name);

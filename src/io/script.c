@@ -15,7 +15,7 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
  */
 
-#define _POSIX_SOURCE
+#define _GNU_SOURCE
 
 #include "obexpushd.h"
 
@@ -29,6 +29,7 @@
 #include <fcntl.h>
 #include <signal.h>
 #include <time.h>
+#include <limits.h>
 
 #include "io.h"
 #include "utf.h"
@@ -103,6 +104,93 @@ int put_wait_for_ok (struct io_handler *self)
 		return -EPERM;
 	else
 		return 0;
+}
+
+#define EOL(n) ((n) == '\n' || (n) == '\r')
+
+static
+int io_script_parse_headers (
+	struct io_handler *self,
+	struct io_transfer_data *transfer
+)
+{
+	char buffer[512+1];
+
+	while (1) {
+		size_t len = 0;
+		int err;
+
+		memset(buffer, 0, sizeof(buffer));
+		err = io_readline(self, buffer, sizeof(buffer));
+		if (err < 0) {
+			return err;
+		} else if (err == 0) {
+			return -EINVAL;
+		}
+		len = strlen(buffer);
+
+		if (len == 0 || !EOL(buffer[len-1]))
+			return -EINVAL;
+		
+		if (len && buffer[len-1] == '\n')
+			--len;
+		if (len && buffer[len-1] == '\r')
+			--len;
+		buffer[len] = 0;
+
+		/* stop on the first empty line */
+		if (len == 0)
+			break;
+
+		/* compare the first part of buffer with known headers
+		 * and ignore unknown ones
+		 */
+		if (strncasecmp(buffer,"Name: ",6) == 0) {
+			uint16_t* name = utf8to16((uint8_t*)(buffer+6));
+			if (!check_name(name)) {
+				free(name);
+				return -EINVAL;
+			}
+			if (transfer->name)
+				free(transfer->name);
+			transfer->name = name;
+
+		} else if (strncasecmp(buffer,"Length: ",8) == 0) {
+			char* endptr;
+			long dlen = strtol(buffer+8, &endptr, 10);
+
+			if ((dlen == LONG_MIN || dlen == LONG_MAX) && errno == ERANGE)
+				return -errno;
+
+			if (endptr != 0 && (0 <= dlen && dlen <= UINT32_MAX)) {
+				transfer->length = (size_t)dlen;
+				continue;
+			}
+
+		} else if (strncasecmp(buffer,"Type: ",6) == 0) {
+			char* type = buffer+6;
+			if (!check_type(type))
+				return -EINVAL;
+			if (transfer->type)
+				free(transfer->type);
+			transfer->type = strdup(type);
+
+		} else if (strncasecmp(buffer, "Time: ", 6) == 0) {
+			char* timestr = buffer+6;
+			struct tm time;
+
+			tzset();
+			/* uses GNU extensions */
+			strptime(timestr, "%Y-%m-%dT%H:%M:%S", &time);
+			time.tm_isdst = -1;
+			transfer->time = mktime(&time);
+			if (strlen(timestr) > 17 && timestr[17] == 'Z')
+				transfer->time -= timezone;
+
+		} else
+			continue;
+	}
+	return 0;
 }
 
 static int io_script_open (
@@ -197,8 +285,12 @@ static int io_script_open (
 	if (feof(data->in))
 		self->state |= IO_STATE_EOF;
 
-	if (t == IO_TYPE_PUT)
+	if (t == IO_TYPE_PUT) {
 		err = put_wait_for_ok(self);
+	} else {
+		err = io_script_parse_headers(self, transfer);
+	}
+
 	return err;
 }
 

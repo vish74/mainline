@@ -23,6 +23,8 @@
 #include "net.h"
 #include "action.h"
 
+#include "core.h"
+
 #include <errno.h>
 #include <sys/types.h>
 #include <sys/wait.h>
@@ -85,10 +87,7 @@ void obex_action_put (obex_t* handle, obex_object_t* obj, int event) {
 		obex_send_response(handle, obj, data->error);
 		return;
 	}
-	if (!obex_object_headers(handle,obj)) {
-		obex_send_response(handle, obj, OBEX_RSP_BAD_REQUEST);
-		return;
-	}
+
 	switch (event) {
 	case OBEX_EV_REQHINT: /* A new request is coming in */
 		(void)OBEX_ObjectReadStream(handle,obj,NULL);
@@ -107,6 +106,11 @@ void obex_action_put (obex_t* handle, obex_object_t* obj, int event) {
 		break;
 
 	case OBEX_EV_REQCHECK:
+		if (!obex_object_headers(handle,obj)) {
+			obex_send_response(handle, obj, OBEX_RSP_BAD_REQUEST);
+			return;
+		}
+
 		if (put_open(handle))
 			obex_send_response(handle, obj, OBEX_RSP_FORBIDDEN);
 		else

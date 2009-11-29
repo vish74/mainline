@@ -5,6 +5,7 @@ list ( APPEND SOURCES
   obexpushd.c
   checks.c
   utf.c
+  action/core.c
   action/connect.c
   action/disconnect.c
   action/get.c
@@ -20,6 +21,8 @@ list ( APPEND SOURCES
   net/publish/sdp.c
   net/irobex.c
 )
+
+add_subdirectory ( x-obex )
 
 set ( OBEXPUSHD_VERSION ${VERSION} )
 configure_file (
@@ -83,6 +86,8 @@ add_subdirectory ( obex_auth )
 add_executable ( obexpushd ${SOURCES} )
 target_link_libraries ( obexpushd
   obex_auth
+  obex-capability-lib
+  obex-folder-listing-lib
   ${OpenObex_LIBRARIES}
   ${Bluetooth_LIBRARIES}
   ${THREAD_LIBRARY}
