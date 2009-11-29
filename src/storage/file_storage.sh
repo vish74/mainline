@@ -51,6 +51,7 @@ get)
 
 	FILE=${NAME}
 	stat --printf="Length: %s\n" ${NAME}
+	stat --format="%y" ${NAME} | date -u +"Time: %Y%m%dT%H%M%SZ"
 	echo ""
 	cat ${NAME}
 	;;
