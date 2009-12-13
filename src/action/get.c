@@ -165,12 +165,17 @@ void obex_action_get (obex_t* handle, obex_object_t* obj, int event) {
 	int len = 0;
 	int err;
 
-	if (data->error &&
-	    (event == OBEX_EV_REQ ||
-	     event == OBEX_EV_REQCHECK ||
-	     event == OBEX_EV_STREAMEMPTY))
+	if (data->error
+	    && (event == OBEX_EV_REQHINT
+		|| event == OBEX_EV_REQ
+		|| event == OBEX_EV_STREAMEMPTY))
 	{
 		obex_send_response(handle, obj, data->error);
+		return;
+	}
+
+	if (!data->target) {
+		obex_send_response(handle, obj, OBEX_RSP_BAD_REQUEST);
 		return;
 	}
 

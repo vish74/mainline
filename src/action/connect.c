@@ -53,7 +53,7 @@ static int check_connect_headers (obex_t* handle, obex_object_t* obj) {
 			if (vsize <= sizeof(obex_target_map[0])) {
 				enum obex_target t = OBEX_TARGET_FTP;
 				for (; t < OBEX_TARGET_MAX_NB; ++t) {
-					if (memcmp(value.bs, obex_target_map[t-1], vsize) == 0) {
+					if (memcmp(value.bs, obex_target_map[t-2], vsize) == 0) {
 						data->target = t;
 						break;
 					}
@@ -84,6 +84,14 @@ void obex_action_connect (obex_t* handle, obex_object_t* obj, int event) {
 
 	switch (event) {
 	case OBEX_EV_REQ: /* A new request is coming in */
+		/* Connect must not be used twice by the client */
+		if (data->target != OBEX_TARGET_NONE) {
+			obex_send_response(handle, obj, respCode);
+			break;
+		}
+		/* Default to ObjectPush */
+		data->target = OBEX_TARGET_OPP;
+
 		if (!check_connect_headers(handle,obj))
 			respCode = OBEX_RSP_BAD_REQUEST;
 		else {
@@ -96,7 +104,7 @@ void obex_action_connect (obex_t* handle, obex_object_t* obj, int event) {
 						     OBEX_FL_FIT_ONE_PACKET);
 
 				/* add who header with same content as target header from client */
-				hv.bs = obex_target_map[data->target-1];
+				hv.bs = obex_target_map[data->target-2];
 				OBEX_ObjectAddHeader(handle, obj, OBEX_HDR_WHO, hv,
 						     sizeof(obex_target_map[data->target-1]),
 						     OBEX_FL_FIT_ONE_PACKET);

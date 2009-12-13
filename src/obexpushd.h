@@ -11,8 +11,9 @@
 #include "io.h"
 
 enum obex_target {
-  OBEX_TARGET_OPP = 0,
-  OBEX_TARGET_FTP,
+  OBEX_TARGET_NONE = 0, /* NOT CONNECTED */
+  OBEX_TARGET_OPP, /* ObjectPush */
+  OBEX_TARGET_FTP, /* File Browsing Service */
 
   OBEX_TARGET_MAX_NB
 };

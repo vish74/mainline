@@ -19,9 +19,15 @@
 #include "action.h"
 
 void obex_action_disconnect (obex_t* handle, obex_object_t* obj, int event) {
+	file_data_t* data = OBEX_GetUserData(handle);
+
 	switch (event) {
 	case OBEX_EV_REQHINT: /* A new request is coming in */
 		obex_send_response(handle, obj, OBEX_RSP_CONTINUE);
+		break;
+
+	case OBEX_EV_REQ:
+		data->target = OBEX_TARGET_NONE;
 		break;
 
 	case OBEX_EV_REQDONE:

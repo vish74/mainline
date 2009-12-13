@@ -79,12 +79,17 @@ void obex_action_put (obex_t* handle, obex_object_t* obj, int event) {
 	file_data_t* data = OBEX_GetUserData(handle);
 	struct io_transfer_data *transfer = &data->transfer;
 
-	if (data->error &&
-	    (event == OBEX_EV_REQ ||
-	     event == OBEX_EV_REQCHECK ||
-	     event == OBEX_EV_STREAMAVAIL))
+	if (data->error
+	    && (event == OBEX_EV_REQHINT
+		|| event == OBEX_EV_REQCHECK
+		|| event == OBEX_EV_STREAMEMPTY))
 	{
 		obex_send_response(handle, obj, data->error);
+		return;
+	}
+
+	if (!data->target) {
+		obex_send_response(handle, obj, OBEX_RSP_BAD_REQUEST);
 		return;
 	}
 
