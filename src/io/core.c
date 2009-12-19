@@ -148,3 +148,17 @@ ssize_t io_write(
 	else
 		return 0;
 }
+
+int io_check_dir(
+	struct io_handler *self,
+	const char *dir
+)
+{
+	if (!self)
+		return -EBADF;
+
+	if (self->ops && self->ops->check_dir)
+		return self->ops->check_dir(self, dir);
+	else
+		return 0;
+}

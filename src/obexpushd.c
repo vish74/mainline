@@ -161,6 +161,11 @@ void client_eventcb (obex_t* handle, obex_object_t* obj,
 			obex_action_get(handle,obj,event);
 		break;
 
+	case OBEX_CMD_SETPATH:
+		if (net_security_check(data->net_data))
+			obex_action_setpath(handle,obj,event);
+		break;
+
 	case OBEX_CMD_DISCONNECT:
 		obex_action_disconnect(handle,obj,event);
 		break;

@@ -45,6 +45,47 @@ struct io_file_data {
 	FILE *out;
 };
 
+static char* io_file_get_fullname(const char *basedir, const char *subdir, const uint16_t *filename)
+{
+	char *namebase = NULL;
+	int err = 0;
+	char *name;
+	size_t namesize;
+
+	if (filename) {
+		namebase = (char*)utf16to8(filename);
+		if (!namebase)
+			return NULL;
+	}
+
+	namesize = strlen(basedir) + 1 + utf8len(subdir) + 1 + utf8len(namebase) + 1;
+	name = malloc(namesize);
+	if (!name)
+		err = -errno;
+	else {
+		memset(name, 0, namesize);
+		if (strcmp(basedir, ".") != 0) {
+			strcat(name, basedir);
+		}
+		if (utf8len(subdir)) {
+			if (utf8len(name))
+				strcat(name, "/");
+			strcat(name, subdir);
+		}
+		if (utf8len(namebase)) {
+			if (utf8len(name))
+				strcat(name, "/");
+			strcat(name, namebase);
+
+		} else if (utf8len(name) == 0)
+			strcat(name, basedir);
+	}
+	free(namebase);
+	if (err)
+		errno = -err;
+	return name;
+}
+
 static int io_file_close (
 	struct io_handler *self,
 	struct io_transfer_data *transfer,
@@ -60,61 +101,36 @@ static int io_file_close (
 	}
 
 	if (data->out) {
-		char* name = (char*)utf16to8(transfer->name);
-
 		if (fclose(data->out) == EOF)
 			return -errno;
 		data->out = NULL;
 
-		if (!keep) {
-			if (!name)
-				return -ENOMEM;
-			if (unlink(name) == -1) /* remove the file */
-				return -errno;
-			
-		} else if (transfer->time) {
-			if (name) {
-				struct utimbuf times;
+		if (transfer) {
+			char* name = io_file_get_fullname(data->basedir, transfer->path, transfer->name);
 
-				times.actime = transfer->time;
-				times.modtime = transfer->time;
-				/* setting the time is non-critical */
-				(void)utime(name, &times);
+			if (!keep) {
+				if (!name)
+					return -ENOMEM;
+				if (unlink(name) == -1) /* remove the file */
+					return -errno;
+			
+			} else if (transfer->time) {
+				if (name) {
+					struct utimbuf times;
+					
+					times.actime = transfer->time;
+					times.modtime = transfer->time;
+					/* setting the time is non-critical */
+					(void)utime(name, &times);
+				}
 			}
+			if (name)
+				free(name);
 		}
-		if (name)
-			free(name);
 	}
 	self->state = 0;
 
 	return 0;
-}
-
-static char* io_file_get_fullname(const char *basedir, const uint16_t *filename)
-{
-	char* namebase = (char*)utf16to8(filename);
-
-	if (!namebase)
-		return NULL;
-
-	else if (strcmp(basedir, ".") == 0)
-		return namebase;
-
-	else {
-		int err = 0;
-		char *name;
-		size_t namesize = strlen(basedir) + 1 + strlen(namebase) + 1;
-
-		name = malloc(namesize);
-		if (!name)
-			err = -errno;
-		else
-			snprintf(name, namesize, "%s/%s", basedir, namebase);
-		free(namebase);
-		if (err)
-			errno = -err;
-		return name;
-	}
 }
 
 static int io_file_open (
@@ -128,19 +144,17 @@ static int io_file_open (
 	struct io_file_data *data = self->private_data;
 	struct stat s;
 
-	if (transfer->name) {
-		name = io_file_get_fullname(data->basedir, transfer->name);
-		if (!name)
-			return -errno;
-	}
-
-	err = io_file_close(self, transfer, true);
+	err = io_file_close(self, NULL, true);
 	if (err)
 		return err;
 
+	name = io_file_get_fullname(data->basedir, transfer->path, transfer->name);
+	if (!name)
+		return -errno;
+
 	switch (t) {
 	case IO_TYPE_PUT:
-		if (!name)
+		if (!transfer->name)
 			return -EINVAL;
 		fprintf(stderr, "Creating file \"%s\"\n", name);
 		err = open_closexec(name, O_WRONLY|O_CREAT|O_EXCL,
@@ -156,7 +170,7 @@ static int io_file_open (
 		break;
 
 	case IO_TYPE_GET:
-		if (!name)
+		if (!transfer->name)
 			return -EINVAL;
 		err = open_closexec(name, O_RDONLY, 0);
 		if (err == -1)
@@ -187,7 +201,7 @@ static int io_file_open (
 			err = obex_capability(data->in, &caps);
 
 		} else if (strcmp(transfer->type+7, "folder-listing") == 0)
-			err = obex_folder_listing(data->in, ".", 0);
+			err = obex_folder_listing(data->in, name, 0);
 		else
 			err = -ENOTSUP;
 
@@ -209,7 +223,7 @@ io_file_error:
 	err = -errno;
 out:
 	free(name);
-	(void)io_file_close(self, transfer, true);
+	(void)io_file_close(self, transfer, (err != -EEXIST));
 	
 	return err;
 }
@@ -267,6 +281,22 @@ static ssize_t io_file_write(struct io_handler *self, const void *buf, size_t le
 		return status;
 }
 
+static int io_file_check_dir(struct io_handler *self, const char *dir)
+{
+	struct io_file_data *data = self->private_data;
+	char *fulldir = io_file_get_fullname(data->basedir, dir, NULL);
+	struct stat s;
+	int err = 0;
+
+	if (stat(fulldir, &s) == -1)
+		err = -errno;
+	else if (!S_ISDIR(s.st_mode))
+		err = -ENOTDIR;
+	free(fulldir);
+
+	return err;
+}
+
 static struct io_handler* io_file_copy(struct io_handler *self)
 {
 	struct io_file_data *data = self->private_data;
@@ -281,6 +311,7 @@ static struct io_handler_ops io_file_ops = {
 	.cleanup = io_file_cleanup,
 	.read = io_file_read,
 	.write = io_file_write,
+	.check_dir = io_file_check_dir,
 };
 
 struct io_handler * io_file_init(const char *basedir) {

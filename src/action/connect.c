@@ -1,4 +1,4 @@
-/* Copyright (C) 2006-2007 Hendrik Sattler <post@hendrik-sattler.de>
+/* Copyright (C) 2006-2009 Hendrik Sattler <post@hendrik-sattler.de>
  *       
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -85,8 +85,8 @@ void obex_action_connect (obex_t* handle, obex_object_t* obj, int event) {
 	switch (event) {
 	case OBEX_EV_REQ: /* A new request is coming in */
 		/* Connect must not be used twice by the client */
-		if (data->target != OBEX_TARGET_NONE) {
-			obex_send_response(handle, obj, respCode);
+		if (!data || data->target != OBEX_TARGET_NONE) {
+			obex_send_response(handle, obj, OBEX_RSP_BAD_REQUEST);
 			break;
 		}
 		/* Default to ObjectPush */
@@ -108,6 +108,10 @@ void obex_action_connect (obex_t* handle, obex_object_t* obj, int event) {
 				OBEX_ObjectAddHeader(handle, obj, OBEX_HDR_WHO, hv,
 						     sizeof(obex_target_map[data->target-1]),
 						     OBEX_FL_FIT_ONE_PACKET);
+			}
+			if (data->transfer.path) {
+				free(data->transfer.path);
+				data->transfer.path = NULL;
 			}
 			respCode = net_security_init(data->net_data, data->auth, obj);
 		}

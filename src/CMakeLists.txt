@@ -10,6 +10,7 @@ list ( APPEND SOURCES
   action/disconnect.c
   action/get.c
   action/put.c
+  action/setpath.c
   auth/core.c
   auth/file.c
   io/core.c
