@@ -200,9 +200,13 @@ static int io_file_open (
 			};
 			err = obex_capability(data->in, &caps);
 
-		} else if (strcmp(transfer->type+7, "folder-listing") == 0)
-			err = obex_folder_listing(data->in, name, 0);
-		else
+		} else if (strcmp(transfer->type+7, "folder-listing") == 0) {
+			int flags = OFL_FLAG_TIMES | OFL_FLAG_PERMS;
+
+			if (utf8len(transfer->path))
+				flags |= OFL_FLAG_PARENT;
+			err = obex_folder_listing(data->in, name, flags);
+		} else
 			err = -ENOTSUP;
 
 		if (err)
