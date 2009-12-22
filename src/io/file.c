@@ -292,13 +292,34 @@ static int io_file_check_dir(struct io_handler *self, const char *dir)
 	struct stat s;
 	int err = 0;
 
-	if (stat(fulldir, &s) == -1)
+	if (!fulldir)
+		err = -errno;
+	else if (stat(fulldir, &s) == -1)
 		err = -errno;
 	else if (!S_ISDIR(s.st_mode))
 		err = -ENOTDIR;
 	free(fulldir);
 
 	return err;
+}
+
+static int io_file_create_dir(struct io_handler *self, const char *dir)
+{
+	struct io_file_data *data = self->private_data;
+	char *fulldir = io_file_get_fullname(data->basedir, dir, NULL);
+	int err = 0;
+
+	if (!fulldir)
+		err = -errno;
+	else {
+		fprintf(stderr, "Creating directory \"%s\"\n", fulldir);
+		if (mkdir(fulldir, S_IRWXU|S_IRWXG|S_IRWXO) == -1) {
+			fprintf(stderr, "Error: cannot create directory: %s\n", strerror(-err));
+			err = -errno;
+		}
+	}
+	
+	return 0;
 }
 
 static struct io_handler* io_file_copy(struct io_handler *self)
@@ -316,6 +337,7 @@ static struct io_handler_ops io_file_ops = {
 	.read = io_file_read,
 	.write = io_file_write,
 	.check_dir = io_file_check_dir,
+	.create_dir = io_file_create_dir,
 };
 
 struct io_handler * io_file_init(const char *basedir) {

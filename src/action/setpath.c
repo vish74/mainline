@@ -33,7 +33,6 @@ static int update_path(
 )
 {
 	size_t len = utf16len(name);
-	bool createPath = ((flags[0] & OBEX_FLAG_SETPATH_NOCREATE) == 0);
 	int err = 0;
 
 	if ((flags[0] & OBEX_FLAG_SETPATH_LEVELUP) && transfer->path) {
@@ -84,8 +83,8 @@ static int update_path(
 		n = NULL;
 		if (!err) {
 			err = io_check_dir(io, transfer->path);
-			if (err == -ENOENT && createPath) {
-				//TODO: create directory
+			if (err == -ENOENT && !(flags[0] & OBEX_FLAG_SETPATH_NOCREATE)) {
+				err = io_create_dir(io, transfer->path);
 			}
 			if (err) {
 				char* last = strrchr(transfer->path, (int)'/');
