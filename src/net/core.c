@@ -102,7 +102,7 @@ uint8_t net_security_init (
 			return OBEX_RSP_SERVICE_UNAVAILABLE;
 	}
 
-	return OBEX_RSP_CONTINUE;
+	return 0;
 }
 
 int net_security_check (struct net_data* data)

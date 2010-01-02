@@ -149,15 +149,6 @@ void obex_action_setpath (obex_t* handle, obex_object_t* obj, int event) {
 	/* struct io_transfer_data *transfer = &data->transfer; */
 	uint8_t respCode = OBEX_RSP_SUCCESS;
 
-	if (data->error
-	    && (event == OBEX_EV_REQHINT
-		|| event == OBEX_EV_REQ
-		|| event == OBEX_EV_REQCHECK))
-	{
-		obex_send_response(handle, obj, data->error);
-		return;
-	}
-
 	if (data->target != OBEX_TARGET_FTP) {
 		obex_send_response(handle, obj, OBEX_RSP_BAD_REQUEST);
 		return;

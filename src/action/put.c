@@ -79,24 +79,15 @@ void obex_action_put (obex_t* handle, obex_object_t* obj, int event) {
 	file_data_t* data = OBEX_GetUserData(handle);
 	struct io_transfer_data *transfer = &data->transfer;
 
-	if (data->error
-	    && (event == OBEX_EV_REQHINT
-		|| event == OBEX_EV_REQCHECK
-		|| event == OBEX_EV_STREAMEMPTY))
-	{
-		obex_send_response(handle, obj, data->error);
-		return;
-	}
-
 	if (!data->target) {
-		obex_send_response(handle, obj, OBEX_RSP_BAD_REQUEST);
+		data->error = OBEX_RSP_BAD_REQUEST;
+		obex_send_response(handle, obj, data->error);
 		return;
 	}
 
 	switch (event) {
 	case OBEX_EV_REQHINT: /* A new request is coming in */
 		(void)OBEX_ObjectReadStream(handle,obj,NULL);
-		data->error = 0;
 		if (transfer->name) {
 			free(transfer->name);
 			transfer->name = NULL;
@@ -106,38 +97,46 @@ void obex_action_put (obex_t* handle, obex_object_t* obj, int event) {
 			transfer->type = NULL;
 		}
 		data->count += 1;
+		data->error = 0;
 		transfer->length = 0;
 		transfer->time = 0;
 		break;
 
 	case OBEX_EV_REQCHECK:
-		if (!obex_object_headers(handle,obj)) {
-			obex_send_response(handle, obj, OBEX_RSP_BAD_REQUEST);
-			return;
-		}
+		if (!obex_object_headers(handle,obj))
+			data->error = OBEX_RSP_BAD_REQUEST;
 
-		if (put_open(handle))
-			obex_send_response(handle, obj, OBEX_RSP_FORBIDDEN);
-		else
-			obex_send_response(handle, obj, OBEX_RSP_CONTINUE);
+		else if (put_open(handle))
+			data->error = OBEX_RSP_FORBIDDEN;
+
+		obex_send_response(handle, obj, data->error);
 		break;
 
 	case OBEX_EV_STREAMAVAIL:
-	{
-		const uint8_t* buf = NULL;
-		int len = OBEX_ObjectReadStream(handle,obj,&buf);
+		if (!data->error) {
+			const uint8_t* buf = NULL;
+			int len = OBEX_ObjectReadStream(handle,obj,&buf);
 
-		dbg_printf(data, "got %d bytes of streamed data\n", len);
-		if (len) {
-			int err = put_write(handle,buf,len);
-			if (err)
-				obex_send_response(handle, obj, OBEX_RSP_FORBIDDEN);
+			dbg_printf(data, "got %d bytes of streamed data\n", len);
+			if (len) {
+				int err = put_write(handle,buf,len);
+				if (err)
+					data->error = OBEX_RSP_FORBIDDEN;
+			}
 		}
+		obex_send_response(handle, obj, data->error);
 		break;
-	}
 
+	case OBEX_EV_LINKERR:
+	case OBEX_EV_PARSEERR:
+	case OBEX_EV_ABORT:
+		data->error = 0xFF;
+		/* no break */
 	case OBEX_EV_REQDONE:
-		(void)put_close(handle);
+		if (data->error)
+			(void)put_revert(handle);
+		else
+			(void)put_close(handle);
 		if (transfer->name) {
 			free(transfer->name);
 			transfer->name = NULL;
@@ -148,10 +147,6 @@ void obex_action_put (obex_t* handle, obex_object_t* obj, int event) {
 		}
 		transfer->length = 0;
 		transfer->time = 0;
-		break;
-
-	case OBEX_EV_ABORT:
-		(void)put_revert(handle);
 		break;
 	}
 }

@@ -108,8 +108,10 @@ static const char* obex_command_string(uint8_t cmd)
 
 void obex_send_response (obex_t* handle, obex_object_t* obj, uint8_t respCode) {
 	file_data_t* data = OBEX_GetUserData(handle);
+
 	dbg_printf(data, "Sending response code %u\n", ((respCode >> 4) * 100) + (respCode & 0xF));
 	switch (respCode) {
+	case 0:
 	case OBEX_RSP_CONTINUE:
 	case OBEX_RSP_SUCCESS:
 		(void)OBEX_ObjectSetRsp(obj,
@@ -118,12 +120,8 @@ void obex_send_response (obex_t* handle, obex_object_t* obj, uint8_t respCode) {
 		break;
 
 	default:
-	        {
-			file_data_t* data = OBEX_GetUserData(handle);
-			(void)OBEX_ObjectSetRsp(obj, respCode, respCode);
-			data->error = respCode;
-			break;
-		}
+		(void)OBEX_ObjectSetRsp(obj, respCode, respCode);
+		break;
 	}
 }
 

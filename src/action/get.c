@@ -165,23 +165,14 @@ void obex_action_get (obex_t* handle, obex_object_t* obj, int event) {
 	int len = 0;
 	int err;
 
-	if (data->error
-	    && (event == OBEX_EV_REQHINT
-		|| event == OBEX_EV_REQ
-		|| event == OBEX_EV_STREAMEMPTY))
-	{
-		obex_send_response(handle, obj, data->error);
-		return;
-	}
-
 	if (!data->target) {
-		obex_send_response(handle, obj, OBEX_RSP_BAD_REQUEST);
+		data->error = OBEX_RSP_BAD_REQUEST;
+		obex_send_response(handle, obj, data->error);
 		return;
 	}
 
 	switch (event) {
 	case OBEX_EV_REQHINT: /* A new request is coming in */
-		data->error = 0;
 		if (transfer->name) {
 			free(transfer->name);
 			transfer->name = NULL;
@@ -191,58 +182,57 @@ void obex_action_get (obex_t* handle, obex_object_t* obj, int event) {
 			transfer->type = NULL;
 		}
 		data->count += 1;
+		data->error = 0;
 		transfer->length = 0;
 		transfer->time = 0;
 		break;
 
 	case OBEX_EV_REQ:
-		if (!obex_object_headers(handle,obj)) {
-			obex_send_response(handle, obj, OBEX_RSP_BAD_REQUEST);
-			return;
-		}
+		if (!obex_object_headers(handle,obj))
+			data->error = OBEX_RSP_BAD_REQUEST;
 
-		if (!get_check(data, transfer)) {
+		else if (!get_check(data, transfer)) {
 			dbg_printf(data, "%s\n", "Forbidden request");
-			obex_send_response(handle, obj, OBEX_RSP_FORBIDDEN);
-			break;
-		}
-		  
-		err = get_open(handle);
-		if (err < 0 || transfer->length == 0) {
-			dbg_printf(data, "%s: %s\n", "Running script failed or no output data", strerror(-err));
-			obex_send_response(handle, obj, OBEX_RSP_INTERNAL_SERVER_ERROR);
-			break;
-		}
+			data->error = OBEX_RSP_FORBIDDEN;
 
-		obex_send_response(handle, obj, OBEX_RSP_CONTINUE);
-		add_headers(handle, obj);
+		} else {
+			err = get_open(handle);
+			if (err < 0 || transfer->length == 0) {
+				dbg_printf(data, "%s: %s\n", "Running script failed or no output data", strerror(-err));
+				data->error = OBEX_RSP_INTERNAL_SERVER_ERROR;
+			}
+			add_headers(handle, obj);
+		}
+		obex_send_response(handle, obj, data->error);
 		break;
 
 	case OBEX_EV_STREAMEMPTY:
-		tLen = sizeof(data->buffer);
-		if (transfer->length < tLen)
-			tLen = transfer->length;
-		len = get_read(handle, data->buffer, tLen);
-		if (len >= 0) {
-			obex_headerdata_t hv;
-			unsigned int flags = OBEX_FL_STREAM_DATA;
-			hv.bs = data->buffer;
-			if (len == 0)
-				flags = OBEX_FL_STREAM_DATAEND;
-			(void)OBEX_ObjectAddHeader(handle, obj, OBEX_HDR_BODY, hv, len, flags);
-			transfer->length -= len;
-		} else {
-			perror("Reading script output failed");
-			obex_send_response(handle, obj, OBEX_RSP_INTERNAL_SERVER_ERROR);
+		if (!data->error) {
+			tLen = sizeof(data->buffer);
+			if (transfer->length < tLen)
+				tLen = transfer->length;
+			len = get_read(handle, data->buffer, tLen);
+			if (len >= 0) {
+				obex_headerdata_t hv;
+				unsigned int flags = OBEX_FL_STREAM_DATA;
+				hv.bs = data->buffer;
+				if (len == 0)
+					flags = OBEX_FL_STREAM_DATAEND;
+				(void)OBEX_ObjectAddHeader(handle, obj, OBEX_HDR_BODY, hv, len, flags);
+				transfer->length -= len;
+			} else {
+				perror("Reading script output failed");
+				data->error = OBEX_RSP_INTERNAL_SERVER_ERROR;
+			}
 		}
+		obex_send_response(handle, obj, data->error);
 		break;
 
 	case OBEX_EV_LINKERR:
 	case OBEX_EV_PARSEERR:
 	case OBEX_EV_ABORT:
 	case OBEX_EV_REQDONE:
-	{
-		int err = get_close(handle);
+		err = get_close(handle);
 		if (err)
 			dbg_printf(data, "%s\n", strerror(-err));
 		if (transfer->name) {
@@ -255,7 +245,6 @@ void obex_action_get (obex_t* handle, obex_object_t* obj, int event) {
 		}
 		transfer->length = 0;
 		transfer->time = 0;
-	}
 		break;
 	}
 }

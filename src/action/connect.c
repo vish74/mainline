@@ -80,7 +80,7 @@ static int check_connect_headers (obex_t* handle, obex_object_t* obj) {
 
 void obex_action_connect (obex_t* handle, obex_object_t* obj, int event) {
 	file_data_t* data = OBEX_GetUserData(handle);
-	uint8_t respCode = OBEX_RSP_SUCCESS;
+	uint8_t respCode = 0;
 
 	switch (event) {
 	case OBEX_EV_REQ: /* A new request is coming in */
@@ -116,6 +116,8 @@ void obex_action_connect (obex_t* handle, obex_object_t* obj, int event) {
 			respCode = net_security_init(data->net_data, data->auth, obj);
 		}
 		obex_send_response(handle, obj, respCode);
+		if (respCode)
+			data->target = OBEX_TARGET_NONE;
 		break;
 	}
 }
