@@ -41,6 +41,8 @@
 #include <stdarg.h>
 #include <signal.h>
 #include <time.h>
+#include <locale.h>
+#include <langinfo.h>
 
 #define PROGRAM_NAME "obexpushd"
 #include "version.h"
@@ -404,6 +406,7 @@ int main (int argc, char** argv) {
 	int c = 0;
 	struct net_handler* handle[NET_INDEX_MAX];
 
+	(void)setlocale(LC_CTYPE, "");
 	io = io_file_init(".");
 
 	for (i = 0; i < NET_INDEX_MAX; ++i) {
@@ -560,6 +563,8 @@ int main (int argc, char** argv) {
 		}
 	} else {
 		print_disclaimer();
+		if (strcasecmp(nl_langinfo(CODESET), "UTF-8") != 0)
+			printf("Warning: local character set is not Unicode.\n");
 	}
 
 	/* setup the signal handlers */
