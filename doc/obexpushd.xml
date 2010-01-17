@@ -2,7 +2,7 @@
 <!DOCTYPE reference PUBLIC "-//OASIS//DTD DocBook XML V4.2//DE" "http://www.oasis-open.org/docbook/xml/4.2/docbookx.dtd">
 <reference>
   <referenceinfo>
-    <date>2009-10-29</date>
+    <date>2010-01-17</date>
     <productname>obexpushd</productname>
     <productnumber>0.10</productnumber>
     <authorgroup>
@@ -246,6 +246,163 @@
 	  <listitem>
 	    <para>
 	      Show version of program.
+	    </para>
+	  </listitem>
+	</varlistentry>
+      </variablelist>
+    </refsect1>
+  </refentry>
+
+  <refentry id="obex-folder-listing">
+    <refmeta>
+      <refentrytitle>obex-folder-listing</refentrytitle>
+      <manvolnum>1</manvolnum>
+      <refmiscinfo class="manual">User commands</refmiscinfo>
+    </refmeta>
+
+    <refnamediv>
+      <refname>obex-folder-listing</refname>
+      <refpurpose>create an obex folder-listing object</refpurpose>
+    </refnamediv>
+
+    <refsynopsisdiv>
+      <cmdsynopsis>
+	<command>obex-folder-listing</command>
+	<arg choice="opt"><option>-P</option></arg>
+	<arg choice="opt"><option>-H</option></arg>
+	<arg choice="opt"><option>-t</option></arg>
+	<arg choice="opt"><option>-p</option></arg>
+	<arg choice="opt"><option>-o</option></arg>
+	<arg choice="opt"><option>-g</option></arg>
+	<arg choice="opt"><option>-h</option></arg>
+      </cmdsynopsis>
+    </refsynopsisdiv>
+
+    <refsect1>
+      <title>Description</title>
+      <para>
+	An OBEX folder-listing is a XML formatted description of a directory.
+      </para>
+    </refsect1>
+
+    <refsect1>
+      <title>Options</title>
+      <variablelist>
+	<varlistentry>
+	  <term><option>-P</option></term>
+	  <listitem>
+	    <para>
+	      Show parent folder indicator. This should be used on all directories that are not the exported root directory.
+	    </para>
+	  </listitem>
+	</varlistentry>
+	<varlistentry>
+	  <term><option>-H</option></term>
+	  <listitem>
+	    <para>
+	      Also list hidden files/directories.
+	    </para>
+	  </listitem>
+	</varlistentry>
+	<varlistentry>
+	  <term><option>-t</option></term>
+	  <listitem>
+	    <para>
+	      Show time attributes.
+	    </para>
+	  </listitem>
+	</varlistentry>
+	<varlistentry>
+	  <term><option>-p</option></term>
+	  <listitem>
+	    <para>
+	      Show permission attributes.
+	    </para>
+	  </listitem>
+	</varlistentry>
+	<varlistentry>
+	  <term><option>-o</option></term>
+	  <listitem>
+	    <para>
+	      Show file owner attribute.
+	    </para>
+	  </listitem>
+	</varlistentry>
+	<varlistentry>
+	  <term><option>-g</option></term>
+	  <listitem>
+	    <para>
+	      Show file group attribute.
+	    </para>
+	  </listitem>
+	</varlistentry>
+	<varlistentry>
+	  <term><option>-h</option></term>
+	  <listitem>
+	    <para>
+	      Show the help message.
+	    </para>
+	  </listitem>
+	</varlistentry>
+      </variablelist>
+    </refsect1>
+  </refentry>
+
+  <refentry id="obex-capability">
+    <refmeta>
+      <refentrytitle>obex-capability</refentrytitle>
+      <manvolnum>1</manvolnum>
+      <refmiscinfo class="manual">User commands</refmiscinfo>
+    </refmeta>
+
+    <refnamediv>
+      <refname>obex-capability</refname>
+      <refpurpose>create an obex capability object</refpurpose>
+    </refnamediv>
+
+    <refsynopsisdiv>
+      <cmdsynopsis>
+	<command>obex-capability</command>
+	<arg choice="opt"><option>-V</option> <replaceable>vendor</replaceable></arg>
+	<arg choice="opt"><option>-M</option> <replaceable>model</replaceable></arg>
+	<arg choice="opt"><option>-h</option></arg>
+      </cmdsynopsis>
+    </refsynopsisdiv>
+
+    <refsect1>
+      <title>Description</title>
+      <para>
+	An OBEX capability object describes the capabilities of a device.
+	This application is still incomplete.
+      </para>
+    </refsect1>
+
+    <refsect1>
+      <title>Options</title>
+      <variablelist>
+	<varlistentry>
+	  <term><option>-V</option></term>
+	  <listitem>
+	    <para>
+	      Use <replaceable>vendor</replaceable> as vendor name. If this option is not used, the
+	      vendor name is set to "dummy vendor".
+	    </para>
+	  </listitem>
+	</varlistentry>
+	<varlistentry>
+	  <term><option>-M</option></term>
+	  <listitem>
+	    <para>
+	      Use <replaceable>model</replaceable> as model description. If this option is not used, the
+	      model description is set to "dummy model".
+	    </para>
+	  </listitem>
+	</varlistentry>
+	<varlistentry>
+	  <term><option>-h</option></term>
+	  <listitem>
+	    <para>
+	      Show the help message.
 	    </para>
 	  </listitem>
 	</varlistentry>
