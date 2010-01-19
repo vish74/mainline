@@ -63,6 +63,9 @@ static int update_path(
 		if (!n)
 			return -errno;
 
+		if (!check_name((uint8_t*)n))
+			return -EINVAL;
+
 		if (strcmp(n, "..") == 0)
 			return -EINVAL;
 

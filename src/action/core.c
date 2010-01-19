@@ -39,7 +39,7 @@ int obex_object_headers (obex_t* handle, obex_object_t* obj) {
 				dbg_printf(data, "name: \"%s\"\n", (char*)n);
 				free(n);
 			}
-			if (!check_name(transfer->name)) {
+			if (!check_wrap_utf16(transfer->name, check_name)) {
 				dbg_printf(data, "CHECK FAILED: %s\n", "Invalid name string");
 				return 0;
 			}
@@ -54,7 +54,7 @@ int obex_object_headers (obex_t* handle, obex_object_t* obj) {
 			memcpy(transfer->type,value.bs,vsize);
 			transfer->type[vsize] = '\0';
 			dbg_printf(data, "type: \"%s\"\n", transfer->type);
-			if (!check_type(transfer->type)) {
+			if (!check_type((uint8_t*)transfer->type)) {
 				dbg_printf(data, "CHECK FAILED: %s\n", "Invalid type string");
 				return 0;
 			}

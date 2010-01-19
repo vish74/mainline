@@ -26,29 +26,24 @@
 #include <stdio.h>
 
 static
-int strcheck (uint8_t* s, int (*check)(int c)) {
+int name_check_cb(int c) {
+  return !(c == (int)':' || c == (int)'\\' || c == (int)'/' || iscntrl(c));
+}
+
+static
+int strcheck (uint8_t *s, int (*check)(int c)) {
 	for (; *s != 0; ++s)
 		if (check((int)*s))
 			return 1;
 	return 0;
 }
 
-int check_name (uint16_t* name) {
-	uint8_t* n = utf16to8(name);
-	
-	if (strchr((char*)n,(int)':') ||
-	    strchr((char*)n,(int)'\\') ||
-	    strchr((char*)n,(int)'/') ||
-	    strcheck(n,iscntrl)) {
-		free(n);
-		return 0;
-	}
-	free(n);
-	return 1;
+int check_name (uint8_t *name) {
+	return strcheck(name, name_check_cb);
 }
 
-int check_type (char* type) {
-	size_t len = strlen(type);
+int check_type (uint8_t *type) {
+  size_t len = strlen((char*)type);
 	size_t i = 0;
 
 	for (; i < len; ++i) {
@@ -65,4 +60,11 @@ int check_type (char* type) {
 			return 0;
 	}
 	return 1;
+}
+
+int check_wrap_utf16 (uint16_t *name, int (*func)(uint8_t*)) {
+	uint8_t* n = utf16to8(name);
+	int result = func(n);
+	free(n);
+	return result;
 }

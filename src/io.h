@@ -11,6 +11,7 @@ void pipe_close (int client_fds[2]);
 enum io_type {
 	IO_TYPE_PUT,   /* storing data */
 	IO_TYPE_GET,   /* retrieving data */
+	IO_TYPE_CREATEDIR,   /* create a directory */
 	IO_TYPE_XOBEX, /* x-obex services */
 };
 

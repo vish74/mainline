@@ -146,14 +146,12 @@ int io_script_parse_headers (
 		 * and ignore unknown ones
 		 */
 		if (strncasecmp(buffer,"Name: ",6) == 0) {
-			uint16_t* name = utf8to16((uint8_t*)(buffer+6));
-			if (!check_name(name)) {
-				free(name);
+			uint8_t *name = (uint8_t*)(buffer+6);
+			if (!check_name(name))
 				return -EINVAL;
-			}
 			if (transfer->name)
 				free(transfer->name);
-			transfer->name = name;
+			transfer->name = utf8to16(name);
 
 		} else if (strncasecmp(buffer,"Length: ",8) == 0) {
 			char* endptr;
@@ -169,7 +167,7 @@ int io_script_parse_headers (
 
 		} else if (strncasecmp(buffer,"Type: ",6) == 0) {
 			char* type = buffer+6;
-			if (!check_type(type))
+			if (!check_type((uint8_t*)type))
 				return -EINVAL;
 			if (transfer->type)
 				free(transfer->type);
@@ -212,6 +210,10 @@ static int io_script_open (
 
 	case IO_TYPE_GET:
 		args[1] = "get";
+		break;
+
+	case IO_TYPE_CREATEDIR:
+		args[1] = "createdir";
 		break;
 
 	case IO_TYPE_XOBEX:
@@ -269,6 +271,13 @@ static int io_script_open (
 			fprintf(data->out, "Name: %s\n", name);
 		else if (transfer->type)
 			fprintf(data->out, "Type: %s\n", transfer->type);
+		/* no break */
+
+	case IO_TYPE_CREATEDIR:
+		if (transfer->path)
+			fprintf(data->out, "Path: %s\n", transfer->path);
+		else
+			fprintf(data->out, "Path: .\n");
 		break;
 
 	case IO_TYPE_XOBEX:
