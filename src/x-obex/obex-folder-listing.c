@@ -1,4 +1,4 @@
-/* Copyright (C) 2006 Hendrik Sattler <post@hendrik-sattler.de>
+/* Copyright (C) 2006,2010 Hendrik Sattler <post@hendrik-sattler.de>
  *       
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -44,14 +44,33 @@ enum ft {
 };
 
 static
-mode_t filemode (const char* name)
+mode_t mode_fixup(uid_t uid, uid_t gid, mode_t mode, int flags)
+{
+	uid_t e;
+	if (!(flags & OFL_FLAG_OWNER)) {
+		e = geteuid();
+		if (uid != e && 0 != e)
+			mode &= ~(S_IRUSR | S_IWUSR);
+	}
+
+	if (!(flags & OFL_FLAG_GROUP)) {
+		e = getegid();
+		if (gid != e && 0 != e)
+			mode &= ~(S_IRGRP | S_IWGRP);
+	}
+
+	return mode;
+}
+
+static
+mode_t filemode (const char* name, int flags)
 {
 	struct stat s;
 	if (name == NULL ||
 	    stat(name,&s) == -1)
 		return 0;
 	else
-		return s.st_mode;
+		return mode_fixup(s.st_uid, s.st_gid, s.st_mode, flags);;
 }
 
 static
@@ -77,6 +96,7 @@ void print_filename (FILE* fd, const char* filename, mode_t st_parent, int flags
 	if (filename == NULL ||
 	    stat(filename,&s) == -1)
 		return;
+	s.st_mode = mode_fixup(s.st_uid, s.st_gid, s.st_mode, flags);
 
 	name = strrchr(filename,(int)'/');
 	if (name == NULL)
@@ -101,7 +121,7 @@ void print_filename (FILE* fd, const char* filename, mode_t st_parent, int flags
 		return;
 	}
 
-	fprintf(fd," name=\"%s\" size=\"%ld\"",name,s.st_size);
+	fprintf(fd," name=\"%s\" size=\"%zd\"",name,s.st_size);
 
 	if (flags & OFL_FLAG_TIMES) {
 		if (strftime(create_time,15,"%Y%m%dT%H%M%SZ",gmtime(&s.st_ctime)))
@@ -122,18 +142,18 @@ void print_filename (FILE* fd, const char* filename, mode_t st_parent, int flags
 
 	if (flags & OFL_FLAG_PERMS) {	
 		fprintf(fd," user-perm=\"%s%s%s\"",
-			(s.st_mode&S_IRUSR)?"R":"",
-			(s.st_mode&S_IWUSR)?"W":"",
-			(st_parent&S_IWUSR)?"D":"");
+			(s.st_mode & S_IRUSR)?"R":"",
+			((s.st_mode & S_IWUSR) && !(flags & OFL_FLAG_KEEP))?"W":"",
+			((st_parent & S_IWUSR) && !(flags & OFL_FLAG_NODEL))?"D":"");
 #ifndef _WIN32
 		fprintf(fd," group-perm=\"%s%s%s\"",
-			(s.st_mode&S_IRGRP)?"R":"",
-			(s.st_mode&S_IWGRP)?"W":"",
-			(st_parent&S_IWGRP)?"D":"");
+			(s.st_mode & S_IRGRP)?"R":"",
+			((s.st_mode & S_IWGRP) && !(flags & OFL_FLAG_KEEP))?"W":"",
+			((st_parent & S_IWGRP) && !(flags & OFL_FLAG_NODEL))?"D":"");
 		fprintf(fd," other-perm=\"%s%s%s\"",
-			(s.st_mode&S_IROTH)?"R":"",
-			(s.st_mode&S_IWOTH)?"W":"",
-			(st_parent&S_IWOTH)?"D":"");
+			(s.st_mode & S_IROTH)?"R":"",
+			((s.st_mode & S_IWOTH) && !(flags & OFL_FLAG_KEEP))?"W":"",
+			((st_parent & S_IWOTH) && !(flags & OFL_FLAG_NODEL))?"D":"");
 #endif
 	}
 
@@ -146,15 +166,18 @@ void print_dir (FILE* fd, const char* dir, int flags)
 	DIR* d;
 	char* filename = NULL;
 	size_t flen;
-	struct stat s;
+	mode_t mode;
 	struct dirent* entry = NULL;
 	char* seperator;
   
-	if (dir == NULL ||
-	    stat(dir,&s) == -1)
+	if (dir == NULL)
 		return;
-	seperator = (dir[strlen(dir)-1] == '/')? "" : "/";
 
+	mode = filemode(dir, flags);
+	if (mode == 0)
+		return;
+
+	seperator = (dir[strlen(dir)-1] == '/')? "" : "/";
 	d = opendir(dir);
 	flen = strlen(dir)+strlen(seperator)+1;
 	while ((entry = readdir(d))) {
@@ -163,7 +186,7 @@ void print_dir (FILE* fd, const char* dir, int flags)
 			continue;
 		filename = realloc(filename,flen+strlen(entry->d_name));
 		sprintf(filename,"%s%s%s",dir,seperator,entry->d_name);
-		print_filename(fd,filename,s.st_mode,flags);
+		print_filename(fd,filename,mode,flags);
 	}
 	if (filename)
 		free(filename);
@@ -231,11 +254,11 @@ int obex_folder_listing (FILE* fd, char* name, int flags)
 	if (parent) {
 		if (flags & OFL_FLAG_PARENT)
 			xml_print(fd,1,"parent-folder",NULL,0);
-		m = filemode(parent);
+		m = filemode(parent, flags);
 		free(parent);
 	}
 
-	switch (filetype(filemode(name))) {
+	switch (filetype(filemode(name, flags))) {
 	case FT_FOLDER:
 		print_dir(fd,name,flags);
 		break;

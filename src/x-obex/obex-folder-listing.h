@@ -6,7 +6,8 @@
 #define OFL_FLAG_PERMS  (1 << 3) /* show permission attributes */
 #define OFL_FLAG_OWNER  (1 << 4) /* show file owner attribute */
 #define OFL_FLAG_GROUP  (1 << 5) /* show file group attribute */
-#define OFL_FLAG__MASK  0x3F
+#define OFL_FLAG_KEEP   (1 << 6) /* keep files: writing existing file is not supported */
+#define OFL_FLAG_NODEL  (1 << 7) /* deleting is not supported */
 
 /** write the OBEX folder listing
  * @param fd    the output
