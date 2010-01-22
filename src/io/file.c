@@ -185,13 +185,28 @@ static int io_file_open (
 		transfer->time = s.st_mtime;
 		break;
 
-	case IO_TYPE_XOBEX:
-	default:
+	case IO_TYPE_LISTDIR:
 		data->in = tmpfile();
 		if (data->in == NULL)
 			goto io_file_error;
+		else {
+			int flags = OFL_FLAG_TIMES | OFL_FLAG_PERMS | OFL_FLAG_KEEP | OFL_FLAG_NODEL;
 
-		if (strcmp(transfer->type+7, "capability") == 0) {
+			if (utf8len(transfer->path))
+				flags |= OFL_FLAG_PARENT;
+			err = obex_folder_listing(data->in, name, flags);
+			if (err)
+				goto out;
+		}
+		transfer->length = ftell(data->in);
+		(void)fseek(data->in, 0L, SEEK_SET);
+		break;
+
+	case IO_TYPE_CAPS:
+		data->in = tmpfile();
+		if (data->in == NULL)
+			goto io_file_error;
+		else {
 			struct obex_capability caps = {
 				.general = {
 					.vendor = NULL,
@@ -199,26 +214,19 @@ static int io_file_open (
 				},
 			};
 			err = obex_capability(data->in, &caps);
-
-		} else if (strcmp(transfer->type+7, "folder-listing") == 0) {
-			int flags = OFL_FLAG_TIMES | OFL_FLAG_PERMS;
-
-			if (utf8len(transfer->path))
-				flags |= OFL_FLAG_PARENT;
-			err = obex_folder_listing(data->in, name, flags);
-		} else
-			err = -ENOTSUP;
-
-		if (err)
-			goto out;
-
+			if (err)
+				goto out;
+		}
 		transfer->length = ftell(data->in);
 		(void)fseek(data->in, 0L, SEEK_SET);
 		break;
+
+	default:
+		err = -EINVAL;
+		goto out;
 	}
 
 	free(name);
-
 	self->state |= IO_STATE_OPEN;
 
 	return 0;
@@ -311,7 +319,7 @@ static int io_file_create_dir(struct io_handler *self, const char *dir)
 
 	if (!fulldir)
 		err = -errno;
-	else {
+	else if (io_file_check_dir(self, dir) != 0) {
 		fprintf(stderr, "Creating directory \"%s\"\n", fulldir);
 		if (mkdir(fulldir, S_IRWXU|S_IRWXG|S_IRWXO) == -1) {
 			fprintf(stderr, "Error: cannot create directory: %s\n", strerror(-err));

@@ -41,6 +41,37 @@ struct io_script_data {
 	FILE *out;
 };
 
+static int io_script_exit (
+	pid_t child,
+	bool keep
+)
+{
+	int status;
+	int retval = 0;
+
+	if (!keep) {
+		/* signal 'undo' and give it time to react */
+		kill(child, SIGUSR1);
+		sleep(10);
+		kill(child, SIGKILL);
+	}
+
+	if (waitpid(child, &status, 0) < 0)
+		retval = -errno;
+	else {
+		if (WIFEXITED(status)) {
+			retval = WEXITSTATUS(status);
+			/* fprintf(stderr, "script exited with exit code %d\n", retval); */
+
+		} else if (WIFSIGNALED(status) && keep) {
+			retval = WTERMSIG(status);
+			/* fprintf(stderr, "script got signal %d\n", retval); */
+		}
+	}
+
+	return retval;
+}
+
 static int io_script_close (
 	struct io_handler *self,
 	struct io_transfer_data *transfer,
@@ -48,44 +79,29 @@ static int io_script_close (
 )
 {
 	struct io_script_data *data = self->private_data;
+	int retval = 0;
 
 	if (data->child != (pid_t)-1) {
-		int status;
-
-		if (!keep) {
-			/* signal 'undo' and give it time to react */
-			kill(data->child, SIGUSR1);
-			//sleep(2);
-		}
-		//kill(data->child, SIGKILL);
-		if (waitpid(data->child, &status, 0) < 0)
-			return -errno;
-
+		retval = io_script_exit(data->child, keep);
 		data->child = (pid_t)-1;
-
-		if (WIFEXITED(status)) {
-			fprintf(stderr, "script exited with exit code %d\n", WEXITSTATUS(status));
-
-		} else if (WIFSIGNALED(status)) {
-			fprintf(stderr, "script got signal %d\n", WTERMSIG(status));
-		}
-
 	}
 
 	if (data->in) {
 		if (fclose(data->in) == EOF)
-			return -errno;
-		data->in = NULL;
+			retval = -errno;
+		else
+			data->in = NULL;
 	}
 
 	if (data->out) {
 		if (fclose(data->out) == EOF)
-			return -errno;
-		data->out = NULL;
+			retval = -errno;
+		else
+			data->out = NULL;
 	}
 	self->state = 0;
 
-	return 0;
+	return retval;
 }
 
 static
@@ -191,40 +207,17 @@ int io_script_parse_headers (
 	return 0;
 }
 
-static int io_script_open (
+static int io_script_prepare_cmd (
 	struct io_handler *self,
 	struct io_transfer_data *transfer,
-	enum io_type t
+	const char *cmd
 )
 {
-	int err = 0;
 	int p[2] = { -1, -1};
-	uint8_t* name = utf16to8(transfer->name);
 	struct io_script_data *data = self->private_data;
-	char* args[] = { (char*)data->script, NULL , NULL };
+	char* args[] = {(char*)data->script, (char*)cmd, NULL};
 
-	switch (t) {
-	case IO_TYPE_PUT:
-		args[1] = "put";
-		break;
-
-	case IO_TYPE_GET:
-		args[1] = "get";
-		break;
-
-	case IO_TYPE_CREATEDIR:
-		args[1] = "createdir";
-		break;
-
-	case IO_TYPE_XOBEX:
-		args[1] = "xobex";
-		break;
-
-	default:
-		return -ENOTSUP;
-	}
-
-	err = io_script_close(self, transfer, true);
+	int err = io_script_close(self, transfer, true);
 	if (err)
 		return err;
 
@@ -244,7 +237,18 @@ static int io_script_open (
 
 	self->state |= IO_STATE_OPEN;
 
-	/* headers can be written here */
+	return err;
+}
+
+static int io_script_write_headers (
+	struct io_handler *self,
+	struct io_transfer_data *transfer,
+	enum io_type t
+)
+{
+	struct io_script_data *data = self->private_data;
+	uint8_t* name = utf16to8(transfer->name);
+
 	if (transfer->peername && strlen(transfer->peername))
 		fprintf(data->out, "From: %s\n", transfer->peername);
 	switch (t) {
@@ -273,15 +277,14 @@ static int io_script_open (
 			fprintf(data->out, "Type: %s\n", transfer->type);
 		/* no break */
 
-	case IO_TYPE_CREATEDIR:
+	case IO_TYPE_LISTDIR:
 		if (transfer->path)
 			fprintf(data->out, "Path: %s\n", transfer->path);
 		else
 			fprintf(data->out, "Path: .\n");
 		break;
 
-	case IO_TYPE_XOBEX:
-		fprintf(data->out, "X-OBEX-Type: %s\n", transfer->type+7);
+	case IO_TYPE_CAPS:
 		if (name)
 			fprintf(data->out, "Type; %s\n", name);
 		break;		
@@ -291,13 +294,56 @@ static int io_script_open (
 	/* empty line signals that data follows */
 	fprintf(data->out, "\n");
 	fflush(data->out);
+	return 0;
+}
+
+static int io_script_open (
+	struct io_handler *self,
+	struct io_transfer_data *transfer,
+	enum io_type t
+)
+{
+	struct io_script_data *data = self->private_data;
+	const char *cmd;
+	int err;
+
+	switch (t) {
+	case IO_TYPE_PUT:
+		cmd = "put";
+		break;
+
+	case IO_TYPE_GET:
+		cmd = "get";
+		break;
+
+	case IO_TYPE_LISTDIR:
+		cmd = "listdir";
+		break;
+
+	case IO_TYPE_CAPS:
+		cmd = "capability";
+		break;
+
+	default:
+		return -ENOTSUP;
+	}
+
+	err = io_script_prepare_cmd(self, transfer, cmd);
+	if (!err)
+		io_script_write_headers(self, transfer, t);
+	if (err)
+		return err;
 	if (feof(data->in))
 		self->state |= IO_STATE_EOF;
 
-	if (t == IO_TYPE_PUT) {
+	switch (t) {
+	case IO_TYPE_PUT:
 		err = put_wait_for_ok(self);
-	} else {
+		break;
+
+	default:
 		err = io_script_parse_headers(self, transfer);
+		break;
 	}
 
 	return err;
@@ -356,6 +402,21 @@ static ssize_t io_script_write(struct io_handler *self, const void *buf, size_t 
 		return status;
 }
 
+static int io_script_create_dir(struct io_handler *self, const char *dir)
+{
+	struct io_script_data *data = self->private_data;
+	struct io_transfer_data transfer = {
+		.path = strdup(dir),
+	};
+	int err = io_script_prepare_cmd(self, &transfer, "createdir");
+	if (!err)
+		err = io_script_exit(data->child, true);
+	if (err > 0)
+		err = -EFAULT;
+	free(transfer.path);
+	return err;
+}
+
 static struct io_handler* io_script_copy(struct io_handler *self)
 {
 	struct io_script_data *data = self->private_data;
@@ -370,6 +431,7 @@ static struct io_handler_ops io_script_ops = {
 	.cleanup = io_script_cleanup,
 	.read = io_script_read,
 	.write = io_script_write,
+	.create_dir = io_script_create_dir,
 };
 
 struct io_handler * io_script_init(const char* script) {

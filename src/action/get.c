@@ -143,9 +143,20 @@ int get_open (obex_t* handle) {
 	struct io_transfer_data *transfer = &data->transfer;
 	int err = 0;
 	
-	if (transfer->type && strncmp(transfer->type, "x-obex/", 7) == 0)
-		err = io_open(data->io, transfer, IO_TYPE_XOBEX);
-	else
+	if (transfer->type && strncmp(transfer->type, "x-obex/", 7) == 0) {
+		if (strcmp(transfer->type+7, "folder-listing") == 0) {
+			err = io_open(data->io, transfer, IO_TYPE_LISTDIR);
+
+		} else if (strcmp(transfer->type+7, "capability") == 0) {
+			err = io_open(data->io, transfer, IO_TYPE_CAPS);
+
+		/* } else if (strcmp(transfer->type+7, "object-profile") == 0) { */
+
+		} else {
+			/* unknown x-obex type */
+			err = -EINVAL;
+		}
+	} else
 		err = io_open(data->io, transfer, IO_TYPE_GET);
 
 	return err;
