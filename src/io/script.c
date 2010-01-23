@@ -240,21 +240,32 @@ static int io_script_prepare_cmd (
 	return err;
 }
 
-static int io_script_write_headers (
+#define IO_HT_FROM   (1 << 0)
+#define IO_HT_LENGTH (1 << 1)
+#define IO_HT_TIME   (1 << 2)
+#define IO_HT_NAME   (1 << 3)
+#define IO_HT_TYPE   (1 << 4)
+#define IO_HT_PATH   (1 << 5)
+
+static void io_script_write_headers (
 	struct io_handler *self,
 	struct io_transfer_data *transfer,
-	enum io_type t
+	int ht
 )
 {
 	struct io_script_data *data = self->private_data;
-	uint8_t* name = utf16to8(transfer->name);
 
-	if (transfer->peername && strlen(transfer->peername))
-		fprintf(data->out, "From: %s\n", transfer->peername);
-	switch (t) {
-	case IO_TYPE_PUT:
+	if (ht & IO_HT_FROM) {
+		if (transfer->peername && strlen(transfer->peername))
+			fprintf(data->out, "From: %s\n", transfer->peername);
+	}
+
+	if (ht & IO_HT_LENGTH) {
 		if (transfer->length)
 			fprintf(data->out, "Length: %zu\n", transfer->length);
+	}
+
+	if (ht & IO_HT_TIME) {
 		if (transfer->time) {
 			char tmp[17];
 			struct tm t;
@@ -265,36 +276,30 @@ static int io_script_write_headers (
 				fprintf(data->out, "Time: %s\n", tmp);
 			}
 		}
-		/* no break */
+	}
 
-	case IO_TYPE_GET:
-		if (!name && !transfer->type)
-			return -EINVAL;
-
+	if (ht & IO_HT_NAME) {
+		uint8_t* name = utf16to8(transfer->name);
 		if (name) 
 			fprintf(data->out, "Name: %s\n", name);
-		else if (transfer->type)
-			fprintf(data->out, "Type: %s\n", transfer->type);
-		/* no break */
+		free(name);
+	}
 
-	case IO_TYPE_LISTDIR:
+	if (ht & IO_HT_TYPE) {
+		if (transfer->type)
+			fprintf(data->out, "Type: %s\n", transfer->type);
+	}
+
+	if (ht & IO_HT_PATH) {
 		if (transfer->path)
 			fprintf(data->out, "Path: %s\n", transfer->path);
 		else
 			fprintf(data->out, "Path: .\n");
-		break;
-
-	case IO_TYPE_CAPS:
-		if (name)
-			fprintf(data->out, "Type; %s\n", name);
-		break;		
 	}
-	free(name);
 	
 	/* empty line signals that data follows */
 	fprintf(data->out, "\n");
 	fflush(data->out);
-	return 0;
 }
 
 static int io_script_open (
@@ -305,19 +310,29 @@ static int io_script_open (
 {
 	struct io_script_data *data = self->private_data;
 	const char *cmd;
+	int ht = IO_HT_FROM;
 	int err;
 
 	switch (t) {
 	case IO_TYPE_PUT:
 		cmd = "put";
+		ht |= IO_HT_LENGTH | IO_HT_TIME | IO_HT_NAME | IO_HT_TYPE | IO_HT_PATH;
 		break;
 
 	case IO_TYPE_GET:
 		cmd = "get";
+		ht |= IO_HT_PATH;
+		if (transfer->name)
+			ht |= IO_HT_NAME;
+		else if (transfer->type)
+			ht |= IO_HT_TYPE;
+		else
+			return -EINVAL;
 		break;
 
 	case IO_TYPE_LISTDIR:
 		cmd = "listdir";
+		ht |= IO_HT_PATH;		
 		break;
 
 	case IO_TYPE_CAPS:
@@ -330,7 +345,7 @@ static int io_script_open (
 
 	err = io_script_prepare_cmd(self, transfer, cmd);
 	if (!err)
-		io_script_write_headers(self, transfer, t);
+		io_script_write_headers(self, transfer, ht);
 	if (err)
 		return err;
 	if (feof(data->in))
@@ -409,8 +424,10 @@ static int io_script_create_dir(struct io_handler *self, const char *dir)
 		.path = strdup(dir),
 	};
 	int err = io_script_prepare_cmd(self, &transfer, "createdir");
-	if (!err)
+	if (!err) {
+		io_script_write_headers(self, &transfer, IO_HT_PATH);
 		err = io_script_exit(data->child, true);
+	}
 	if (err > 0)
 		err = -EFAULT;
 	free(transfer.path);
