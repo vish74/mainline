@@ -49,13 +49,13 @@ mode_t mode_fixup(uid_t uid, uid_t gid, mode_t mode, int flags)
 	uid_t e;
 	if (!(flags & OFL_FLAG_OWNER)) {
 		e = geteuid();
-		if (uid != e && 0 != e)
+		if (0 != e && uid != e)
 			mode &= ~(S_IRUSR | S_IWUSR);
 	}
 
 	if (!(flags & OFL_FLAG_GROUP)) {
 		e = getegid();
-		if (gid != e && 0 != e)
+		if (0 != e && gid != e)
 			mode &= ~(S_IRGRP | S_IWGRP);
 	}
 
