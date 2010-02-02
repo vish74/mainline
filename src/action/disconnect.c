@@ -17,6 +17,7 @@
 
 #include "obexpushd.h"
 #include "action.h"
+#include "net.h"
 
 void obex_action_disconnect (obex_t* handle, obex_object_t* obj, int event) {
 	file_data_t* data = OBEX_GetUserData(handle);
@@ -35,7 +36,7 @@ void obex_action_disconnect (obex_t* handle, obex_object_t* obj, int event) {
 		break;
 
 	case OBEX_EV_REQDONE:
-		(void)OBEX_TransportDisconnect(handle);
+		net_disconnect(data->net_data);
 		break;
 	}
 }

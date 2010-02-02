@@ -22,6 +22,8 @@ struct net_handler_ops {
 	 * or a negated error number (see errno) on error.
 	 */
 	int  (*get_peer)(obex_t*, char* buffer, size_t bufsiz);
+
+	void (*disconnect)(struct net_handler*, obex_t*);
 };
 
 struct net_handler {
@@ -60,6 +62,7 @@ uint8_t net_security_init (
 int net_security_check (struct net_data* data);
 void net_security_cleanup (struct net_data* data);
 void net_get_peer (struct net_data* data, char* buffer, size_t bufsiz);
+void net_disconnect (struct net_data* data);
 void net_cleanup (struct net_data* data);
 
 #endif /* OBEXPUSHD_NET_H */

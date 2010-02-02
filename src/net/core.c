@@ -78,6 +78,18 @@ void net_init (
 	}
 }
 
+void net_disconnect (
+	struct net_data* data
+)
+{
+	struct net_handler *h = data->handler;
+
+	if (h && h->ops->disconnect)
+		h->ops->disconnect(h, data->obex);
+	else
+		(void)OBEX_TransportDisconnect(data->obex);
+}
+
 uint8_t net_security_init (
 	struct net_data* data,
 	struct auth_handler* auth,
