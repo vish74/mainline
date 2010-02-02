@@ -342,6 +342,9 @@ static void print_help (char* me) {
 #else
 	       " -N             listen to IPv4 network connections on port 650\n"
 #endif
+#ifdef USB_GADGET_SUPPORT
+	       " -G<device>     listen on an USB gadget device file\n"
+#endif
 	       "\n"
 	       "Options:\n"
 	       " -n             do not detach from terminal\n"
@@ -430,7 +433,9 @@ enum net_index {
 	IDX_IRDA,
 	IDX_IRDA_EXTRA,
 	IDX_INET,
-
+#ifdef USB_GADGET_SUPPORT
+	IDX_GADGET,
+#endif
 	NET_INDEX_MAX
 };
 
@@ -462,7 +467,7 @@ int main (int argc, char** argv) {
 	memset(data, 0, sizeof(data));
 
 	while (c != -1) {
-		c = getopt(argc,argv,"B::I::N::Aa:dhnp:r:o:s:v");
+		c = getopt(argc,argv,"B::I::N::G:Aa:dhnp:r:o:s:v");
 		switch (c) {
 		case -1: /* processed all options, no error */
 			break;
@@ -525,7 +530,15 @@ int main (int argc, char** argv) {
 			}
 			break;
 		}
-
+#ifdef USB_GADGET_SUPPORT
+		case 'G':
+			if (optarg) {
+				if (handle[IDX_GADGET])
+					net_handler_cleanup(handle[IDX_GADGET]);
+				handle[IDX_GADGET] = usb_gadget_setup(optarg, 0);
+			}
+			break;
+#endif
 		case 'd':
 			debug = 1;
 			/* no break */

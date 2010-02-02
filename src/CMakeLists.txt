@@ -41,6 +41,12 @@ include_directories (
   ${CMAKE_CURRENT_BINARY_DIR}
 )
 
+option ( ENABLE_USB_GADGET_SUPPORT "Build EXPERIMENTAL support for USB gadget" OFF )
+if ( ENABLE_USB_GADGET_SUPPORT )
+  list ( APPEND obexpushd_DEFINITIONS USB_GADGET_SUPPORT )
+  list ( APPEND SOURCES net/usbgobex.c )  
+endif ( ENABLE_USB_GADGET_SUPPORT )
+
 if ( OpenObex_HAVE_TcpObex )
   list ( APPEND obexpushd_DEFINITIONS OPENOBEX_TCPOBEX=1 )
   list ( APPEND SOURCES net/tcpobex.c )
