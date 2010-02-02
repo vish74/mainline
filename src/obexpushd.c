@@ -128,7 +128,7 @@ void obex_send_response (obex_t* handle, obex_object_t* obj, uint8_t respCode) {
 }
 
 static
-void client_eventcb (obex_t* handle, obex_object_t* obj,
+void common_eventcb (obex_t* handle, obex_object_t* obj,
 		     int __unused mode, int event,
 		     int obex_cmd, int __unused obex_rsp)
 {
@@ -141,10 +141,6 @@ void client_eventcb (obex_t* handle, obex_object_t* obj,
 		obex_cmd = last_obex_cmd;
 	else
 		last_obex_cmd = obex_cmd;
-
-	if (debug)
-		printf("%u: OBEX_EV_%s, OBEX_CMD_%s\n", data->id,
-		       obex_event_string(event), obex_command_string(obex_cmd));
 
 	switch (obex_cmd) {
 	case OBEX_CMD_CONNECT:
@@ -186,51 +182,76 @@ void client_eventcb (obex_t* handle, obex_object_t* obj,
 	}
 }
 
+static
+void client_eventcb (obex_t* handle, obex_object_t* obj,
+		     int mode, int event,
+		     int obex_cmd, int obex_rsp)
+{
+	file_data_t* data = OBEX_GetUserData(handle);
+
+	if (debug)
+		printf("%u: OBEX_EV_%s, OBEX_CMD_%s\n", data->id,
+		       obex_event_string(event), obex_command_string(obex_cmd));
+
+	common_eventcb(handle, obj, mode, event, obex_cmd, obex_rsp);
+}
+
+static
+file_data_t* create_client (obex_t *obex) {
+	file_data_t* data = malloc(sizeof(*data));
+
+	if (data) {
+		memset(data,0,sizeof(*data));
+		data->id = id++;
+		data->net_data = OBEX_GetUserData(obex);
+		data->auth = auth_copy(auth);
+		data->io = io_copy(io);
+	}
+	return data;
+}
+
+static
+void cleanup_client (file_data_t *data) {
+	if (data->transfer.name)
+		free(data->transfer.name);
+	if (data->transfer.type)
+		free(data->transfer.type);
+	free(data);
+}
+
 static void* handle_client (void* arg) {
 	obex_t *obex = arg;
-	file_data_t* data = malloc(sizeof(*data));
-	struct net_data *net;
-	char buffer[256];
+	file_data_t *data = create_client(obex);
 
-	if (!data)
-		goto out1;
-	memset(data,0,sizeof(*data));
-
-	data->id = id++;
-	data->auth = auth_copy(auth);
-	data->io = io_copy(io);
-
-	net = net_data_new();
-	if (!net)
-		goto out2;
-	memcpy(net, OBEX_GetUserData(arg), sizeof(*net));
-	net->obex = obex;
-	data->net_data = net;
-
-	OBEX_SetUserData(obex, data);
-
-	memset(buffer, 0, sizeof(buffer));
-	net_get_peer(data->net_data, buffer, sizeof(buffer));
-	fprintf(stderr,"Connection from \"%s\"\n", buffer);
-
-	do {
-		if (OBEX_HandleInput(data->net_data->obex, 10) < 0)
-			break;
-	} while (1);
-
-out2:
 	if (data) {
+		/* create new net_data for this client */
+		struct net_data *net = net_data_new();
+
+		if (net) {
+			char buffer[256];
+
+			memcpy(net, data->net_data, sizeof(*net));
+			net->obex = obex;
+			data->net_data = net;
+
+			OBEX_SetUserData(obex, data);
+
+			memset(buffer, 0, sizeof(buffer));
+			net_get_peer(data->net_data, buffer, sizeof(buffer));
+			fprintf(stderr,"Connection from \"%s\"\n", buffer);
+
+			do {
+				if (OBEX_HandleInput(data->net_data->obex, 10) < 0)
+					break;
+			} while (1);
+		}
+
 		if (data->net_data) {
 			OBEX_Cleanup(data->net_data->obex);
 			free(data->net_data);
 		}
-		if (data->transfer.name)
-			free(data->transfer.name);
-		if (data->transfer.type)
-			free(data->transfer.type);
-		free(data);
+		cleanup_client(data);
 	}
-out1:
 	return NULL;
 }
 
@@ -252,20 +273,46 @@ void create_instance (void* (*cb)(void*), void *cbdata) {
 
 static
 void eventcb (obex_t* handle, obex_object_t __unused *obj,
-	      int __unused mode, int event,
-	      int __unused obex_cmd, int __unused obex_rsp)
+	      int mode, int event,
+	      int obex_cmd, int obex_rsp)
 {
 	dbg_printf(NULL, "OBEX_EV_%s, OBEX_CMD_%s\n",
 		   obex_event_string(event), obex_command_string(obex_cmd));
+
 	if (event == OBEX_EV_ACCEPTHINT) {
-		int fd;
-		obex_t* client = OBEX_ServerAccept(handle, client_eventcb, NULL);
-		if (!client)
-			return;
-		fd = OBEX_GetFD(client);
-		if (fd >= 0)
-			(void)fcntl(fd, F_SETFD, FD_CLOEXEC);
-		create_instance(handle_client, client);
+		obex_t *client = OBEX_ServerAccept(handle, client_eventcb, NULL);
+		if (client) {
+			int fd;
+
+			fd = OBEX_GetFD(client);
+			if (fd >= 0)
+				(void)fcntl(fd, F_SETFD, FD_CLOEXEC);
+			create_instance(handle_client, client);
+		}
+
+	} else {
+		/* This handles connections that can only handle one client at a time.
+		 */
+		file_data_t *data;
+		
+		switch (obex_cmd) {
+		case OBEX_CMD_CONNECT:
+			if (obex_cmd == OBEX_EV_REQHINT) {
+				data = create_client(handle);
+				OBEX_SetUserData(handle, data);
+			}
+			break;
+
+		case OBEX_CMD_DISCONNECT:
+			if (obex_cmd == OBEX_EV_REQHINT) {
+				data = OBEX_GetUserData(handle);
+				OBEX_SetUserData(handle, data->net_data);
+				cleanup_client(data);
+			}
+			break;
+		}
+
+		common_eventcb(handle, obj, mode, event, obex_cmd, obex_rsp);
 	}
 }
 
