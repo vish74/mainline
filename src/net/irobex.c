@@ -1,6 +1,7 @@
 #define _GNU_SOURCE
 
 #include "net.h"
+#include "compiler.h"
 
 #include <stdlib.h>
 #include <errno.h>
@@ -36,6 +37,7 @@ obex_t* irda_init (
 
 static
 int irda_get_peer(
+	struct net_handler __unused *h,
 	obex_t* handle,
 	char* buffer,
 	size_t bufsiz

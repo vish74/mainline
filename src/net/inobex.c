@@ -92,6 +92,7 @@ int inet_security_check(
 
 static
 int inet_get_peer(
+	struct net_handler __unused *h,
 	obex_t* handle,
 	char* buffer,
 	size_t bufsiz

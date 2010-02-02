@@ -115,6 +115,7 @@ int bluetooth_security_init(
 
 static
 int bluetooth_get_peer(
+	struct net_handler __unused *h,
 	obex_t* handle,
 	char* buffer,
 	size_t bufsiz

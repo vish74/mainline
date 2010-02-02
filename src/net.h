@@ -21,7 +21,7 @@ struct net_handler_ops {
          * The return value is the valid length of buffer
 	 * or a negated error number (see errno) on error.
 	 */
-	int  (*get_peer)(obex_t*, char* buffer, size_t bufsiz);
+	int  (*get_peer)(struct net_handler*, obex_t*, char* buffer, size_t bufsiz);
 
 	void (*disconnect)(struct net_handler*, obex_t*);
 };

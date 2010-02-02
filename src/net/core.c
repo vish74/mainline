@@ -138,7 +138,7 @@ void net_get_peer (struct net_data* data, char* buffer, size_t bufsiz)
 	struct net_handler *h = data->handler;
 
 	if (h && h->ops->get_peer)
-		h->ops->get_peer(data->obex, buffer, bufsiz);	
+		(void)h->ops->get_peer(h, data->obex, buffer, bufsiz);
 }
 
 void net_cleanup (struct net_data* data)
