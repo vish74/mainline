@@ -1,6 +1,4 @@
 
-#define _GNU_SOURCE
-
 #include "closexec.h"
 #include "net.h"
 #include "compiler.h"

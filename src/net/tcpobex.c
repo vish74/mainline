@@ -1,6 +1,4 @@
 
-#define _GNU_SOURCE
-
 #include "net.h"
 #include "compiler.h"
 #include "publish/avahi.h"

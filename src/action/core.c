@@ -1,5 +1,3 @@
-#define _GNU_SOURCE
-
 #include "action.h"
 #include "utf.h"
 #include "obexpushd.h"

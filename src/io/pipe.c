@@ -15,11 +15,6 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
  */
 
-/* work around crappy GNU libc to define environ in unistd.h as
- * define in environ(3posix)
- */
-#define _GNU_SOURCE
-
 #include "../io.h"
 
 #include <unistd.h>

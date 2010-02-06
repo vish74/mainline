@@ -15,8 +15,6 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
  */
    
-#define _GNU_SOURCE
-
 #include <bluetooth/bluetooth.h>
 #include "obex_auth.h"
 #include "obexpushd.h"

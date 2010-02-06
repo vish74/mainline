@@ -27,6 +27,7 @@ if ( CMAKE_COMPILER_IS_GNUCC )
     endforeach ( type )
   endforeach ( flag )
 endif ( CMAKE_COMPILER_IS_GNUCC )
+add_definitions ( -D_GNU_SOURCE )
 
 if ( NOT CMAKE_BUILD_TYPE )
   set ( CMAKE_BUILD_TYPE Release
