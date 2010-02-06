@@ -93,8 +93,8 @@ add_subdirectory ( obex_auth )
 add_executable ( obexpushd ${SOURCES} )
 target_link_libraries ( obexpushd
   obex_auth
-  obex-capability-lib
-  obex-folder-listing-lib
+  obex-capability
+  obex-folder-listing
   ${OpenObex_LIBRARIES}
   ${Bluetooth_LIBRARIES}
   ${THREAD_LIBRARY}
