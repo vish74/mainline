@@ -14,7 +14,6 @@ if ( USE_MAINTAINER_MODE )
     )
     set ( MAINTAINER_MODE_FLAGS
       pedantic
-      std=c99
     )
     foreach ( flag ${MAINTAINER_MODE_WARN_FLAGS} )
       list ( APPEND MAINTAINER_MODE_FLAGS "W${flag}" )
