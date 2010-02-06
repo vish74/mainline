@@ -1,26 +1,20 @@
-project ( obexpushd C )
+cmake_minimum_required ( VERSION 2.6.3 FATAL_ERROR )
+project ( obexpushd NONE )
 
 set ( VERSION_MAJOR 0 )
-set ( VERSION_MINOR 9 )
+set ( VERSION_MINOR 10 )
 set ( VERSION_PATCH 0 )
 set ( VERSION "${VERSION_MAJOR}.${VERSION_MINOR}" )
 if ( VERSION_PATCH GREATER 0 )
   set ( VERSION "${VERSION}.${VERSION_PATCH}" )
 endif ( VERSION_PATCH GREATER 0 )
 
-cmake_minimum_required ( VERSION 2.6.3 FATAL_ERROR )
-
-if ( NOT CMAKE_BUILD_TYPE )
-  set ( CMAKE_BUILD_TYPE Release
-        CACHE STRING "Choice of a predefined CMake ruleset" FORCE )
-endif ( NOT CMAKE_BUILD_TYPE )
-
 list ( APPEND CMAKE_MODULE_PATH
   ${CMAKE_CURRENT_SOURCE_DIR}/CMakeModules
 )
 
+enable_language ( C )
 include ( MaintainerMode )
-
 if ( CMAKE_COMPILER_IS_GNUCC )
   set ( C_COMPILER_FLAGS
     std=c99
@@ -33,6 +27,11 @@ if ( CMAKE_COMPILER_IS_GNUCC )
     endforeach ( type )
   endforeach ( flag )
 endif ( CMAKE_COMPILER_IS_GNUCC )
+
+if ( NOT CMAKE_BUILD_TYPE )
+  set ( CMAKE_BUILD_TYPE Release
+        CACHE STRING "Choice of a predefined CMake ruleset" FORCE )
+endif ( NOT CMAKE_BUILD_TYPE )
 
 add_subdirectory ( src )
 add_subdirectory ( doc )
@@ -62,18 +61,22 @@ set ( CPACK_PACKAGE_VERSION_MINOR "${VERSION_MINOR}" )
 set ( CPACK_PACKAGE_VERSION_PATCH "${VERSION_PATCH}" )
 set ( CPACK_PACKAGE_VERSION       "${VERSION}" )
 
-execute_process (
-  COMMAND         ${CMAKE_C_COMPILER} -dumpmachine
-  OUTPUT_VARIABLE CPACK_SYSTEM_NAME
-)
-string ( REGEX REPLACE "[\r\n]" "" CPACK_SYSTEM_NAME ${CPACK_SYSTEM_NAME} )
+#the compiler may have a better idea of what the target is
+if ( CMAKE_COMPILER_IS_GNUCC )
+  execute_process (
+    COMMAND         ${CMAKE_C_COMPILER} -dumpmachine
+    OUTPUT_VARIABLE CPACK_SYSTEM_NAME
+  )
+  string ( REGEX REPLACE "[\r\n]" "" CPACK_SYSTEM_NAME ${CPACK_SYSTEM_NAME} )
+else ( CMAKE_COMPILER_IS_GNUCC )
+  set ( CPACK_SYSTEM_NAME "${CMAKE_SYSTEM_NAME}" )
+endif ( CMAKE_COMPILER_IS_GNUCC )
 
-#fix a messed-up cmake default value for package naming
 set ( CPACK_PACKAGE_FILE_NAME "${PROJECT_NAME}-${CPACK_PACKAGE_VERSION}" )
-if ( CPACK_SYSTEM_NAME )
-    set ( CPACK_PACKAGE_FILE_NAME "${CPACK_PACKAGE_FILE_NAME}_${CPACK_SYSTEM_NAME}" )
-endif ( CPACK_SYSTEM_NAME )
-set ( CPACK_SOURCE_PACKAGE_FILE_NAME "${PROJECT_NAME}-${CPACK_PACKAGE_VERSION}-source" )
+
+#different cpack generators need different package names
+set ( CPACK_PACKAGE_FILE_NAME "${CPACK_PACKAGE_FILE_NAME}_${CPACK_SYSTEM_NAME}" )
+set ( CPACK_SOURCE_PACKAGE_FILE_NAME "${CPACK_PACKAGE_FILE_NAME}-source" )
 
 if ( UNIX )
     set ( CPACK_GENERATOR "TGZ" )
@@ -81,7 +84,7 @@ if ( UNIX )
 endif ( UNIX )
 set ( CPACK_SOURCE_IGNORE_FILES
   "~$"
-  "/\\\\.svn/"
+  "/\\\\.git/"
   "/build/"
 )
 
