@@ -4,17 +4,17 @@
 /* count the number of used elements (NOT characters)
  * This works independent of byte order.
  */
-size_t ucs2len (/*@null@*/const uint16_t* s);
-#define utf8len(s) ((s)? strlen((char*)(s)): 0)
-#define utf16len(s) ucs2len(s)
+size_t utf8len (const uint8_t* s);
+size_t utf16len (const uint16_t* s);
 
-uint16_t* ucs2dup (const uint16_t* s);
+/* copy the UTF-16 string to a new allocated one
+ */
+uint16_t* utf16dup (const uint16_t* s);
 
 /* convert to network byte order and back
  */
-void ucs2_ntoh (uint16_t* s, size_t len);
-void ucs2_hton (uint16_t* s, size_t len);
-
+void utf16_ntoh (uint16_t* s, size_t len);
+void utf16_hton (uint16_t* s, size_t len);
 
 /* Count the unicode characters
  * (does _not_ check for validity)
@@ -25,9 +25,15 @@ size_t utf16count(const uint16_t* s);
 
 
 /* convert between UTF-8 and UTF-16
- * c values MUST be in host byte order
+ * UTF-16 values MUST be in host byte order
  * returned pointer must be free'd and is
  *          in host byte order
  */
 uint8_t* utf16to8 (const uint16_t* c);
 uint16_t* utf8to16 (const uint8_t* c);
+
+
+#define ucs2len(s) utf16len(s)
+#define ucs2dup(s) utf16dup(s)
+#define ucs2_ntoh(s,l) utf16_ntoh((s),(l));
+#define ucs2_hton(s,l) utf16_hton((s),(l));

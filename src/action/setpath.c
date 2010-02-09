@@ -58,18 +58,18 @@ static int update_path(
 
 	} else {
 		/* name is non-empty -> change to directory */
-		char *n = (char*)utf16to8(name);
+		uint8_t *n = utf16to8(name);
 
 		if (!n)
 			return -errno;
 
-		if (!check_name((uint8_t*)n))
+		if (!check_name(n))
 			return -EINVAL;
 
-		if (strcmp(n, "..") == 0)
+		if (strcmp((char*)n, "..") == 0)
 			return -EINVAL;
 
-		len = utf8len(transfer->path) + 1 + utf8len(n) + 1;
+		len = utf8len((uint8_t*)transfer->path) + 1 + utf8len(n) + 1;
 		if (transfer->path) {
 			char *newpath = realloc(transfer->path, len);
 			if (!newpath)
@@ -77,11 +77,11 @@ static int update_path(
 			else {
 				transfer->path = newpath;
 				strcat(transfer->path, "/");
-				strcat(transfer->path, n);
+				strcat(transfer->path, (char*)n);
 			}
 			free(n);
 		} else {
-			transfer->path = n;
+			transfer->path = (char*)n;
 		}
 		n = NULL;
 		if (!err) {

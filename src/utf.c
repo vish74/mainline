@@ -21,14 +21,20 @@
 #include <string.h>
 #include <stdio.h>
 
-size_t ucs2len (const uint16_t* s) {
+size_t utf16len (const uint16_t* s) {
 	size_t n = 0;
 	if (s != 0)
 		while (s[n] != 0x0000) ++n;
 	return n;
 }
 
-uint16_t* ucs2dup (const uint16_t* s) {
+size_t utf8len (const uint8_t* s) {
+	if (s)
+		return strlen((char*)(s));
+	return 0;
+}
+
+uint16_t* utf16dup (const uint16_t* s) {
 	size_t len = ucs2len(s) + 2;
 	uint16_t *s2;
 
@@ -44,13 +50,13 @@ uint16_t* ucs2dup (const uint16_t* s) {
 	return s2;
 }
 
-void ucs2_ntoh (uint16_t* s, size_t len) {
+void utf16_ntoh (uint16_t* s, size_t len) {
 	size_t i = 0;
 	for (; i < len; ++i)
 		s[i] = ntohs(s[i]);
 }
 
-void ucs2_hton (uint16_t* s, size_t len) {
+void utf16_hton (uint16_t* s, size_t len) {
 	size_t i = 0;
 	for (; i < len; ++i)
 		s[i] = htons(s[i]);

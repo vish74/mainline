@@ -45,18 +45,18 @@ struct io_file_data {
 
 static char* io_file_get_fullname(const char *basedir, const char *subdir, const uint16_t *filename)
 {
-	char *namebase = NULL;
+	uint8_t *namebase = NULL;
 	int err = 0;
 	char *name;
 	size_t namesize;
 
 	if (filename) {
-		namebase = (char*)utf16to8(filename);
+		namebase = utf16to8(filename);
 		if (!namebase)
 			return NULL;
 	}
 
-	namesize = strlen(basedir) + 1 + utf8len(subdir) + 1 + utf8len(namebase) + 1;
+	namesize = strlen(basedir) + 1 + utf8len((uint8_t*)subdir) + 1 + utf8len(namebase) + 1;
 	name = malloc(namesize);
 	if (!name)
 		err = -errno;
@@ -65,17 +65,17 @@ static char* io_file_get_fullname(const char *basedir, const char *subdir, const
 		if (strcmp(basedir, ".") != 0) {
 			strcat(name, basedir);
 		}
-		if (utf8len(subdir)) {
-			if (utf8len(name))
+		if (utf8len((uint8_t*)subdir)) {
+			if (utf8len((uint8_t*)name))
 				strcat(name, "/");
 			strcat(name, subdir);
 		}
 		if (utf8len(namebase)) {
-			if (utf8len(name))
+			if (utf8len((uint8_t*)name))
 				strcat(name, "/");
-			strcat(name, namebase);
+			strcat(name, (char*)namebase);
 
-		} else if (utf8len(name) == 0)
+		} else if (utf8len((uint8_t*)name) == 0)
 			strcat(name, basedir);
 	}
 	free(namebase);
@@ -190,7 +190,7 @@ static int io_file_open (
 		else {
 			int flags = OFL_FLAG_TIMES | OFL_FLAG_PERMS | OFL_FLAG_KEEP | OFL_FLAG_NODEL;
 
-			if (utf8len(transfer->path))
+			if (utf8len((uint8_t*)transfer->path))
 				flags |= OFL_FLAG_PARENT;
 			err = obex_folder_listing(data->in, name, flags);
 			if (err)
