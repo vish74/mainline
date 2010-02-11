@@ -40,7 +40,13 @@ struct net_handler* tcp_setup(const char*, uint16_t);
 #else /* OPENOBEX_TCPOBEX */
 struct net_handler* inet_setup();
 #endif /* OPENOBEX_TCPOBEX */
-struct net_handler* usb_gadget_setup(const char* device, int timeout);
+struct net_handler* usb_gadget_setup(const char* device, time_t timeout);
+
+enum net_obex_protocol {
+	NET_OBEX_PUSH = 0,
+	NET_OBEX_FTP = 1,
+};
+void bluetooth_set_protocol (struct net_handler *, enum net_obex_protocol);
 
 struct net_data {
 	obex_t* obex;

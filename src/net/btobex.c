@@ -15,6 +15,7 @@ struct bluetooth_args {
 	void* session_data;
 	bdaddr_t device;
 	uint8_t channel;
+	unsigned long protocols;
 };
 
 static
@@ -57,7 +58,7 @@ obex_t* bluetooth_init (
 	(void)ba2str(&args->device, device);
 	fprintf(stderr, "Listening on bluetooth/[%s]:%u\n", device, (unsigned int)args->channel);
 
-	args->session_data = bt_sdp_session_open(&args->device, args->channel);
+	args->session_data = bt_sdp_session_open(&args->device, args->channel, args->protocols);
 	if (!args->session_data) {
 		fprintf(stderr, "SDP session setup failed, disabling bluetooth\n");
 		OBEX_Cleanup(handle);
@@ -185,4 +186,22 @@ struct net_handler* bluetooth_setup(
 	args->channel = channel;
 
 	return h;
+}
+
+void bluetooth_set_protocol (
+	struct net_handler *h,
+	enum net_obex_protocol prot
+)
+{
+	struct bluetooth_args* args = h->args;
+
+	switch (prot) {
+	case NET_OBEX_PUSH:
+		args->protocols |= BT_SDP_PROT_OBEX_PUSH;
+		break;
+
+	case NET_OBEX_FTP:
+		args->protocols |= BT_SDP_PROT_OBEX_FTP;
+		break;
+	}
 }

@@ -606,6 +606,10 @@ int main (int argc, char** argv) {
 		}
 	}
 
+	/* enable protocols */
+	bluetooth_set_protocol(handle[IDX_BT], NET_OBEX_PUSH);
+	bluetooth_set_protocol(handle[IDX_BT], NET_OBEX_FTP);
+
 	/* fork if allowed (detach from terminal) */
 	if (nofork < 1) {
 		if (daemon(1,0) < 0) {

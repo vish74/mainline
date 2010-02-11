@@ -237,7 +237,7 @@ struct sdp_data {
 };
 
 static
-struct sdp_data* bt_sdp (bdaddr_t* device, uint8_t channel)
+struct sdp_data* bt_sdp (bdaddr_t* device, uint8_t channel, unsigned long protocols)
 {
 	struct sdp_data* data = malloc(sizeof(*data));
 	if (!data)
@@ -250,19 +250,24 @@ struct sdp_data* bt_sdp (bdaddr_t* device, uint8_t channel)
 		data = NULL;
 	}
 
-	data->rec[0].handle = sdp_record_alloc();
-	if (!data->rec[0].handle || !bt_sdp_fill_opp(&data->rec[0].prot.opp, channel, data->rec[0].handle)) {
-		perror("Setting up OPP SDP entry failed");
-		bt_sdp_cleanup_opp(&data->rec[0].prot.opp);
-		return NULL;
+	if ((protocols & BT_SDP_PROT_OBEX_PUSH) != 0) {
+		data->rec[0].handle = sdp_record_alloc();
+		if (!data->rec[0].handle || !bt_sdp_fill_opp(&data->rec[0].prot.opp, channel, data->rec[0].handle)) {
+			perror("Setting up OPP SDP entry failed");
+			bt_sdp_cleanup_opp(&data->rec[0].prot.opp);
+			return NULL;
+		}
 	}
 		
-	data->rec[1].handle = sdp_record_alloc();
-	if (!data->rec[1].handle || !bt_sdp_fill_ftp(&data->rec[1].prot.ftp, channel, data->rec[1].handle)) {
-		perror("Setting up FTP SDP entry failed");
-		bt_sdp_cleanup_opp(&data->rec[0].prot.opp);
-		bt_sdp_cleanup_ftp(&data->rec[1].prot.ftp);
-		return NULL;
+	if ((protocols & BT_SDP_PROT_OBEX_FTP) != 0) {
+		data->rec[1].handle = sdp_record_alloc();
+		if (!data->rec[1].handle || !bt_sdp_fill_ftp(&data->rec[1].prot.ftp, channel, data->rec[1].handle)) {
+			perror("Setting up FTP SDP entry failed");
+			if ((protocols & BT_SDP_PROT_OBEX_PUSH) != 0)
+				bt_sdp_cleanup_opp(&data->rec[0].prot.opp);
+			bt_sdp_cleanup_ftp(&data->rec[1].prot.ftp);
+			return NULL;
+		}
 	}
 
 	return data;
@@ -270,11 +275,12 @@ struct sdp_data* bt_sdp (bdaddr_t* device, uint8_t channel)
 
 void* bt_sdp_session_open (
 	bdaddr_t* device,
-	uint8_t channel
+	uint8_t channel,
+	unsigned long protocols
 )
 {
 	int status = 0;
-	struct sdp_data* data = bt_sdp(device, channel);
+	struct sdp_data* data = bt_sdp(device, channel, protocols);
 
 	if (!data)
 		return NULL;
@@ -295,12 +301,21 @@ void bt_sdp_session_close (
 )
 {
 	struct sdp_data* data = session_data;
+
+	if (data->session == NULL)
+		return;
 	
 	for (int i = 0; i < SDP_DATA_REC_COUNT; ++i) {
-		(void)sdp_device_record_unregister(data->session, device, data->rec[i].handle);
+		if (data->rec[i].handle != NULL) {
+			(void)sdp_device_record_unregister(data->session, device, data->rec[i].handle);
+			data->rec[i].handle = NULL;
+			if (i == 0)
+				bt_sdp_cleanup_opp(&data->rec[0].prot.opp);
+			else if (i == 1)
+				bt_sdp_cleanup_ftp(&data->rec[1].prot.ftp);
+		}
 	}
 	sdp_close(data->session);
-	bt_sdp_cleanup_opp(&data->rec[0].prot.opp);
-	bt_sdp_cleanup_ftp(&data->rec[1].prot.ftp);
+	data->session = NULL;
 	free(data);
 }
