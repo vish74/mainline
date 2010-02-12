@@ -162,7 +162,7 @@ struct net_handler_ops usb_gadget_ops = {
 
 struct net_handler* usb_gadget_setup(
 	const char* device,
-	int timeout
+	time_t timeout
 )
 {
 	struct usb_gadget_args* args;
