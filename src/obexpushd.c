@@ -351,6 +351,7 @@ static void print_help (char* me) {
 	       " -A             use transport layer specific access rules if available\n"
 	       " -a <file>      authenticate against credentials from file (EXPERIMENTAL)\n"
 	       " -s <file>      define script/program for input/output\n"
+	       " -t <protocol>  add a protocol (OPP, FTP)\n"
 	       " -h             this help message\n"
 	       " -v             show version\n");
 	printf("\n"
@@ -455,6 +456,7 @@ int main (int argc, char** argv) {
 	uint8_t auth_level = 0;
 	int c = 0;
 	struct net_handler* handle[NET_INDEX_MAX];
+	uint8_t protocols = 0;
 
 	(void)setlocale(LC_CTYPE, "");
 	io = io_file_init(".");
@@ -465,7 +467,7 @@ int main (int argc, char** argv) {
 	memset(data, 0, sizeof(data));
 
 	while (c != -1) {
-		c = getopt(argc,argv,"B::I::N::G:Aa:dhnp:r:o:s:v");
+		c = getopt(argc,argv,"B::I::N::G:Aa:dhnp:r:o:s:t:v");
 		switch (c) {
 		case -1: /* processed all options, no error */
 			break;
@@ -577,6 +579,15 @@ int main (int argc, char** argv) {
 			io = io_script_init(optarg);
 			break;
 
+		case 't':
+			if (optarg) {
+				if (strcasecmp(optarg, "OPP") == 0)
+					protocols |= (1 << NET_OBEX_PUSH);
+				else if (strcasecmp(optarg, "FTP") == 0)
+					protocols |= (1 << NET_OBEX_FTP);
+			}
+			break;
+
 		case 'h':
 			print_help(PROGRAM_NAME);
 			exit(EXIT_SUCCESS);
@@ -606,10 +617,6 @@ int main (int argc, char** argv) {
 		}
 	}
 
-	/* enable protocols */
-	bluetooth_set_protocol(handle[IDX_BT], NET_OBEX_PUSH);
-	bluetooth_set_protocol(handle[IDX_BT], NET_OBEX_FTP);
-
 	/* fork if allowed (detach from terminal) */
 	if (nofork < 1) {
 		if (daemon(1,0) < 0) {
@@ -633,12 +640,24 @@ int main (int argc, char** argv) {
 	(void)signal(SIGINT, obexpushd_shutdown);
 	(void)signal(SIGTERM, obexpushd_shutdown);
 
+	if (protocols == 0)
+		protocols = (NET_OBEX_PUSH | NET_OBEX_FTP);
+
+	/* enable protocols */
+	if (handle[IDX_BT]) {
+		if ((protocols & (1 << NET_OBEX_PUSH)) != 0)
+			bluetooth_set_protocol(handle[IDX_BT], NET_OBEX_PUSH);
+		if ((protocols & (1 << NET_OBEX_FTP)) != 0)
+			bluetooth_set_protocol(handle[IDX_BT], NET_OBEX_FTP);
+	}
+
 	/* initialize all enabled listeners */
 	for (i = 0; i < NET_INDEX_MAX; ++i) {
 		if (!handle[i])
 			continue;
 		data[i].handler = handle[i];
 		data[i].auth_level = auth_level;
+		data[i].enabled_protocols = protocols;
 	}
 
 	if (obexpushd_start(data, NET_INDEX_MAX) != 0)

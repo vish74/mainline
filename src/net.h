@@ -57,6 +57,8 @@ struct net_data {
 #define AUTH_LEVEL_OBEX      (1 << 0)
 #define AUTH_LEVEL_TRANSPORT (1 << 1)
 	uint8_t auth_level;
+
+	uint8_t enabled_protocols;
 };
 struct net_data* net_data_new ();
 void net_init (struct net_data* data, obex_event_t eventcb);

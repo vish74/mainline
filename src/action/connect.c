@@ -19,13 +19,29 @@
 #include "net.h"
 #include "action.h"
 
+static uint8_t obex_uuid_ftp[] = {
+	0xF9, 0xEC, 0x7B, 0xC4, 0x95, 0x3C, 0x11, 0xD2,
+	0x98, 0x4E, 0x52, 0x54, 0x00, 0xDC, 0x9E, 0x09
+};
 
-static uint8_t obex_target_map[OBEX_TARGET_MAX_NB-1][16] = {
-	{ /* FTP */
-		0xF9, 0xEC, 0x7B, 0xC4, 0x95, 0x3C, 0x11, 0xD2,
-		0x98, 0x4E, 0x52, 0x54, 0x00, 0xDC, 0x9E, 0x09
+static struct {
+	enum obex_target target;
+	enum net_obex_protocol protocol;
+	struct {
+		size_t size;
+		uint8_t *data;
+	} uuid;
+} obex_target_map[] = {
+	{
+		.target = OBEX_TARGET_FTP,
+		.protocol = NET_OBEX_FTP,
+		.uuid =  {
+			.size = sizeof(obex_uuid_ftp),
+			.data = obex_uuid_ftp,
+		},
 	}
 };
+#define TARGET_MAP_COUNT (sizeof(obex_target_map)/sizeof(*obex_target_map))
 
 
 static int check_connect_headers (obex_t* handle, obex_object_t* obj) {
@@ -50,17 +66,19 @@ static int check_connect_headers (obex_t* handle, obex_object_t* obj) {
 			break;
 
 		case OBEX_HDR_TARGET:
-			if (vsize <= sizeof(obex_target_map[0])) {
-				enum obex_target t = OBEX_TARGET_FTP;
-				for (; t < OBEX_TARGET_MAX_NB; ++t) {
-					if (memcmp(value.bs, obex_target_map[t-2], vsize) == 0) {
-						data->target = t;
-						break;
-					}
+			data->target = OBEX_TARGET_NONE;
+			for (unsigned int i = 0; i < TARGET_MAP_COUNT; ++i) {
+				struct net_data *n = data->net_data;
+				if (vsize == obex_target_map[i].uuid.size &&
+				    memcmp(value.bs, obex_target_map[i].uuid.data, vsize) == 0 &&
+				    (n->enabled_protocols & obex_target_map[i].protocol) != 0)
+				{
+					data->target = obex_target_map[i].target;
+					break;
 				}
-				if (t == OBEX_TARGET_MAX_NB)
-					return 0;
 			}
+			if (data->target == OBEX_TARGET_NONE)
+				return 0;
 			break;
 
 		case OBEX_HDR_AUTHCHAL:
@@ -104,10 +122,14 @@ void obex_action_connect (obex_t* handle, obex_object_t* obj, int event) {
 						     OBEX_FL_FIT_ONE_PACKET);
 
 				/* add who header with same content as target header from client */
-				hv.bs = obex_target_map[data->target-2];
-				OBEX_ObjectAddHeader(handle, obj, OBEX_HDR_WHO, hv,
-						     sizeof(obex_target_map[data->target-1]),
-						     OBEX_FL_FIT_ONE_PACKET);
+				for (unsigned int i = 0; i < TARGET_MAP_COUNT; ++i) {
+					if (data->target == obex_target_map[i].target) {
+						hv.bs = obex_target_map[i].uuid.data;
+						OBEX_ObjectAddHeader(handle, obj, OBEX_HDR_WHO, hv,
+								     obex_target_map[i].uuid.size,
+								     OBEX_FL_FIT_ONE_PACKET);
+					}
+				}
 			}
 			if (data->transfer.path) {
 				free(data->transfer.path);
