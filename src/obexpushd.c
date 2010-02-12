@@ -350,6 +350,7 @@ static void print_help (char* me) {
 	       " -p <file>      write pid to file when getting detached\n"
 	       " -A             use transport layer specific access rules if available\n"
 	       " -a <file>      authenticate against credentials from file (EXPERIMENTAL)\n"
+	       " -o <directory> change base directory\n"
 	       " -s <file>      define script/program for input/output\n"
 	       " -t <protocol>  add a protocol (OPP, FTP)\n"
 	       " -h             this help message\n"
