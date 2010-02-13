@@ -60,6 +60,14 @@ void net_init (
 {
 	struct net_handler *h = data->handler;
 
+	/* enable protocols */
+	if (h && h->ops->set_protocol) {
+		if ((data->enabled_protocols & (1 << NET_OBEX_PUSH)) != 0)
+			h->ops->set_protocol(h, NET_OBEX_PUSH);
+		if ((data->enabled_protocols & (1 << NET_OBEX_FTP)) != 0)
+			h->ops->set_protocol(h, NET_OBEX_FTP);
+	}
+
 	if (h && h->ops->init) {
 		if (data->obex)
 			OBEX_Cleanup(data->obex);
@@ -71,6 +79,7 @@ void net_init (
 			(void)fcntl(fd, F_SETFD, FD_CLOEXEC);
 		OBEX_SetUserData(data->obex, data);
 	}
+
 	if ((data->auth_level & AUTH_LEVEL_TRANSPORT) &&
 	    h && h->ops->security_init)
 	{

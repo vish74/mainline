@@ -644,14 +644,6 @@ int main (int argc, char** argv) {
 	if (protocols == 0)
 		protocols = (NET_OBEX_PUSH | NET_OBEX_FTP);
 
-	/* enable protocols */
-	if (handle[IDX_BT]) {
-		if ((protocols & (1 << NET_OBEX_PUSH)) != 0)
-			bluetooth_set_protocol(handle[IDX_BT], NET_OBEX_PUSH);
-		if ((protocols & (1 << NET_OBEX_FTP)) != 0)
-			bluetooth_set_protocol(handle[IDX_BT], NET_OBEX_FTP);
-	}
-
 	/* initialize all enabled listeners */
 	for (i = 0; i < NET_INDEX_MAX; ++i) {
 		if (!handle[i])

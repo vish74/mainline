@@ -5,10 +5,17 @@
 #include "net/core.h"
 #include "auth.h"
 
+enum net_obex_protocol {
+	NET_OBEX_PUSH = 0,
+	NET_OBEX_FTP = 1,
+};
+
 struct net_handler;
 struct net_handler_ops {
 	obex_t* (*init)(struct net_handler*, obex_event_t);
 	void (*cleanup)(struct net_handler*);
+
+	void (*set_protocol)(struct net_handler*, enum net_obex_protocol);
 
 	/* Functions to implement authentication
 	 */
@@ -41,12 +48,6 @@ struct net_handler* tcp_setup(const char*, uint16_t);
 struct net_handler* inet_setup();
 #endif /* OPENOBEX_TCPOBEX */
 struct net_handler* usb_gadget_setup(const char* device, time_t timeout);
-
-enum net_obex_protocol {
-	NET_OBEX_PUSH = 0,
-	NET_OBEX_FTP = 1,
-};
-void bluetooth_set_protocol (struct net_handler *, enum net_obex_protocol);
 
 struct net_data {
 	obex_t* obex;

@@ -149,9 +149,29 @@ int bluetooth_get_peer(
 }
 
 static
+void bluetooth_set_protocol (
+	struct net_handler *h,
+	enum net_obex_protocol prot
+)
+{
+	struct bluetooth_args* args = h->args;
+
+	switch (prot) {
+	case NET_OBEX_PUSH:
+		args->protocols |= BT_SDP_PROT_OBEX_PUSH;
+		break;
+
+	case NET_OBEX_FTP:
+		args->protocols |= BT_SDP_PROT_OBEX_FTP;
+		break;
+	}
+}
+
+static
 struct net_handler_ops bluetooth_ops = {
 	.init = bluetooth_init,
 	.cleanup = bluetooth_cleanup,
+	.set_protocol = bluetooth_set_protocol,
 	.get_peer = bluetooth_get_peer,
 	.security_init = bluetooth_security_init
 };
@@ -186,22 +206,4 @@ struct net_handler* bluetooth_setup(
 	args->channel = channel;
 
 	return h;
-}
-
-void bluetooth_set_protocol (
-	struct net_handler *h,
-	enum net_obex_protocol prot
-)
-{
-	struct bluetooth_args* args = h->args;
-
-	switch (prot) {
-	case NET_OBEX_PUSH:
-		args->protocols |= BT_SDP_PROT_OBEX_PUSH;
-		break;
-
-	case NET_OBEX_FTP:
-		args->protocols |= BT_SDP_PROT_OBEX_FTP;
-		break;
-	}
 }
