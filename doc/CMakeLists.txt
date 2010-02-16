@@ -6,14 +6,6 @@ if ( Docbook_FOUND )
   include ( ${Docbook_USE_FILE} )
 
   set ( OBEXPUSHD_XML_FILE "${CMAKE_CURRENT_SOURCE_DIR}/obexpushd.xml" )
-  if ( NOT MANPAGE_INSTALL_DIR )
-    set ( MANPAGE_INSTALL_DIR "share/man"
-         CACHE PATH "Where documentation files are copied to on installation" FORCE )
-  endif ( NOT MANPAGE_INSTALL_DIR )
-  if ( NOT DOCUMENTATION_INSTALL_DIR )
-    set ( DOCUMENTATION_INSTALL_DIR "share/doc/${PROJECT_NAME}"
-          CACHE PATH "Where documentation files are copied to on installation" FORCE )
-  endif ( NOT DOCUMENTATION_INSTALL_DIR )
 
   option (BUILD_HELP_MAN "Build manpage application help files" ON)
   if ( BUILD_HELP_MAN )
@@ -40,7 +32,7 @@ if ( Docbook_FOUND )
       list ( APPEND OBEXPUSHD_HELP_FILES ${file} )
       install (
 	FILES ${CMAKE_CURRENT_BINARY_DIR}/${file}
-	DESTINATION ${DOCUMENTATION_INSTALL_DIR}
+	DESTINATION ${DOCUMENTATION_INSTALL_DIR}/html
 	PERMISSIONS OWNER_READ OWNER_WRITE GROUP_READ WORLD_READ
 	COMPONENT documentation
 	OPTIONAL

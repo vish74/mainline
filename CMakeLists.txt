@@ -34,6 +34,15 @@ if ( NOT CMAKE_BUILD_TYPE )
         CACHE STRING "Choice of a predefined CMake ruleset" FORCE )
 endif ( NOT CMAKE_BUILD_TYPE )
 
+if ( NOT MANPAGE_INSTALL_DIR )
+  set ( MANPAGE_INSTALL_DIR "share/man"
+    CACHE PATH "Where documentation files are copied to on installation" FORCE )
+endif ( NOT MANPAGE_INSTALL_DIR )
+if ( NOT DOCUMENTATION_INSTALL_DIR )
+  set ( DOCUMENTATION_INSTALL_DIR "share/doc/${PROJECT_NAME}"
+    CACHE PATH "Where documentation files are copied to on installation" FORCE )
+endif ( NOT DOCUMENTATION_INSTALL_DIR )
+
 add_subdirectory ( src )
 add_subdirectory ( doc )
 

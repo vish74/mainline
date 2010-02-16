@@ -122,6 +122,14 @@ install (
 	      WORLD_READ             WORLD_EXECUTE
 )
 
+install (
+  FILES storage/file_storage.sh
+  DESTINATION ${DOCUMENTATION_INSTALL_DIR}/examples
+  PERMISSIONS OWNER_READ OWNER_WRITE
+              GROUP_READ
+	      WORLD_READ
+)
+
 set ( CPACK_PACKAGE_EXECUTABLES "obexpushd" )
 if ( UNIX )
   set ( CPACK_STRIP_FILES "bin/obexpushd" )
