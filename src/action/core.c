@@ -122,56 +122,71 @@ int obex_object_headers (obex_t* handle, obex_object_t* obj) {
 	return 1;
 }
 
-void obex_action_eventcb (obex_t* handle, obex_object_t* obj,
-			  int __unused mode, int event,
-			  int obex_cmd, int __unused obex_rsp)
+static
+void opp_ftp_eventcb (obex_t* handle, obex_object_t* obj,
+		      int __unused mode, int event,
+		      int obex_cmd, int __unused obex_rsp)
 {
-	file_data_t* data = OBEX_GetUserData(handle);
-	static int last_obex_cmd = 0;
-
 	/* work-around for openobex bug */
+	static int last_obex_cmd = 0;
 	if (event == OBEX_EV_STREAMAVAIL ||
 	    event == OBEX_EV_STREAMEMPTY)
 		obex_cmd = last_obex_cmd;
 	else
 		last_obex_cmd = obex_cmd;
 
-	switch (obex_cmd) {
-	case OBEX_CMD_CONNECT:
-		obex_action_connect(handle,obj,event);
-		break;
+	/* re-route the abort command */
+	if (obex_cmd == OBEX_CMD_ABORT) {
+		obex_cmd = last_obex_cmd;
+		event = OBEX_EV_ABORT;
+	}
 
+	switch (obex_cmd) {
 	case OBEX_CMD_PUT:
-		if (net_security_check(data->net_data))
-			obex_action_put(handle,obj,event);
+		obex_action_put(handle,obj,event);
 		break;
 
 	case OBEX_CMD_GET:
-		if (net_security_check(data->net_data))
-			obex_action_get(handle,obj,event);
+		obex_action_get(handle,obj,event);
 		break;
 
 	case OBEX_CMD_SETPATH:
-		if (net_security_check(data->net_data))
-			obex_action_setpath(handle,obj,event);
+		obex_action_setpath(handle,obj,event);
+		break;
+	}
+}
+
+void obex_action_eventcb (obex_t* handle, obex_object_t* obj,
+			  int mode, int event,
+			  int obex_cmd, int obex_rsp)
+{
+	file_data_t* data = OBEX_GetUserData(handle);
+
+	switch (obex_cmd) {
+	case OBEX_CMD_CONNECT:
+		obex_action_connect(handle,obj,event);
 		break;
 
 	case OBEX_CMD_DISCONNECT:
 		obex_action_disconnect(handle,obj,event);
 		break;
 
+	case OBEX_CMD_PUT:
+	case OBEX_CMD_GET:
+	case OBEX_CMD_SETPATH:
 	case OBEX_CMD_ABORT:
-		if (last_obex_cmd == OBEX_CMD_PUT) {
-			obex_action_put(handle,NULL,OBEX_EV_ABORT);
+		if (net_security_check(data->net_data)) {
+			if (data->target == OBEX_TARGET_OPP ||
+			    data->target == OBEX_TARGET_FTP) {
+				opp_ftp_eventcb(handle, obj, mode, event, obex_cmd, obex_rsp);
+			}
 		}
 		break;
 
 	default:
-		switch (event) {
-		case OBEX_EV_REQHINT: /* A new request is coming in */
-			/* Reject any other commands */                       
+		if (event == OBEX_EV_REQHINT) {
 			obex_send_response(handle, obj, OBEX_RSP_NOT_IMPLEMENTED);
-			break;
 		}
+		break;
 	}
 }
