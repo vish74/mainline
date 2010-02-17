@@ -1,10 +1,12 @@
 #include "action.h"
 #include "utf.h"
+#include "net.h"
 #include "obexpushd.h"
 
 #include "core.h"
 
 #include "time.h"
+#include "compiler.h"
 
 int obex_object_headers (obex_t* handle, obex_object_t* obj) {
 	uint8_t id = 0;
@@ -118,4 +120,58 @@ int obex_object_headers (obex_t* handle, obex_object_t* obj) {
 		}
 	}
 	return 1;
+}
+
+void obex_action_eventcb (obex_t* handle, obex_object_t* obj,
+			  int __unused mode, int event,
+			  int obex_cmd, int __unused obex_rsp)
+{
+	file_data_t* data = OBEX_GetUserData(handle);
+	static int last_obex_cmd = 0;
+
+	/* work-around for openobex bug */
+	if (event == OBEX_EV_STREAMAVAIL ||
+	    event == OBEX_EV_STREAMEMPTY)
+		obex_cmd = last_obex_cmd;
+	else
+		last_obex_cmd = obex_cmd;
+
+	switch (obex_cmd) {
+	case OBEX_CMD_CONNECT:
+		obex_action_connect(handle,obj,event);
+		break;
+
+	case OBEX_CMD_PUT:
+		if (net_security_check(data->net_data))
+			obex_action_put(handle,obj,event);
+		break;
+
+	case OBEX_CMD_GET:
+		if (net_security_check(data->net_data))
+			obex_action_get(handle,obj,event);
+		break;
+
+	case OBEX_CMD_SETPATH:
+		if (net_security_check(data->net_data))
+			obex_action_setpath(handle,obj,event);
+		break;
+
+	case OBEX_CMD_DISCONNECT:
+		obex_action_disconnect(handle,obj,event);
+		break;
+
+	case OBEX_CMD_ABORT:
+		if (last_obex_cmd == OBEX_CMD_PUT) {
+			obex_action_put(handle,NULL,OBEX_EV_ABORT);
+		}
+		break;
+
+	default:
+		switch (event) {
+		case OBEX_EV_REQHINT: /* A new request is coming in */
+			/* Reject any other commands */                       
+			obex_send_response(handle, obj, OBEX_RSP_NOT_IMPLEMENTED);
+			break;
+		}
+	}
 }

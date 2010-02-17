@@ -16,8 +16,8 @@
  */
 
 #include "obexpushd.h"
-#include "action.h"
 #include "net.h"
+#include "core.h"
 
 void obex_action_disconnect (obex_t* handle, obex_object_t* obj, int event) {
 	file_data_t* data = OBEX_GetUserData(handle);

@@ -17,7 +17,7 @@
 
 #include "obexpushd.h"
 #include "net.h"
-#include "action.h"
+#include "core.h"
 
 static uint8_t obex_uuid_ftp[] = {
 	0xF9, 0xEC, 0x7B, 0xC4, 0x95, 0x3C, 0x11, 0xD2,

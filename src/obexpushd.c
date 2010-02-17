@@ -126,61 +126,6 @@ void obex_send_response (obex_t* handle, obex_object_t* obj, uint8_t respCode) {
 }
 
 static
-void common_eventcb (obex_t* handle, obex_object_t* obj,
-		     int __unused mode, int event,
-		     int obex_cmd, int __unused obex_rsp)
-{
-	file_data_t* data = OBEX_GetUserData(handle);
-	static int last_obex_cmd = 0;
-
-	/* work-around for openobex bug */
-	if (event == OBEX_EV_STREAMAVAIL ||
-	    event == OBEX_EV_STREAMEMPTY)
-		obex_cmd = last_obex_cmd;
-	else
-		last_obex_cmd = obex_cmd;
-
-	switch (obex_cmd) {
-	case OBEX_CMD_CONNECT:
-		obex_action_connect(handle,obj,event);
-		break;
-
-	case OBEX_CMD_PUT:
-		if (net_security_check(data->net_data))
-			obex_action_put(handle,obj,event);
-		break;
-
-	case OBEX_CMD_GET:
-		if (net_security_check(data->net_data))
-			obex_action_get(handle,obj,event);
-		break;
-
-	case OBEX_CMD_SETPATH:
-		if (net_security_check(data->net_data))
-			obex_action_setpath(handle,obj,event);
-		break;
-
-	case OBEX_CMD_DISCONNECT:
-		obex_action_disconnect(handle,obj,event);
-		break;
-
-	case OBEX_CMD_ABORT:
-		if (last_obex_cmd == OBEX_CMD_PUT) {
-			obex_action_put(handle,NULL,OBEX_EV_ABORT);
-		}
-		break;
-
-	default:
-		switch (event) {
-		case OBEX_EV_REQHINT: /* A new request is coming in */
-			/* Reject any other commands */                       
-			obex_send_response(handle, obj, OBEX_RSP_NOT_IMPLEMENTED);
-			break;
-		}
-	}
-}
-
-static
 void client_eventcb (obex_t* handle, obex_object_t* obj,
 		     int mode, int event,
 		     int obex_cmd, int obex_rsp)
@@ -191,7 +136,7 @@ void client_eventcb (obex_t* handle, obex_object_t* obj,
 		printf("%u: OBEX_EV_%s, OBEX_CMD_%s\n", data->id,
 		       obex_event_string(event), obex_command_string(obex_cmd));
 
-	common_eventcb(handle, obj, mode, event, obex_cmd, obex_rsp);
+	obex_action_eventcb(handle, obj, mode, event, obex_cmd, obex_rsp);
 }
 
 static
@@ -291,26 +236,23 @@ void eventcb (obex_t* handle, obex_object_t __unused *obj,
 	} else {
 		/* This handles connections that can only handle one client at a time.
 		 */
-		file_data_t *data;
+		if (event == OBEX_EV_REQHINT) {
+			file_data_t *data;
 		
-		switch (obex_cmd) {
-		case OBEX_CMD_CONNECT:
-			if (obex_cmd == OBEX_EV_REQHINT) {
+			switch (obex_cmd) {
+			case OBEX_CMD_CONNECT:
 				data = create_client(handle);
 				OBEX_SetUserData(handle, data);
-			}
-			break;
+				break;
 
-		case OBEX_CMD_DISCONNECT:
-			if (obex_cmd == OBEX_EV_REQHINT) {
+			case OBEX_CMD_DISCONNECT:
 				data = OBEX_GetUserData(handle);
 				OBEX_SetUserData(handle, data->net_data);
 				cleanup_client(data);
+				break;
 			}
-			break;
 		}
-
-		common_eventcb(handle, obj, mode, event, obex_cmd, obex_rsp);
+		obex_action_eventcb(handle, obj, mode, event, obex_cmd, obex_rsp);
 	}
 }
 

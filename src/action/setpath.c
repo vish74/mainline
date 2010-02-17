@@ -17,7 +17,7 @@
 
 #include "obexpushd.h"
 #include "net.h"
-#include "action.h"
+#include "core.h"
 #include "utf.h"
 
 #include <errno.h>
