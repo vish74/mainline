@@ -24,7 +24,7 @@ struct usb_gadget_args {
 };
 
 static
-int usb_gadget_listen(obex_t *handle, void * customdata)
+int usb_gadget_listen(obex_t __unused *handle, void * customdata)
 {
 	struct usb_gadget_args *args = customdata;
 
@@ -47,7 +47,7 @@ int usb_gadget_listen(obex_t *handle, void * customdata)
 }
 
 static
-int usb_gadget_write(obex_t *handle, void * customdata, uint8_t *buf, int buflen)
+int usb_gadget_write(obex_t __unused *handle, void * customdata, uint8_t *buf, int buflen)
 {
 	struct usb_gadget_args *args = customdata;
 
@@ -134,7 +134,7 @@ void usb_gadget_cleanup (
 static
 int usb_gadget_get_peer(
 	struct net_handler __unused *h,
-	obex_t* handle,
+	obex_t __unused *handle,
 	char* buffer,
 	size_t bufsiz
 )
@@ -162,7 +162,7 @@ struct net_handler_ops usb_gadget_ops = {
 
 struct net_handler* usb_gadget_setup(
 	const char* device,
-	time_t timeout
+	time_t __unused timeout
 )
 {
 	struct usb_gadget_args* args;

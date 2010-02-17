@@ -26,6 +26,8 @@
 #include <string.h>
 #include <errno.h>
 
+#include "compiler.h"
+
 static
 void obex_auth_calc_digest (uint8_t digest[16],
                             const uint8_t nonce[16],
@@ -244,7 +246,7 @@ int obex_auth_unpack_challenge (const obex_headerdata_t h,
 	return k;
 }
 
-int obex_auth_challenge2response (obex_t* handle,
+int obex_auth_challenge2response (obex_t __unused *handle,
                                   struct obex_auth_response* r,
                                   const struct obex_auth_challenge* c,
 				  const uint8_t *user, size_t ulen,

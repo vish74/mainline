@@ -4,8 +4,6 @@ if ( USE_MAINTAINER_MODE )
     set ( MAINTAINER_MODE_WARN_FLAGS
       all
       extra
-      no-unused-parameter
-      no-missing-field-initializers
       declaration-after-statement
       missing-declarations
       redundant-decls

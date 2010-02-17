@@ -31,6 +31,7 @@
 
 #include "io.h"
 #include "utf.h"
+#include "compiler.h"
 
 struct io_script_data {
 	pid_t child;
@@ -72,7 +73,7 @@ static int io_script_exit (
 
 static int io_script_close (
 	struct io_handler *self,
-	struct io_transfer_data *transfer,
+	struct io_transfer_data __unused *transfer,
 	bool keep
 )
 {
