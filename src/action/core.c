@@ -8,11 +8,11 @@
 #include "time.h"
 #include "compiler.h"
 
-int obex_object_headers (obex_t* handle, obex_object_t* obj) {
+int obex_object_headers (file_data_t* data, obex_object_t* obj) {
 	uint8_t id = 0;
 	obex_headerdata_t value;
 	uint32_t vsize;
-	file_data_t* data = OBEX_GetUserData(handle);
+	obex_t* handle = data->net_data->obex;
 	struct io_transfer_data *transfer;
 
 	if (!data)
@@ -123,7 +123,7 @@ int obex_object_headers (obex_t* handle, obex_object_t* obj) {
 }
 
 static
-void opp_ftp_eventcb (obex_t* handle, obex_object_t* obj,
+void opp_ftp_eventcb (file_data_t* data, obex_object_t* obj,
 		      int __unused mode, int event,
 		      int obex_cmd, int __unused obex_rsp)
 {
@@ -143,15 +143,15 @@ void opp_ftp_eventcb (obex_t* handle, obex_object_t* obj,
 
 	switch (obex_cmd) {
 	case OBEX_CMD_PUT:
-		obex_action_put(handle,obj,event);
+		obex_action_put(data, obj, event);
 		break;
 
 	case OBEX_CMD_GET:
-		obex_action_get(handle,obj,event);
+		obex_action_get(data, obj, event);
 		break;
 
 	case OBEX_CMD_SETPATH:
-		obex_action_setpath(handle,obj,event);
+		obex_action_setpath(data, obj, event);
 		break;
 	}
 }
@@ -164,11 +164,11 @@ void obex_action_eventcb (obex_t* handle, obex_object_t* obj,
 
 	switch (obex_cmd) {
 	case OBEX_CMD_CONNECT:
-		obex_action_connect(handle,obj,event);
+		obex_action_connect(data, obj, event);
 		break;
 
 	case OBEX_CMD_DISCONNECT:
-		obex_action_disconnect(handle,obj,event);
+		obex_action_disconnect(data, obj, event);
 		break;
 
 	case OBEX_CMD_PUT:
@@ -178,14 +178,14 @@ void obex_action_eventcb (obex_t* handle, obex_object_t* obj,
 		if (net_security_check(data->net_data)) {
 			if (data->target == OBEX_TARGET_OPP ||
 			    data->target == OBEX_TARGET_FTP) {
-				opp_ftp_eventcb(handle, obj, mode, event, obex_cmd, obex_rsp);
+				opp_ftp_eventcb(data, obj, mode, event, obex_cmd, obex_rsp);
 			}
 		}
 		break;
 
 	default:
 		if (event == OBEX_EV_REQHINT) {
-			obex_send_response(handle, obj, OBEX_RSP_NOT_IMPLEMENTED);
+			obex_send_response(data, obj, OBEX_RSP_NOT_IMPLEMENTED);
 		}
 		break;
 	}

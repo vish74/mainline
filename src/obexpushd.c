@@ -106,9 +106,8 @@ static const char* obex_command_string(uint8_t cmd)
 	}
 }
 
-void obex_send_response (obex_t* handle, obex_object_t* obj, uint8_t respCode) {
-	file_data_t* data = OBEX_GetUserData(handle);
-
+void obex_send_response (file_data_t* data, obex_object_t* obj, uint8_t respCode)
+{
 	dbg_printf(data, "Sending response code %u\n", ((respCode >> 4) * 100) + (respCode & 0xF));
 	switch (respCode) {
 	case 0:
@@ -140,13 +139,13 @@ void client_eventcb (obex_t* handle, obex_object_t* obj,
 }
 
 static
-file_data_t* create_client (obex_t *obex) {
+file_data_t* create_client (struct net_data *net) {
 	file_data_t* data = malloc(sizeof(*data));
 
 	if (data) {
 		memset(data,0,sizeof(*data));
 		data->id = id++;
-		data->net_data = OBEX_GetUserData(obex);
+		data->net_data = net;
 		data->auth = auth_copy(auth);
 		data->io = io_copy(io);
 	}
@@ -164,7 +163,8 @@ void cleanup_client (file_data_t *data) {
 
 static void* handle_client (void* arg) {
 	obex_t *obex = arg;
-	file_data_t *data = create_client(obex);
+	struct net_data *old_net = OBEX_GetUserData(obex);
+	file_data_t *data = create_client(old_net);
 
 	if (data) {
 		/* create new net_data for this client */
@@ -238,16 +238,19 @@ void eventcb (obex_t* handle, obex_object_t __unused *obj,
 		 */
 		if (event == OBEX_EV_REQHINT) {
 			file_data_t *data;
+			struct net_data *net;
 		
 			switch (obex_cmd) {
 			case OBEX_CMD_CONNECT:
-				data = create_client(handle);
+				net = OBEX_GetUserData(handle);
+				data = create_client(net);
 				OBEX_SetUserData(handle, data);
 				break;
 
 			case OBEX_CMD_DISCONNECT:
 				data = OBEX_GetUserData(handle);
-				OBEX_SetUserData(handle, data->net_data);
+				net = data->net_data;
+				OBEX_SetUserData(handle, net);
 				cleanup_client(data);
 				break;
 			}

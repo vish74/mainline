@@ -103,11 +103,12 @@ static int update_path(
 	return err;
 }
 
-static int check_setpath_headers (obex_t* handle, obex_object_t* obj) {
+static int check_setpath_headers (file_data_t* data, obex_object_t* obj)
+{
 	uint8_t id = 0;
 	obex_headerdata_t value;
-	uint32_t vsize;
-	file_data_t* data = OBEX_GetUserData(handle);
+	uint32_t vsize;	
+	obex_t* handle = data->net_data->obex;
 	uint16_t *name = NULL;
 	uint8_t *flags = NULL;
 
@@ -147,22 +148,21 @@ static int check_setpath_headers (obex_t* handle, obex_object_t* obj) {
 	return update_path(data->io, &data->transfer, name, flags);
 }
 
-void obex_action_setpath (obex_t* handle, obex_object_t* obj, int event) {
-	file_data_t* data = OBEX_GetUserData(handle);
-	/* struct io_transfer_data *transfer = &data->transfer; */
+void obex_action_setpath (file_data_t* data, obex_object_t* obj, int event)
+{
 	uint8_t respCode = OBEX_RSP_SUCCESS;
 
 	if (data->target != OBEX_TARGET_FTP) {
-		obex_send_response(handle, obj, OBEX_RSP_BAD_REQUEST);
+		obex_send_response(data, obj, OBEX_RSP_BAD_REQUEST);
 		return;
 	}
 
 	switch (event) {
 	case OBEX_EV_REQ:
-		if (check_setpath_headers(handle,obj) < 0) {
+		if (check_setpath_headers(data, obj) < 0) {
 			respCode = OBEX_RSP_BAD_REQUEST;
 		}
-		obex_send_response(handle, obj, respCode);
+		obex_send_response(data, obj, respCode);
 		break;
 	}
 }

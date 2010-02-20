@@ -19,12 +19,11 @@
 #include "net.h"
 #include "core.h"
 
-void obex_action_disconnect (obex_t* handle, obex_object_t* obj, int event) {
-	file_data_t* data = OBEX_GetUserData(handle);
-
+void obex_action_disconnect (file_data_t* data, obex_object_t* obj, int event)
+{
 	switch (event) {
 	case OBEX_EV_REQHINT: /* A new request is coming in */
-		obex_send_response(handle, obj, OBEX_RSP_CONTINUE);
+		obex_send_response(data, obj, OBEX_RSP_CONTINUE);
 		break;
 
 	case OBEX_EV_REQ:

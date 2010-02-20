@@ -44,11 +44,11 @@ static struct {
 #define TARGET_MAP_COUNT (sizeof(obex_target_map)/sizeof(*obex_target_map))
 
 
-static int check_connect_headers (obex_t* handle, obex_object_t* obj) {
+static int check_connect_headers (file_data_t* data, obex_object_t* obj) {
 	uint8_t id = 0;
 	obex_headerdata_t value;
 	uint32_t vsize;
-	file_data_t* data = OBEX_GetUserData(handle);
+	obex_t* handle = data->net_data->obex;
 	struct io_transfer_data *transfer;
 
 	if (!data)
@@ -96,21 +96,21 @@ static int check_connect_headers (obex_t* handle, obex_object_t* obj) {
 	return 1;
 }
 
-void obex_action_connect (obex_t* handle, obex_object_t* obj, int event) {
-	file_data_t* data = OBEX_GetUserData(handle);
+void obex_action_connect (file_data_t* data, obex_object_t* obj, int event) {
 	uint8_t respCode = 0;
+	obex_t* handle = data->net_data->obex;	
 
 	switch (event) {
 	case OBEX_EV_REQ: /* A new request is coming in */
 		/* Connect must not be used twice by the client */
 		if (!data || data->target != OBEX_TARGET_NONE) {
-			obex_send_response(handle, obj, OBEX_RSP_BAD_REQUEST);
+			obex_send_response(data, obj, OBEX_RSP_BAD_REQUEST);
 			break;
 		}
 		/* Default to ObjectPush */
 		data->target = OBEX_TARGET_OPP;
 
-		if (!check_connect_headers(handle,obj))
+		if (!check_connect_headers(data, obj))
 			respCode = OBEX_RSP_BAD_REQUEST;
 		else {
 			if (data->target == OBEX_TARGET_FTP) {
@@ -137,7 +137,7 @@ void obex_action_connect (obex_t* handle, obex_object_t* obj, int event) {
 			}
 			respCode = net_security_init(data->net_data, data->auth, obj);
 		}
-		obex_send_response(handle, obj, respCode);
+		obex_send_response(data, obj, respCode);
 		if (respCode)
 			data->target = OBEX_TARGET_NONE;
 		break;

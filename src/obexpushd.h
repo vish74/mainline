@@ -34,7 +34,7 @@ typedef struct {
 	struct io_transfer_data transfer;
 } file_data_t;
 
-void obex_send_response (obex_t* handle, obex_object_t* obj, uint8_t respCode);
+void obex_send_response (file_data_t* data, obex_object_t* obj, uint8_t respCode);
 
 extern int debug;
 void dbg_printf (file_data_t *data, const char *format, ...) __attribute__((format(printf,2,3)));

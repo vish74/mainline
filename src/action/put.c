@@ -33,15 +33,14 @@
 #include <signal.h>
 
 static
-int put_close (obex_t* handle) {
-	file_data_t* data = OBEX_GetUserData(handle);
-
+int put_close (file_data_t* data)
+{
 	return io_close(data->io, &data->transfer, true);
 }
 
 static
-int put_open (obex_t* handle) {
-	file_data_t* data = OBEX_GetUserData(handle);
+int put_open (file_data_t* data)
+{
 	int err;
 
 	if (io_state(data->io) & IO_STATE_OPEN)
@@ -55,11 +54,10 @@ int put_open (obex_t* handle) {
 }
 
 static
-int put_write (obex_t* handle, const uint8_t* buf, int len) {
-	file_data_t* data = OBEX_GetUserData(handle);
-
+int put_write (file_data_t* data, const uint8_t* buf, int len)
+{
 	if (!(io_state(data->io) & IO_STATE_OPEN)) {
-		int err = put_open(handle);
+		int err = put_open(data);
 		if(err)
 			return err;
 	}
@@ -68,18 +66,19 @@ int put_write (obex_t* handle, const uint8_t* buf, int len) {
 }
 
 static
-int put_revert (obex_t* handle) {
-	file_data_t* data = OBEX_GetUserData(handle);
+int put_revert (file_data_t* data)
+{
 	return io_close(data->io, &data->transfer, false);
 }
 
-void obex_action_put (obex_t* handle, obex_object_t* obj, int event) {
-	file_data_t* data = OBEX_GetUserData(handle);
+void obex_action_put (file_data_t* data, obex_object_t* obj, int event)
+{
+	obex_t* handle = data->net_data->obex;
 	struct io_transfer_data *transfer = &data->transfer;
 
 	if (!data->target) {
 		data->error = OBEX_RSP_BAD_REQUEST;
-		obex_send_response(handle, obj, data->error);
+		obex_send_response(data, obj, data->error);
 		return;
 	}
 
@@ -101,13 +100,13 @@ void obex_action_put (obex_t* handle, obex_object_t* obj, int event) {
 		break;
 
 	case OBEX_EV_REQCHECK:
-		if (!obex_object_headers(handle,obj))
+		if (!obex_object_headers(data, obj))
 			data->error = OBEX_RSP_BAD_REQUEST;
 
-		else if (put_open(handle))
+		else if (put_open(data))
 			data->error = OBEX_RSP_FORBIDDEN;
 
-		obex_send_response(handle, obj, data->error);
+		obex_send_response(data, obj, data->error);
 		break;
 
 	case OBEX_EV_STREAMAVAIL:
@@ -117,12 +116,12 @@ void obex_action_put (obex_t* handle, obex_object_t* obj, int event) {
 
 			dbg_printf(data, "got %d bytes of streamed data\n", len);
 			if (len) {
-				int err = put_write(handle,buf,len);
+				int err = put_write(data, buf, len);
 				if (err)
 					data->error = OBEX_RSP_FORBIDDEN;
 			}
 		}
-		obex_send_response(handle, obj, data->error);
+		obex_send_response(data, obj, data->error);
 		break;
 
 	case OBEX_EV_LINKERR:
@@ -132,9 +131,9 @@ void obex_action_put (obex_t* handle, obex_object_t* obj, int event) {
 		/* no break */
 	case OBEX_EV_REQDONE:
 		if (data->error)
-			(void)put_revert(handle);
+			(void)put_revert(data);
 		else
-			(void)put_close(handle);
+			(void)put_close(data);
 		if (transfer->name) {
 			free(transfer->name);
 			transfer->name = NULL;
