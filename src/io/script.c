@@ -239,6 +239,15 @@ static int io_script_prepare_cmd (
 	return err;
 }
 
+static void str_subst(char *str, char a, char b)
+{
+	while(*str) {
+		if (*str == a)
+			*str = b;
+		++str;
+	}
+}
+
 #define IO_HT_FROM   (1 << 0)
 #define IO_HT_LENGTH (1 << 1)
 #define IO_HT_TIME   (1 << 2)
@@ -278,21 +287,34 @@ static void io_script_write_headers (
 	}
 
 	if (ht & IO_HT_NAME) {
-		uint8_t* name = utf16to8(transfer->name);
-		if (name) 
-			fprintf(data->out, "Name: %s\n", name);
-		free(name);
+		char *str = (char*)utf16to8(transfer->name);
+		if (str) {
+			str_subst(str, '\n', ' ');
+			fprintf(data->out, "Name: %s\n", str);
+			free(str);
+		}
 	}
 
 	if (ht & IO_HT_TYPE) {
-		if (transfer->type)
-			fprintf(data->out, "Type: %s\n", transfer->type);
+		if (transfer->type) {
+			char *str = strdup(transfer->type);
+			if (str) {
+				str_subst(str, '\n', ' ');
+				fprintf(data->out, "Type: %s\n", str);
+				free(str);
+			}
+		}
 	}
 
 	if (ht & IO_HT_PATH) {
-		if (transfer->path)
-			fprintf(data->out, "Path: %s\n", transfer->path);
-		else
+		if (transfer->path) {
+			char *str = strdup(transfer->path);
+			if (str) {
+				str_subst(str, '\n', ' ');
+				fprintf(data->out, "Path: %s\n", str);
+				free(str);
+			}
+		} else
 			fprintf(data->out, "Path: .\n");
 	}
 	
