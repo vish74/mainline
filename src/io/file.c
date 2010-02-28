@@ -161,6 +161,8 @@ static int io_file_open (
 			fprintf(stderr, "Error: cannot create file: %s\n", strerror(-err));
 			goto io_file_error;
 		}
+		if (transfer->length)
+			(void)posix_fallocate(err, 0, transfer->length);
 
 		data->out = fdopen(err, "w");
 		if (data->out == NULL)
