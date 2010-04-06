@@ -114,7 +114,7 @@ int put_wait_for_ok (struct io_handler *self)
 	if (err < 0)
 		return err;
 
-	if (strncmp(ret, "OK\n", 3) != 0 ||
+	if (strncmp(ret, "OK\n", 3) != 0 &&
 	    strncmp(ret, "OK\r\n", 4) != 0)
 		return -EPERM;
 	else
