@@ -1,4 +1,12 @@
 
+/* Information about the USB OBEX gadget device (Linux):
+ * - SIGHUP is raised when the client is disconnected (e.g. cable removed)
+ * - since USB CDC uses block transfers, a read must always offer a maximum size
+ *   buffer, the actual read data may be less
+ * - the TTY device must be set into raw mode
+ * - expect freezes when using dummy_hcd.ko (something is wrong with it)
+ */
+
 #include "closexec.h"
 #include "net.h"
 #include "compiler.h"
@@ -7,47 +15,93 @@
 #include <stdlib.h>
 #include <errno.h>
 #include <string.h>
-#include <sys/signalfd.h>
-#include <sys/signal.h>
 #include <termios.h>
 #include <unistd.h>
+
+#define HAS_SIGNALFD 1
+#if HAS_SIGNALFD
+#  include <sys/signalfd.h>
+#  include <sys/signal.h>
+#endif
 
 struct usb_gadget_args {
 	char* device;
 	int fd;
 	obex_ctrans_t ctrans;
-
+#if HAS_SIGNALFD
 	sigset_t sig_mask;
 	int sig_fd;
-
-	uint8_t buf[1024];
+#endif
+	uint8_t *buf;
 };
 
 static
-int usb_gadget_listen(obex_t __unused *handle, void * customdata)
+int usb_gadget_ctrans_listen(obex_t __unused *handle, void * customdata)
 {
+	int ret = -1;
 	struct usb_gadget_args *args = customdata;
 
+#if HAS_SIGNALFD
 	args->sig_fd = signalfd(args->sig_fd, &args->sig_mask, SFD_CLOEXEC);
-	if (args->fd == -1) {
-		struct termios t;
+	if (args->sig_fd == -1)
+		return ret;
+#endif
 
+	if (args->fd == -1) {
 		args->fd = open_closexec(args->device, O_RDWR | O_NOCTTY, 0);
-		if (args->fd == -1) {
-			fprintf(stderr, "Error: cannot open %s: %s\n", args->device, strerror(errno));
-			return -1;
-		}
-		if (tcgetattr(args->fd, &t) != -1) {
-			cfmakeraw(&t);
-			(void)tcsetattr(args->fd, 0, &t);
-			(void)tcflush(args->fd, TCIOFLUSH);
+		if (args->fd != -1) {
+			struct termios t;
+
+			ret = tcgetattr(args->fd, &t);
+			if (ret != -1) {
+				cfmakeraw(&t);
+				(void)tcsetattr(args->fd, 0, &t);
+				(void)tcflush(args->fd, TCIOFLUSH);
+				ret = 0;
+			}
 		}
 	}
-	return 0;
+
+	return ret;
 }
 
 static
-int usb_gadget_write(obex_t __unused *handle, void * customdata, uint8_t *buf, int buflen)
+int usb_gadget_ctrans_disconnect(obex_t *handle, void * customdata)
+{
+	struct usb_gadget_args *args = customdata;
+
+	/* re-initialize the file descriptors, else the select() will
+	 * always return after a very short time but read() returns 0.
+	 * tcflush() doesn't work.
+	 */
+	if (args->fd != -1) {
+		close(args->fd);
+		args->fd = -1;
+	}
+#if HAS_SIGNALFD
+	if (args->sig_fd != -1) {
+		close(args->sig_fd);
+		args->sig_fd = -1;
+	}
+#endif
+	(void)usb_gadget_ctrans_listen(handle, customdata);
+
+	return 0;
+}
+
+static 
+int usb_gadget_ctrans_read(obex_t __unused *handle, void *customdata, void *buf, int max)
+{
+	struct usb_gadget_args *args = customdata;
+
+	if (max < OBEX_MAXIMUM_MTU)
+		return -1;
+
+	return (int)read(args->fd, buf, OBEX_MAXIMUM_MTU);
+}
+
+static
+int usb_gadget_ctrans_write(obex_t __unused *handle, void *customdata, uint8_t *buf, int buflen)
 {
 	struct usb_gadget_args *args = customdata;
 
@@ -55,7 +109,7 @@ int usb_gadget_write(obex_t __unused *handle, void * customdata, uint8_t *buf, i
 }
 
 static
-int usb_gadget_handleinput(obex_t *handle, void * customdata, int timeout)
+int usb_gadget_ctrans_handleinput(obex_t *handle, void *customdata, int timeout)
 {
 	struct usb_gadget_args *args = customdata;
 	struct timeval time = {
@@ -65,25 +119,37 @@ int usb_gadget_handleinput(obex_t *handle, void * customdata, int timeout)
 	struct timeval *timep = &time;
 	fd_set fdset;
 	int ret;
+	int maxfd = 0;
 
 	FD_ZERO(&fdset);
 	FD_SET(args->fd, &fdset);
+	if (args->fd > maxfd)
+		maxfd = args->fd;
+#if HAS_SIGNALFD
 	FD_SET(args->sig_fd, &fdset);
+	if (args->sig_fd > maxfd)
+		maxfd = args->sig_fd;
+#endif
 
 	if (timeout < 0)
 		timep = NULL;
-	ret = select((int)args->fd+1, &fdset, NULL, NULL, timep);
+	ret = select(maxfd+1, &fdset, NULL, NULL, timep);
 	if (ret > 0) {
 		if (FD_ISSET(args->fd, &fdset)) {
-			ssize_t n = read(args->fd, args->buf, sizeof(args->buf));
-			ret = OBEX_CustomDataFeed(handle, args->buf, n);
+			int n = usb_gadget_ctrans_read(handle, customdata, args->buf, OBEX_MAXIMUM_MTU);
+			if (n > 0)
+				ret = OBEX_CustomDataFeed(handle, args->buf, n);
 
+#if HAS_SIGNALFD
 		} else if (FD_ISSET(args->sig_fd, &fdset)) {
 			struct signalfd_siginfo info;
 			memset(&info, 0, sizeof(info));
 			(void)read(args->sig_fd, &info, sizeof(info));
-			if (info.ssi_signo == SIGHUP)
+			if (info.ssi_signo == SIGHUP) {
+				OBEX_TransportDisconnect(handle);
 				ret = -1;
+			}
+#endif
 		}
 	}
 
@@ -97,20 +163,36 @@ obex_t* usb_gadget_init (
 )
 {
 	struct usb_gadget_args *args = h->args;
-	obex_t *handle = OBEX_Init(OBEX_TRANS_CUSTOM, eventcb, 0);
+	obex_t *handle = NULL;
 
-	if (!handle)
-		return NULL;
+	args->buf = malloc(OBEX_MAXIMUM_MTU);
+	if (args->buf)
+		handle = OBEX_Init(OBEX_TRANS_CUSTOM, eventcb, 0);
 
-	else {
-		if (OBEX_RegisterCTransport(handle, &args->ctrans) == -1) {
+	if (handle) {
+		int ret = OBEX_RegisterCTransport(handle, &args->ctrans);
+		if (ret == -1) {
 			perror("OBEX_RegisterCTransport");
-			return NULL;
+			OBEX_Cleanup(handle);
+			handle = NULL;
+
+		} else {
+			if (OBEX_ServerRegister(handle, NULL, 0) < 0) {
+				OBEX_Cleanup(handle);
+				handle = NULL;
+				fprintf(stderr, "Error: cannot open %s: %s\n", args->device, strerror(errno));
+			} else {
+				OBEX_SetTransportMTU(handle, OBEX_MAXIMUM_MTU, OBEX_MAXIMUM_MTU);
+				fprintf(stderr, "Listening on file/%s\n", args->device);
+			}
 		}
-		(void)OBEX_ServerRegister(handle, NULL, 0);
-		OBEX_SetTransportMTU(handle, sizeof(args->buf), sizeof(args->buf));
-		fprintf(stderr, "Listening on file/%s\n", args->device);
 	}
+
+	if (handle == NULL) {
+		free(args->buf);
+		args->buf = NULL;
+	}
+
 	return handle;
 }
 
@@ -125,9 +207,19 @@ void usb_gadget_cleanup (
 		close(args->fd);
 		args->fd = -1;
 	}
+#if HAS_SIGNALFD
+	if (args->sig_fd != -1) {
+		close(args->sig_fd);
+		args->sig_fd = -1;
+	}
+#endif
 	if (args->device) {
 		free(args->device);
 		args->device = NULL;
+	}
+	if (args->buf) {
+		free(args->buf);
+		args->buf = NULL;
 	}
 }
 
@@ -145,19 +237,10 @@ int usb_gadget_get_peer(
 }
 
 static
-void usb_gadget_disconnect (
-	struct net_handler __unused *h,
-	obex_t __unused *handle
-)
-{
-}
-
-static
 struct net_handler_ops usb_gadget_ops = {
 	.init = usb_gadget_init,
 	.cleanup = usb_gadget_cleanup,
 	.get_peer = usb_gadget_get_peer,
-	.disconnect = usb_gadget_disconnect,
 };
 
 struct net_handler* usb_gadget_setup(
@@ -175,15 +258,19 @@ struct net_handler* usb_gadget_setup(
 	args = h->args;
 	ctrans = &args->ctrans;
 
-	ctrans->listen = usb_gadget_listen;
-	ctrans->write = usb_gadget_write;
-	ctrans->handleinput = usb_gadget_handleinput;
+	ctrans->disconnect = usb_gadget_ctrans_disconnect;
+	ctrans->listen = usb_gadget_ctrans_listen;
+	ctrans->write = usb_gadget_ctrans_write;
+	ctrans->handleinput = usb_gadget_ctrans_handleinput;
 	ctrans->customdata = args;
 
 	args->device = strdup(device);
 	args->fd = -1;
+
+#if HAS_SIGNALFD
 	(void)sigemptyset(&args->sig_mask);
 	args->sig_fd = -1;
+#endif
 
 	return h;
 }
