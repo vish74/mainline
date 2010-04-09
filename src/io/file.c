@@ -84,6 +84,32 @@ static char* io_file_get_fullname(const char *basedir, const char *subdir, const
 	return name;
 }
 
+static int io_file_delete (
+	struct io_handler *self,
+	struct io_transfer_data *transfer
+)
+{
+	struct io_file_data *data = self->private_data;
+	char* name;
+	int err = 0;
+
+	if (!transfer)
+		return -EINVAL;
+
+	name = io_file_get_fullname(data->basedir, transfer->path, transfer->name);
+	if (!name)
+		err = -ENOMEM;
+	else {
+		/* remove the file */
+		fprintf(stderr, "Deleting file \"%s\"\n", name);
+		if (unlink(name) == -1) 
+			err = -errno;
+		free(name);
+	}
+
+	return 0;
+}
+
 static int io_file_close (
 	struct io_handler *self,
 	struct io_transfer_data *transfer,
@@ -104,15 +130,13 @@ static int io_file_close (
 		data->out = NULL;
 
 		if (transfer) {
-			char* name = io_file_get_fullname(data->basedir, transfer->path, transfer->name);
-
 			if (!keep) {
-				if (!name)
-					return -ENOMEM;
-				if (unlink(name) == -1) /* remove the file */
-					return -errno;
-			
+				io_file_delete(self, transfer);
+
 			} else if (transfer->time) {
+				char* name = io_file_get_fullname(data->basedir,
+								  transfer->path,
+								  transfer->name);
 				if (name) {
 					struct utimbuf times;
 					
@@ -120,10 +144,9 @@ static int io_file_close (
 					times.modtime = transfer->time;
 					/* setting the time is non-critical */
 					(void)utime(name, &times);
+					free(name);
 				}
 			}
-			if (name)
-				free(name);
 		}
 	}
 	self->state = 0;
@@ -190,7 +213,7 @@ static int io_file_open (
 		if (data->in == NULL)
 			goto io_file_error;
 		else {
-			int flags = OFL_FLAG_TIMES | OFL_FLAG_PERMS | OFL_FLAG_KEEP | OFL_FLAG_NODEL;
+			int flags = OFL_FLAG_TIMES | OFL_FLAG_PERMS | OFL_FLAG_KEEP;
 
 			if (utf8len((uint8_t*)transfer->path))
 				flags |= OFL_FLAG_PARENT;
@@ -340,6 +363,7 @@ static struct io_handler* io_file_copy(struct io_handler *self)
 static struct io_handler_ops io_file_ops = {
 	.open = io_file_open,
 	.close = io_file_close,
+	.delete = io_file_delete,
 	.copy = io_file_copy,
 	.cleanup = io_file_cleanup,
 	.read = io_file_read,

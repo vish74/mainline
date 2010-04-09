@@ -85,7 +85,21 @@ int io_close (
 		return -EBADF;
 
 	if (self->ops && self->ops->close)
-	  return self->ops->close(self, transfer, keep);
+		return self->ops->close(self, transfer, keep);
+	else
+		return 0;
+}
+
+int io_delete (
+	struct io_handler *self,
+	struct io_transfer_data *transfer
+)
+{
+	if (!self)
+		return -EBADF;
+
+	if (self->ops && self->ops->delete)
+		return self->ops->delete(self, transfer);
 	else
 		return 0;
 }

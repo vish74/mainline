@@ -33,9 +33,9 @@
 #include <signal.h>
 
 static
-int put_close (file_data_t* data)
+int put_close (file_data_t* data, bool keep)
 {
-	return io_close(data->io, &data->transfer, true);
+	return io_close(data->io, &data->transfer, keep);
 }
 
 static
@@ -56,19 +56,16 @@ int put_open (file_data_t* data)
 static
 int put_write (file_data_t* data, const uint8_t* buf, int len)
 {
-	if (!(io_state(data->io) & IO_STATE_OPEN)) {
-		int err = put_open(data);
-		if(err)
-			return err;
-	}
+	if (!(io_state(data->io) & IO_STATE_OPEN))
+		return -EBADF;
 
 	return io_write(data->io, buf,(size_t)len);
 }
 
 static
-int put_revert (file_data_t* data)
+int put_delete (file_data_t* data)
 {
-	return io_close(data->io, &data->transfer, false);
+	return io_delete(data->io, &data->transfer);
 }
 
 void obex_action_put (file_data_t* data, obex_object_t* obj, int event)
@@ -99,25 +96,22 @@ void obex_action_put (file_data_t* data, obex_object_t* obj, int event)
 		transfer->time = 0;
 		break;
 
-	case OBEX_EV_REQCHECK:
-		if (!obex_object_headers(data, obj))
-			data->error = OBEX_RSP_BAD_REQUEST;
-
-		else if (put_open(data))
-			data->error = OBEX_RSP_FORBIDDEN;
-
-		obex_send_response(data, obj, data->error);
-		break;
-
 	case OBEX_EV_STREAMAVAIL:
+		if (!(io_state(data->io) & IO_STATE_OPEN)) {
+			if (!obex_object_headers(data, obj))
+				data->error = OBEX_RSP_BAD_REQUEST;
+		}
 		if (!data->error) {
 			const uint8_t* buf = NULL;
 			int len = OBEX_ObjectReadStream(handle,obj,&buf);
 
+			/* Always create the file even when no data is received */
+			if (put_open(data))
+				data->error = OBEX_RSP_FORBIDDEN;
+
 			dbg_printf(data, "got %d bytes of streamed data\n", len);
 			if (len) {
-				int err = put_write(data, buf, len);
-				if (err)
+				if (put_write(data, buf, len))
 					data->error = OBEX_RSP_FORBIDDEN;
 			}
 		}
@@ -130,10 +124,18 @@ void obex_action_put (file_data_t* data, obex_object_t* obj, int event)
 		data->error = 0xFF;
 		/* no break */
 	case OBEX_EV_REQDONE:
-		if (data->error)
-			(void)put_revert(data);
-		else
-			(void)put_close(data);
+		if (io_state(data->io) & IO_STATE_OPEN) {
+			(void)put_close(data, (data->error == 0));
+
+		} else {
+			if (data->target == OBEX_TARGET_FTP) {
+				if (!obex_object_headers(data, obj))
+					data->error = OBEX_RSP_BAD_REQUEST;
+				else
+					(void)put_delete(data);
+			}
+		}
+
 		if (transfer->name) {
 			free(transfer->name);
 			transfer->name = NULL;
@@ -144,6 +146,7 @@ void obex_action_put (file_data_t* data, obex_object_t* obj, int event)
 		}
 		transfer->length = 0;
 		transfer->time = 0;
+		obex_send_response(data, obj, data->error);
 		break;
 	}
 }

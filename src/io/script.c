@@ -455,6 +455,20 @@ static int io_script_create_dir(struct io_handler *self, const char *dir)
 	return err;
 }
 
+static int io_script_delete(struct io_handler *self, struct io_transfer_data *transfer)
+{
+	struct io_script_data *data = self->private_data;
+	int err = io_script_prepare_cmd(self, transfer, "delete");
+
+	if (!err) {
+		io_script_write_headers(self, transfer, IO_HT_FROM | IO_HT_NAME | IO_HT_PATH);
+		err = io_script_exit(data->child, true);
+	}
+	if (err > 0)
+		err = -EFAULT;
+	return err;
+}
+
 static struct io_handler* io_script_copy(struct io_handler *self)
 {
 	struct io_script_data *data = self->private_data;
@@ -465,6 +479,7 @@ static struct io_handler* io_script_copy(struct io_handler *self)
 static struct io_handler_ops io_script_ops = {
 	.open = io_script_open,
 	.close = io_script_close,
+	.delete = io_script_delete,
 	.copy = io_script_copy,
 	.cleanup = io_script_cleanup,
 	.read = io_script_read,

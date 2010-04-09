@@ -32,6 +32,7 @@ struct io_handler;
 struct io_handler_ops {
 	int (*open)(struct io_handler *self, struct io_transfer_data *transfer, enum io_type t);
 	int (*close)(struct io_handler *self, struct io_transfer_data *transfer, bool keep);
+	int (*delete)(struct io_handler *self, struct io_transfer_data *transfer);
 	struct io_handler* (*copy)(struct io_handler *self);
 	void (*cleanup)(struct io_handler *self);
 	ssize_t (*read)(struct io_handler *self, void *buf, size_t bufsize);
@@ -54,6 +55,7 @@ void io_destroy (struct io_handler *h);
 unsigned long io_state(struct io_handler *self);
 int io_open (struct io_handler *self, struct io_transfer_data *transfer, enum io_type t);
 int io_close (struct io_handler *self, struct io_transfer_data *transfer, bool keep);
+int io_delete(struct io_handler *self, struct io_transfer_data *transfer);
 ssize_t io_readline(struct io_handler *self, void *buf, size_t bufsize);
 ssize_t io_read(struct io_handler *self, void *buf, size_t bufsize);
 ssize_t io_write(struct io_handler *self, const void *buf, size_t len);
