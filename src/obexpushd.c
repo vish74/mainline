@@ -154,10 +154,30 @@ file_data_t* create_client (struct net_data *net) {
 
 static
 void cleanup_client (file_data_t *data) {
-	if (data->transfer.name)
+	if (data->transfer.peername) {
+		free(data->transfer.peername);
+		data->transfer.peername = NULL;
+	}
+	if (data->transfer.name) {
 		free(data->transfer.name);
-	if (data->transfer.type)
+		data->transfer.name = NULL;
+	}
+	if (data->transfer.path) {
+		free(data->transfer.path);
+		data->transfer.path = NULL;
+	}
+	if (data->transfer.type) {
 		free(data->transfer.type);
+		data->transfer.type = NULL;
+	}
+	if (data->auth) {
+		auth_destroy(data->auth);
+		data->auth = NULL;
+	}
+	if (data->io) {
+		io_destroy(data->io);
+		data->io = NULL;
+	}
 	free(data);
 }
 
@@ -236,26 +256,24 @@ void eventcb (obex_t* handle, obex_object_t __unused *obj,
 	} else {
 		/* This handles connections that can only handle one client at a time.
 		 */
-		if (event == OBEX_EV_REQHINT) {
-			file_data_t *data;
-			struct net_data *net;
-		
-			switch (obex_cmd) {
-			case OBEX_CMD_CONNECT:
-				net = OBEX_GetUserData(handle);
-				data = create_client(net);
-				OBEX_SetUserData(handle, data);
-				break;
+		if (event == OBEX_EV_REQHINT &&
+		    obex_cmd == OBEX_CMD_CONNECT)
+		{
+			struct net_data *net = OBEX_GetUserData(handle);
+			file_data_t *data = create_client(net);
 
-			case OBEX_CMD_DISCONNECT:
-				data = OBEX_GetUserData(handle);
-				net = data->net_data;
-				OBEX_SetUserData(handle, net);
-				cleanup_client(data);
-				break;
-			}
+			OBEX_SetUserData(handle, data);
 		}
 		obex_action_eventcb(handle, obj, mode, event, obex_cmd, obex_rsp);
+		if (event == OBEX_EV_REQDONE &&
+		    obex_cmd == OBEX_CMD_DISCONNECT)
+		{
+			file_data_t *data = OBEX_GetUserData(handle);
+			struct net_data *net = data->net_data;
+
+			OBEX_SetUserData(handle, net);
+			cleanup_client(data);
+		}
 	}
 }
 
