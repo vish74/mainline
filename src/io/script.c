@@ -446,7 +446,7 @@ static int io_script_create_dir(struct io_handler *self, const char *dir)
 	};
 	int err = io_script_prepare_cmd(self, &transfer, "createdir");
 	if (!err) {
-		io_script_write_headers(self, &transfer, IO_HT_PATH);
+		io_script_write_headers(self, &transfer, IO_HT_FROM | IO_HT_PATH);
 		err = io_script_exit(data->child, true);
 	}
 	if (err > 0)
