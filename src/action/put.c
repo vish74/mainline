@@ -73,12 +73,6 @@ void obex_action_put (file_data_t* data, obex_object_t* obj, int event)
 	obex_t* handle = data->net_data->obex;
 	struct io_transfer_data *transfer = &data->transfer;
 
-	if (!data->target) {
-		data->error = OBEX_RSP_BAD_REQUEST;
-		obex_send_response(data, obj, data->error);
-		return;
-	}
-
 	switch (event) {
 	case OBEX_EV_REQHINT: /* A new request is coming in */
 		(void)OBEX_ObjectReadStream(handle,obj,NULL);

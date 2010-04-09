@@ -173,12 +173,6 @@ void obex_action_get (file_data_t* data, obex_object_t* obj, int event)
 	int len = 0;
 	int err;
 
-	if (!data->target) {
-		data->error = OBEX_RSP_BAD_REQUEST;
-		obex_send_response(data, obj, data->error);
-		return;
-	}
-
 	switch (event) {
 	case OBEX_EV_REQHINT: /* A new request is coming in */
 		if (transfer->name) {

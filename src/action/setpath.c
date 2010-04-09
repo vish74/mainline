@@ -152,11 +152,6 @@ void obex_action_setpath (file_data_t* data, obex_object_t* obj, int event)
 {
 	uint8_t respCode = OBEX_RSP_SUCCESS;
 
-	if (data->target != OBEX_TARGET_FTP) {
-		obex_send_response(data, obj, OBEX_RSP_BAD_REQUEST);
-		return;
-	}
-
 	switch (event) {
 	case OBEX_EV_REQ:
 		if (check_setpath_headers(data, obj) < 0) {

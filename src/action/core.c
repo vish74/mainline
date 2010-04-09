@@ -151,7 +151,10 @@ void opp_ftp_eventcb (file_data_t* data, obex_object_t* obj,
 		break;
 
 	case OBEX_CMD_SETPATH:
-		obex_action_setpath(data, obj, event);
+		if (data->target == OBEX_TARGET_FTP)
+			obex_action_setpath(data, obj, event);
+		else 
+			obex_send_response(data, obj, OBEX_RSP_BAD_REQUEST);
 		break;
 	}
 }
@@ -177,16 +180,16 @@ void obex_action_eventcb (obex_t* handle, obex_object_t* obj,
 	case OBEX_CMD_ABORT:
 		if (net_security_check(data->net_data)) {
 			if (data->target == OBEX_TARGET_OPP ||
-			    data->target == OBEX_TARGET_FTP) {
+			    data->target == OBEX_TARGET_FTP)
 				opp_ftp_eventcb(data, obj, mode, event, obex_cmd, obex_rsp);
-			}
+			else
+				obex_send_response(data, obj, OBEX_RSP_BAD_REQUEST);
 		}
 		break;
 
 	default:
-		if (event == OBEX_EV_REQHINT) {
+		if (event == OBEX_EV_REQHINT)
 			obex_send_response(data, obj, OBEX_RSP_NOT_IMPLEMENTED);
-		}
 		break;
 	}
 }
