@@ -16,11 +16,21 @@ struct obex_auth_challenge {
 	/** options, see OBEX_AUTH_OPT_* */
 	uint8_t opts;
 
-	/** zero-terminated 16bit unicode string
-	 * This must be in host byte order and if filled by an OBEX_Auth*
-	 * function, it was malloc'd.
-	 */
-	const uint16_t* realm;
+	struct {
+		/** points to the realm data
+		 * For Unicode characters, this must be in host byte order.
+		 */
+		const void *data;
+
+		/** number of valid bytes in data */
+		size_t len;
+
+		/** character set for data
+		 * The definition is the same as for IrDA IAS entries:
+		 * 0:ASCII, 1-9:ISO-8859-x, 255:Unicode
+		 */
+		uint8_t charset;
+	} realm;
 };
 
 /** OBEX authentication response data

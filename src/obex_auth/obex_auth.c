@@ -43,14 +43,6 @@ void obex_auth_calc_digest (uint8_t digest[16],
 	MD5Final(digest, &context);
 }
 
-static
-size_t strlen16 (const uint16_t* s) {
-	size_t n = 0;
-	if (s != 0)
-		while (s[n] != 0x0000) ++n;
-	return n;
-}
-
 /* Function for an OBEX server.
  */
 int obex_auth_add_challenges (obex_t* handle,
@@ -64,16 +56,16 @@ int obex_auth_add_challenges (obex_t* handle,
 	unsigned int realm_check = 1;
 	uint32_t total = 0;
 	unsigned int i;
+	size_t l;
 	
 	for (i = 0; i < count; ++i) {
 		total += 2 + sizeof(chal[0].nonce);
 		if (chal[i].opts)
 			total += 3;
-		if (chal[i].realm) {
-			size_t len = strlen16(chal[i].realm);
-			if (len)
-				total += 3 + 2*(len+1);
-		} else {
+		if (chal[i].realm.data &&
+		    chal[i].realm.len)
+			total += 3 + chal[i].realm.len;
+		else {
 			if (--realm_check == 0)
 				return -EINVAL;
 		}
@@ -97,18 +89,21 @@ int obex_auth_add_challenges (obex_t* handle,
 		}
 
 		/* add realm */
-		if (chal[i].realm) {
-			size_t len = strlen16(chal[i].realm);
-			if (len) {
-				size_t k = 0;
-
-				*ptr++ = 0x02;
-				*ptr++ = 2*len+1;
-				*ptr++ = 0xFF;
-				for (; k < len+1; ++k)
-					((uint16_t *)ptr)[k] = htons(chal[i].realm[k]);
-				ptr += 2*k;
+		if (chal[i].realm.data &&
+		    chal[i].realm.len)
+		{
+			*ptr++ = 0x02;
+			*ptr++ = chal[i].realm.len;
+			*ptr++ = chal[i].realm.charset;
+			memcpy(ptr, chal[i].realm.data, chal[i].realm.len);
+			if (chal[i].realm.charset == 0xFF) {
+				for (l = 0; l < (chal[i].realm.len/2)*2; l += 2) {
+					uint16_t c = htons((ptr[l] << 8) | ptr[l+1]);
+					ptr[l] = (c >> 8) & 0xFF;
+					ptr[l+1] = c & 0xFF;
+				}
 			}
+			ptr += chal[i].realm.len;
 		}
 	};
 
@@ -189,13 +184,13 @@ int obex_auth_unpack_challenge (const obex_headerdata_t h,
 {
 	uint32_t i = 0;
 	size_t k = 0;
-	size_t rsize = 0;
+	size_t l;
 
 	for (; i < hsize; i += h.bs[i+1]+2) {
 		uint8_t htype = h.bs[i];
 		size_t hlen = h.bs[i+1];
 		const uint8_t* hdata = h.bs+i+2;
-		uint16_t *r = NULL;;
+		void *r = NULL;;
 
 		switch (htype){
 		case 0x00: /* nonce */
@@ -204,7 +199,9 @@ int obex_auth_unpack_challenge (const obex_headerdata_t h,
 			if (hlen != 16)
 				return -EINVAL;
 			++k;
-			memcpy(chal[k].nonce,hdata,16);
+			memcpy(chal[k].nonce, hdata, 16);
+			chal[k].opts = 0;
+			memset(&chal[k].realm, 0, sizeof(chal[k].realm));
 			break;
 
 		case 0x01: /* options */
@@ -214,29 +211,19 @@ int obex_auth_unpack_challenge (const obex_headerdata_t h,
 			break;
 
 		case 0x02: /* realm */
-			if (*hdata != 0xFF) /* only support unicode */
-				return -ENOTSUP;
-
-			if (chal[k].realm != NULL) {
-				uint16_t *r = (uint16_t *)chal[k].realm;
-				chal[k].realm = NULL;
-				free(r);
+			if (hlen > 0)
+				chal[k].realm.charset = *hdata;
+			r = malloc(hlen);
+			if (!r)
+				return -errno;
+			memcpy(r, hdata, hlen);
+			if (chal[k].realm.charset == 0xFF) {/* Unicode */
+				uint16_t *r16 = r;
+				for (l = 0; l < hlen/2; ++l)
+					r16[l] = ntohs(r16[l]);
 			}
-
-			--hlen;
-			++hdata;
-
-			if (hdata[hlen] != 0x00 ||
-			    hdata[hlen-1] != 0x00)
-				rsize = hlen+2;
-			else
-				rsize = hlen;
-			r = malloc(rsize);
-			memset(r, 0, rsize);
-			hlen /= 2;
-			for (rsize=0; rsize < hlen; ++rsize)
-				r[rsize] = ntohs(((uint16_t *)hdata)[rsize]);
-			chal[k].realm = r;
+			chal[k].realm.data = r;
+			chal[k].realm.len = hlen;
 			break;
 
 		default:

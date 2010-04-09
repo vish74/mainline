@@ -112,10 +112,14 @@ int auth_init (struct auth_handler *self, obex_t *handle, obex_object_t *obj)
 		memset(chal, 0, count * sizeof(*chal));
 		for (i = 0; i < count; ++i) {
 			memcpy(chal[i].nonce, self->session[i].nonce, sizeof(chal->nonce));
-			if (self->ops && self->ops->get_realm_name)
-				chal[i].realm = self->ops->get_realm_name(self, i);
+			if (self->ops && self->ops->get_realm_name) {
+				const uint16_t *r = self->ops->get_realm_name(self, i);
+				chal[i].realm.data = r;
+				chal[i].realm.len = utf16len(r)*2;
+				chal[i].realm.charset = 0xFF;
+			}
 			if (self->ops && self->ops->get_realm_opts)
-				chal[i].opts = self->ops->get_realm_opts(self, chal[i].realm);
+				chal[i].opts = self->ops->get_realm_opts(self, chal[i].realm.data);
 		}
 		(void)OBEX_AuthAddChallenges(handle, obj, chal, count);
 		free(chal);
