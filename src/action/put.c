@@ -112,6 +112,18 @@ void obex_action_put (file_data_t* data, obex_object_t* obj, int event)
 		obex_send_response(data, obj, data->error);
 		break;
 
+	case OBEX_EV_REQ:
+		if (data->target == OBEX_TARGET_FTP &&
+		    !(io_state(data->io) & IO_STATE_OPEN))
+		{
+			if (!obex_object_headers(data, obj))
+				data->error = OBEX_RSP_BAD_REQUEST;
+			else
+				(void)put_delete(data);
+		}
+		obex_send_response(data, obj, data->error);
+		break;
+
 	case OBEX_EV_LINKERR:
 	case OBEX_EV_PARSEERR:
 	case OBEX_EV_ABORT:
@@ -120,16 +132,7 @@ void obex_action_put (file_data_t* data, obex_object_t* obj, int event)
 	case OBEX_EV_REQDONE:
 		if (io_state(data->io) & IO_STATE_OPEN) {
 			(void)put_close(data, (data->error == 0));
-
-		} else {
-			if (data->target == OBEX_TARGET_FTP) {
-				if (!obex_object_headers(data, obj))
-					data->error = OBEX_RSP_BAD_REQUEST;
-				else
-					(void)put_delete(data);
-			}
 		}
-
 		if (transfer->name) {
 			free(transfer->name);
 			transfer->name = NULL;
@@ -140,7 +143,6 @@ void obex_action_put (file_data_t* data, obex_object_t* obj, int event)
 		}
 		transfer->length = 0;
 		transfer->time = 0;
-		obex_send_response(data, obj, data->error);
 		break;
 	}
 }
