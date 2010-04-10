@@ -53,13 +53,16 @@ USE_THREADS
     Use POSIX threads (instead of fork()) for client connections. The default is
     ON and this is also the suggested value.
 
+ENABLE_TCPWRAP
+    Enable support for the tcp wrapper (see /etc/host.deny and /etc/hosts.allow)
+
 BUILD_HELP_HTML
     Build the HTML help files. Default off OFF.
 
 BUILD_HELP_MAN
     Build the manpage files. Default is ON
 
-BUILD_XOBEX_LIBS
+BUILD_X_OBEX_SHARED_LIBS
     Build libraries to handle x-obex/* mime types in your own programs. Default
     if OFF and the x-obex binaries are linked statically.
 

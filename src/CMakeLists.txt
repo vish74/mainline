@@ -41,7 +41,10 @@ include_directories (
   ${CMAKE_CURRENT_BINARY_DIR}
 )
 
-option ( ENABLE_USB_GADGET_SUPPORT "Build EXPERIMENTAL support for USB gadget" OFF )
+set ( ENABLE_USB_GADGET_SUPPORT OFF )
+if ( CMAKE_SYSTEM_NAME STREQUAL "Linux" )
+  set ( ENABLE_USB_GADGET_SUPPORT ON )
+endif ( CMAKE_SYSTEM_NAME STREQUAL "Linux" )
 if ( ENABLE_USB_GADGET_SUPPORT )
   list ( APPEND obexpushd_DEFINITIONS USB_GADGET_SUPPORT )
   list ( APPEND SOURCES net/usbgobex.c )  

@@ -1,5 +1,5 @@
-option ( USE_MAINTAINER_MODE "Enable some stuff only relevant to developers" OFF )
-if ( USE_MAINTAINER_MODE )
+option ( MAINTAINER_MODE "Enable some stuff only relevant to developers" OFF )
+if ( MAINTAINER_MODE )
   if ( CMAKE_COMPILER_IS_GNUCC )
     set ( MAINTAINER_MODE_WARN_FLAGS
       all
@@ -38,4 +38,4 @@ if ( USE_MAINTAINER_MODE )
       endforeach ( type )
     endforeach ( flag )
   endif ( CMAKE_COMPILER_IS_GNUCC )
-endif ( USE_MAINTAINER_MODE )
+endif ( MAINTAINER_MODE )

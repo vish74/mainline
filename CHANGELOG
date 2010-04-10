@@ -1,3 +1,10 @@
+0.10 (2010-04-10)
+    - add USB gadget support
+    - add OBEX FTP support including setpath, get and put-delete
+    - make UTF8/16 conversion independent of iconv()
+    - extended the script interface
+    - code restructured and modularized
+
 0.9 (2009-06-11)
     - fix CMake modules in case of pkg-config not being present
     - allow extended mime-types in the type header (fixes SF.net bug #1940844)
