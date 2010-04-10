@@ -441,10 +441,11 @@ static ssize_t io_script_write(struct io_handler *self, const void *buf, size_t 
 static int io_script_create_dir(struct io_handler *self, const char *dir)
 {
 	struct io_script_data *data = self->private_data;
-	struct io_transfer_data transfer = {
-		.path = strdup(dir),
-	};
-	int err = io_script_prepare_cmd(self, &transfer, "createdir");
+	struct io_transfer_data transfer;
+	int err;
+
+	transfer.path = strdup(dir),
+	err = io_script_prepare_cmd(self, &transfer, "createdir");
 	if (!err) {
 		io_script_write_headers(self, &transfer, IO_HT_FROM | IO_HT_PATH);
 		err = io_script_exit(data->child, true);
