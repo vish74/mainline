@@ -159,12 +159,57 @@
 	    <para>
 	      Open pipes to the script or program specified by <replaceable>file</replaceable>.
 	      These pipes are seen by the program as stdin and stdout.
-	      There is one parameter, that can be "put", "get" or "xobex".
+	      There is one argument which is one of the following:
+	      <itemizedlist>
+		<listitem>
+		  <para>put</para>
+		  <para>
+		    This requests data to be stored to a specific file.
+		    obexpushd is waiting for an acknoledge after the list of parameters. The script must either
+		    print a line with "OK" to stdout to get the data on stdin or a line with any other content
+		    to reject the transfer.
+		  </para>
+		</listitem>
+		<listitem>
+		  <para>get</para>
+		  <para>
+		    This requests a specific file to be sent to stdout.
+		    Just exit the script with a non-zero exit status to reject the transfer.
+		  </para>
+		</listitem>
+		<listitem>
+		  <para>listdir</para>
+		  <para>
+		    This requests a directory listing to be sent to stdout. You can use the provided obex-folder-listing
+		    to achieve a correctly formatted listing.
+		    Just exit the script with a non-zero exit status to reject the transfer.
+		  </para>
+		</listitem>
+		<listitem>
+		  <para>capability</para>
+		  <para>
+		    This requests an obex capability object (XML formatted data) to be sent to stdout.
+		    Just exit the script with a non-zero exit status to reject the transfer.
+		  </para>
+		</listitem>
+		<listitem>
+		  <para>createdir</para>
+		  <para>
+		    This requests creation of a new directory. No data is transferred.
+		    Just exit the script with a non-zero exit status to reject the request.
+		  </para>		  
+		</listitem>
+		<listitem>
+		  <para>delete</para>
+		  <para>
+		    This requests deletion of a file. No data is transferred.
+		    Just exit the script with a non-zero exit status to reject the request.
+		  </para>		  
+		</listitem>
+	      </itemizedlist>
 	    </para>
 	    <para>
 	      Further parameters are fed to the script via stdin.
-	      With the first parameter being "put", data optionally follows on stdin.
-	      With "get" and "xobex", parameters and data are read via stdout.
 	      Parameters that are transmitted via stdin or stdout have the form
 	      "<replaceable>Parameter</replaceable>: <replaceable>value</replaceable>".
 	      The first empty line seperates parameters and data. The empty line can be the first line.
@@ -174,46 +219,73 @@
 		<listitem>
 		  <para>
 		    "From: <replaceable>type</replaceable>/<replaceable>client-identifier</replaceable>"
-		    which specifies the client address. Currently, types can be "bluetooth", "irda" or
-		    "tcp". The client identifier is an address (embraced in brackets) with optionally a
-		    port (seperated by a colon).
+		  </para>
+		  <para>
+		    This specifies the client address. Currently, types can be "bluetooth", "irda",
+		    "tcp" or "usb".
+		  </para>
+		  <para>
+		    Usage: always present on stdin.
 		  </para>
 		</listitem>
 		<listitem>
 		  <para>
-		    "Name: <replaceable>utf8-string</replaceable>" (required on "get" output)
-		    which specifies the file name,
+		    "Name: <replaceable>utf8-string</replaceable>"
+		  </para>
+		  <para>
+		    This specifies the file name.
+		  </para>
+		  <para>
+		    Usage: present on stdin for "put", "get" and "delete".
 		  </para>
 		</listitem>
 		<listitem>
 		  <para>
-		    "Length: <replaceable>uint32</replaceable>" (required on "get" output) which specifies the
-		    amount of data in bytes in the data section that follows, and
+		    "Length: <replaceable>uint32</replaceable>"
+		  </para>
+		  <para>
+		    This specifies the amount of data in bytes in the data section that follows.
+		  </para>
+		  <para>
+		    Usage: required on stdout for "get", else optional.
 		  </para>
 		</listitem>
 		<listitem>
 		  <para>
-		    "Type: <replaceable>ascii-string</replaceable>" which specifies the mime type of the data.
+		    "Type: <replaceable>ascii-string</replaceable>"
+		  </para>
+		  <para>
+		    This specifies the mime type of the data.
+		  </para>
+		  <para>
+		    Usage: completely optional.
 		  </para>
 		</listitem>
 		<listitem>
 		  <para>
-		    "Time: <replaceable>time-string</replaceable>" where <replaceable>time-string</replaceable>
-		    defines a time in ISO-8601 format (YYYYMMDDThhmmssZ).
+		    "Time: <replaceable>time-string</replaceable>"
+		  </para>
+		  <para>
+		    This defines a time stamp where <replaceable>time-string</replaceable>
+		    is a time in ISO-8601 format (YYYYMMDDThhmmssZ).
+		  </para>
+		  <para>
+		    Usage: completely optional.
 		  </para>
 		</listitem>
 		<listitem>
 		  <para>
-		    "X-OBEX-Type: <replaceable>ascii-string</replaceable>" (only on "xobex") which contains
-		    the latter part of the "x-obex/*" mime string that was requested. This is usually
-		    "capability" ("folder-listing" is not allowed in OPP).
+		    "Path: <replaceable>ascii-string</replaceable>"
+		  </para>
+		  <para>
+		    This defines a relative path to the published base directory.
+		  </para>
+		  <para>
+		    Usage: present on stdin for "put", "get", "listdir", "createdir" and "delete".
 		  </para>
 		</listitem>
 	      </itemizedlist>
 	      Unknown parameters shall be ignored.
-              With "put", obexpushd is waiting for an ok after the list of parameters. The script must either
-	      print a line with "OK" to stdout to accept the input or a line with any other content to reject
-	      it.
 	    </para>
 	  </listitem>
 	</varlistentry>
