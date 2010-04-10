@@ -2,9 +2,11 @@
 /* Information about the USB OBEX gadget device (Linux):
  * - SIGHUP is raised when the client is disconnected (e.g. cable removed)
  * - since USB CDC uses block transfers, a read must always offer a maximum size
- *   buffer, the actual read data may be less
+ *   buffer of 0xFFFF, the actual read data may be less
  * - the TTY device must be set into raw mode
- * - expect freezes when using dummy_hcd.ko (something is wrong with it)
+ * - when the client is closing the connection, read() after select() will
+ *   return 0 bytes, the device file must be re-opened in this case
+ * - expect freezes when using dummy_hcd.ko (something is wrong with it, 2.6.33)
  */
 
 #include "closexec.h"
@@ -18,7 +20,9 @@
 #include <termios.h>
 #include <unistd.h>
 
+#ifndef HAS_SIGNALFD
 #define HAS_SIGNALFD 1
+#endif
 #if HAS_SIGNALFD
 #  include <sys/signalfd.h>
 #  include <sys/signal.h>
@@ -139,7 +143,11 @@ int usb_gadget_ctrans_handleinput(obex_t *handle, void *customdata, int timeout)
 			int n = usb_gadget_ctrans_read(handle, customdata, args->buf, OBEX_MAXIMUM_MTU);
 			if (n > 0)
 				ret = OBEX_CustomDataFeed(handle, args->buf, n);
-
+			else {
+				/* This can happens when the client disappears early */
+				OBEX_TransportDisconnect(handle);
+				ret = -1;
+			}
 #if HAS_SIGNALFD
 		} else if (FD_ISSET(args->sig_fd, &fdset)) {
 			struct signalfd_siginfo info;
