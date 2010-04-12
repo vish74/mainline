@@ -127,20 +127,6 @@ void opp_ftp_eventcb (file_data_t* data, obex_object_t* obj,
 		      int __unused mode, int event,
 		      int obex_cmd, int __unused obex_rsp)
 {
-	/* work-around for openobex bug */
-	static int last_obex_cmd = 0;
-	if (event == OBEX_EV_STREAMAVAIL ||
-	    event == OBEX_EV_STREAMEMPTY)
-		obex_cmd = last_obex_cmd;
-	else
-		last_obex_cmd = obex_cmd;
-
-	/* re-route the abort command */
-	if (obex_cmd == OBEX_CMD_ABORT) {
-		obex_cmd = last_obex_cmd;
-		event = OBEX_EV_ABORT;
-	}
-
 	switch (obex_cmd) {
 	case OBEX_CMD_PUT:
 		obex_action_put(data, obj, event);
@@ -164,6 +150,24 @@ void obex_action_eventcb (obex_t* handle, obex_object_t* obj,
 			  int obex_cmd, int obex_rsp)
 {
 	file_data_t* data = OBEX_GetUserData(handle);
+
+	/* re-route the abort command */
+	if (obex_cmd == OBEX_CMD_ABORT) {
+		obex_cmd = data->command;
+		event = OBEX_EV_ABORT;
+	}
+
+	/* work-around for openobex bug */
+	switch (event) {
+	case OBEX_EV_REQHINT:
+		data->command = obex_cmd;
+		break;
+
+	case OBEX_EV_STREAMAVAIL:
+	case OBEX_EV_STREAMEMPTY:
+		obex_cmd = data->command;
+		break;
+	}
 
 	switch (obex_cmd) {
 	case OBEX_CMD_CONNECT:

@@ -26,6 +26,7 @@ typedef struct {
 
 	uint8_t buffer[1000];
 	enum obex_target target;
+	int command;
 
 	struct net_data* net_data;
 	struct auth_handler *auth;
