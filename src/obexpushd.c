@@ -605,7 +605,7 @@ int main (int argc, char** argv) {
 	(void)signal(SIGTERM, obexpushd_shutdown);
 
 	if (protocols == 0)
-		protocols = (NET_OBEX_PUSH | NET_OBEX_FTP);
+		protocols = (1 << NET_OBEX_PUSH) | (1 << NET_OBEX_FTP);
 
 	/* initialize all enabled listeners */
 	for (i = 0; i < NET_INDEX_MAX; ++i) {

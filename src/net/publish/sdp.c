@@ -285,8 +285,12 @@ void* bt_sdp_session_open (
 	if (!data)
 		return NULL;
 
-	for (int i = 0; i < SDP_DATA_REC_COUNT && status >= 0; ++i)
-		status = sdp_device_record_register(data->session, device, data->rec[i].handle, 0);
+	for (int i = 0; i < SDP_DATA_REC_COUNT && status >= 0; ++i) {
+		if (data->rec[i].handle == NULL)
+			continue;
+		status = sdp_device_record_register(data->session, device,
+						    data->rec[i].handle, 0);
+	}
 	if (status < 0) {
 		bt_sdp_session_close(data, device);
 		data = NULL;
@@ -306,14 +310,15 @@ void bt_sdp_session_close (
 		return;
 	
 	for (int i = 0; i < SDP_DATA_REC_COUNT; ++i) {
-		if (data->rec[i].handle != NULL) {
-			(void)sdp_device_record_unregister(data->session, device, data->rec[i].handle);
-			data->rec[i].handle = NULL;
-			if (i == 0)
-				bt_sdp_cleanup_opp(&data->rec[0].prot.opp);
-			else if (i == 1)
-				bt_sdp_cleanup_ftp(&data->rec[1].prot.ftp);
-		}
+		if (data->rec[i].handle == NULL)
+			continue;
+		(void)sdp_device_record_unregister(data->session, device,
+						   data->rec[i].handle);
+		data->rec[i].handle = NULL;
+		if (i == 0)
+			bt_sdp_cleanup_opp(&data->rec[0].prot.opp);
+		else if (i == 1)
+			bt_sdp_cleanup_ftp(&data->rec[1].prot.ftp);
 	}
 	sdp_close(data->session);
 	data->session = NULL;
