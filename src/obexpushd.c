@@ -61,12 +61,12 @@ void dbg_printf (file_data_t *data, const char *format, ...)
 		va_list ap;
 		if (data) {
 			if (data->count)
-				(void)fprintf(stdout, "%u.%u: ", data->id, data->count);
+				(void)fprintf(stderr, "%u.%u: ", data->id, data->count);
 			else
-				(void)fprintf(stdout, "%u: ", data->id);
+				(void)fprintf(stderr, "%u: ", data->id);
 		}
 		va_start(ap, format);
-		vfprintf(stdout, format, ap);
+		vfprintf(stderr, format, ap);
 		va_end(ap);
 	}
 }
@@ -132,8 +132,9 @@ void client_eventcb (obex_t* handle, obex_object_t* obj,
 	file_data_t* data = OBEX_GetUserData(handle);
 
 	if (debug)
-		printf("%u: OBEX_EV_%s, OBEX_CMD_%s\n", data->id,
-		       obex_event_string(event), obex_command_string(obex_cmd));
+		dbg_printf(data, "OBEX_EV_%s, OBEX_CMD_%s\n",
+			   obex_event_string(event),
+			   obex_command_string(obex_cmd));
 
 	obex_action_eventcb(handle, obj, mode, event, obex_cmd, obex_rsp);
 }
@@ -201,7 +202,7 @@ static void* handle_client (void* arg) {
 
 			memset(buffer, 0, sizeof(buffer));
 			net_get_peer(data->net_data, buffer, sizeof(buffer));
-			fprintf(stderr,"Connection from \"%s\"\n", buffer);
+			dbg_printf(data, "Connection from \"%s\"\n", buffer);
 
 			do {
 				if (OBEX_HandleInput(data->net_data->obex, 10) < 0)
@@ -284,10 +285,11 @@ void eventcb (obex_t* handle, obex_object_t __unused *obj,
 #endif
 
 static void print_disclaimer () {
-	printf(PROGRAM_NAME " " OBEXPUSHD_VERSION " Copyright (C) 2006-2009 Hendrik Sattler\n"
-	       "This software comes with ABSOLUTELY NO WARRANTY.\n"
-	       "This is free software, and you are welcome to redistribute it\n"
-	       "under certain conditions.\n");
+	fprintf(stderr,
+		PROGRAM_NAME " " OBEXPUSHD_VERSION " Copyright (C) 2006-2010 Hendrik Sattler\n"
+		"This software comes with ABSOLUTELY NO WARRANTY.\n"
+		"This is free software, and you are welcome to redistribute it\n"
+		"under certain conditions.\n");
 }
 
 static void print_help (char* me) {
@@ -597,7 +599,7 @@ int main (int argc, char** argv) {
 	} else {
 		print_disclaimer();
 		if (strcasecmp(nl_langinfo(CODESET), "UTF-8") != 0)
-			printf("Warning: local character set is not Unicode.\n");
+			fprintf(stderr, "Warning: local character set is not Unicode.\n");
 	}
 
 	/* setup the signal handlers */
