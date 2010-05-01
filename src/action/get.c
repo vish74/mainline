@@ -42,14 +42,12 @@ void add_headers(file_data_t* data, obex_object_t* obj)
 	obex_headerdata_t hv;
 
 	if (transfer->name) {
-		size_t size = utf16len(transfer->name);
-		if (size) {
-			void *bs;
-			size += 2;
-			bs = malloc(size);
+		size_t len = utf16len(transfer->name);
+		if (len) {
+			void *bs = utf16dup(transfer->name);
 			if (bs) {
-				memcpy(bs, transfer->name, size);
-				ucs2_hton(bs, size);
+				size_t size = (len+1)*sizeof(*transfer->name);
+				ucs2_hton(bs, len);
 				hv.bs = bs;
 				(void)OBEX_ObjectAddHeader(handle,obj,OBEX_HDR_NAME,
 							   hv,size,0);

@@ -35,18 +35,17 @@ size_t utf8len (const uint8_t* s) {
 }
 
 uint16_t* utf16dup (const uint16_t* s) {
-	size_t len = ucs2len(s) + 2;
+	size_t len = utf16len(s) + 1;
 	uint16_t *s2;
 
 	if (!s) {
 		errno = EINVAL;
 		return NULL;
 	}
-	s2 = malloc(len);
+	s2 = calloc(len, sizeof(*s));
 	if (!s2)
 		return NULL;
-	memset(s2, 0, len);
-	memcpy(s2, s, len);
+	memcpy(s2, s, len*sizeof(*s));
 	return s2;
 }
 
