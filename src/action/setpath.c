@@ -111,6 +111,7 @@ static int check_setpath_headers (file_data_t* data, obex_object_t* obj)
 	obex_t* handle = data->net_data->obex;
 	uint16_t *name = NULL;
 	uint8_t *flags = NULL;
+	int len;
 
 	if (!data)
 		return -EINVAL;
@@ -127,12 +128,12 @@ static int check_setpath_headers (file_data_t* data, obex_object_t* obj)
 		case OBEX_HDR_NAME:
 			if (name)
 				free(name);
-			name = malloc(vsize+2);
+			len = (vsize / 2) + 1;
+			name = calloc(len, sizeof(*name));
 			if (!name)
 				return -errno;
-			memset(name,0,vsize+2);
-			memcpy(name,value.bs,vsize);
-			ucs2_ntoh(name,vsize/2);
+			memcpy(name, value.bs, vsize);
+			utf16_ntoh(name, len);
 			if (debug) {
 				uint8_t* n = utf16to8(name);
 				dbg_printf(data, "name: \"%s\"\n", (char*)n);

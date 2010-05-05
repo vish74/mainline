@@ -48,7 +48,7 @@ struct auth_handler* auth_copy (struct auth_handler *h)
 			if (h->ops && h->ops->get_realm_count)
 				count = h->ops->get_realm_count(h);
 			memcpy(hnew, h, sizeof(*h));
-			hnew->session = malloc(count * sizeof(*hnew->session));
+			hnew->session = calloc(count, sizeof(*hnew->session));
 			if (!hnew->session) {
 				free(hnew);
 				hnew = NULL;
@@ -106,16 +106,15 @@ int auth_init (struct auth_handler *self, obex_t *handle, obex_object_t *obj)
 		/* no break */
 
 	case AUTH_STATE_REQUEST_SENT:
-		chal = malloc(count * sizeof(*chal));
+		chal = calloc(count, sizeof(*chal));
 		if (!chal)
 			return 0;
-		memset(chal, 0, count * sizeof(*chal));
 		for (i = 0; i < count; ++i) {
 			memcpy(chal[i].nonce, self->session[i].nonce, sizeof(chal->nonce));
 			if (self->ops && self->ops->get_realm_name) {
 				const uint16_t *r = self->ops->get_realm_name(self, i);
 				chal[i].realm.data = r;
-				chal[i].realm.len = utf16len(r)*2;
+				chal[i].realm.len = utf16len(r) * sizeof(*r);
 				chal[i].realm.charset = 0xFF;
 			}
 			if (self->ops && self->ops->get_realm_opts)

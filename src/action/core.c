@@ -14,6 +14,7 @@ int obex_object_headers (file_data_t* data, obex_object_t* obj) {
 	uint32_t vsize;
 	obex_t* handle = data->net_data->obex;
 	struct io_transfer_data *transfer;
+	int len;
 
 	if (!data)
 		return 0;
@@ -28,12 +29,12 @@ int obex_object_headers (file_data_t* data, obex_object_t* obj) {
 		case OBEX_HDR_NAME:
 			if (transfer->name)
 				free(transfer->name);
-			transfer->name = malloc(vsize+2);
+			len = (vsize / 2) + 1;
+			transfer->name = calloc(len, sizeof(*transfer->name));
 			if (!transfer->name)
 				return 0;
-			memset(transfer->name,0,vsize+2);
-			memcpy(transfer->name,value.bs,vsize);
-			ucs2_ntoh(transfer->name,vsize/2);
+			memcpy(transfer->name, value.bs, vsize);
+			utf16_ntoh(transfer->name, len);
 			if (debug) {
 				uint8_t* n = utf16to8(transfer->name);
 				dbg_printf(data, "name: \"%s\"\n", (char*)n);
@@ -48,11 +49,11 @@ int obex_object_headers (file_data_t* data, obex_object_t* obj) {
 		case OBEX_HDR_TYPE:
 			if (transfer->type)
 				free(transfer->type);
-			transfer->type = malloc(vsize+1);
+			len = vsize + 1;
+			transfer->type = calloc(len, sizeof(transfer->type));
 			if (!transfer->type)
 				return 0;
-			memcpy(transfer->type,value.bs,vsize);
-			transfer->type[vsize] = '\0';
+			memcpy(transfer->type, value.bs, vsize);
 			dbg_printf(data, "type: \"%s\"\n", transfer->type);
 			if (!check_type((uint8_t*)transfer->type)) {
 				dbg_printf(data, "CHECK FAILED: %s\n", "Invalid type string");
@@ -69,20 +70,22 @@ int obex_object_headers (file_data_t* data, obex_object_t* obj) {
 			/* ISO8601 formatted ASCII string */
 		        {
 				struct tm time;
-				char* tmp = malloc(vsize+1);
+				char* tmp = calloc(vsize+1, sizeof(*tmp));
+				char* ptr;
+
 				if (!tmp)
 					return 0;
 				memcpy(tmp, value.bs, vsize);
-				tmp[vsize] = '\0';
 				dbg_printf(data, "time: \"%s\"\n", tmp);
 				tzset();
-				strptime(tmp, "%Y-%m-%dT%H:%M:%S", &time); /* uses GNU extensions */
-				time.tm_isdst = -1;
-				transfer->time = mktime(&time);
-				if (tmp[17] == 'Z')
-					transfer->time -= timezone;
+				ptr = strptime(tmp, "%Y%m%dT%H%M%S", &time);
+				if (ptr != NULL) {
+					time.tm_isdst = -1;
+					transfer->time = mktime(&time);
+					if (*ptr == 'Z')
+						transfer->time -= timezone;
+				}
 				free(tmp);
-				tmp = NULL;
 			}
 			break;
 
@@ -91,14 +94,12 @@ int obex_object_headers (file_data_t* data, obex_object_t* obj) {
 			transfer->time = value.bq4;
 			if (debug && transfer->time) {
 				struct tm t;
-				char *tmp = malloc(17);
+				char tmp[17];
+
+				memset(tmp, 0, sizeof(tmp));
 				(void)gmtime_r(&transfer->time, &t);
-				if (tmp) {
-					memset(tmp, 0, 17);
-					if (strftime(tmp, 17, "%Y%m%dT%H%M%SZ", &t) == 16) {
-						dbg_printf(data, "time: \"%s\"\n", tmp);
-					}
-					free(tmp);
+				if (strftime(tmp, sizeof(tmp), "%Y%m%dT%H%M%SZ", &t) != 0) {
+					dbg_printf(data, "time: \"%s\"\n", tmp);
 				}
 			}
 			break;

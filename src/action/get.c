@@ -47,7 +47,7 @@ void add_headers(file_data_t* data, obex_object_t* obj)
 			void *bs = utf16dup(transfer->name);
 			if (bs) {
 				size_t size = (len+1)*sizeof(*transfer->name);
-				ucs2_hton(bs, len);
+				utf16_hton(bs, len);
 				hv.bs = bs;
 				(void)OBEX_ObjectAddHeader(handle,obj,OBEX_HDR_NAME,
 							   hv,size,0);
@@ -77,18 +77,15 @@ void add_headers(file_data_t* data, obex_object_t* obj)
 	}
 
 	if (transfer->time) {
-		void *bs = malloc(17);
-		if (bs) {
-			struct tm t;
-			(void)gmtime_r(&transfer->time, &t);
-			memset(bs, 0, 17);
-			if (strftime(bs, 17, "%Y%m%dT%H%M%SZ", &t) == 16) {
-				hv.bs = bs;
-				(void)OBEX_ObjectAddHeader(handle,obj,OBEX_HDR_TIME,
-							   hv,strlen(bs),0);
-				hv.bs = NULL;
-			}
-			free(bs);
+		char bs[17];
+		struct tm t;
+
+		memset(bs, 0, sizeof(bs));
+		(void)gmtime_r(&transfer->time, &t);
+		if (strftime(bs, sizeof(bs), "%Y%m%dT%H%M%SZ", &t) != 0) {
+			hv.bs = (uint8_t*)bs;
+			(void)OBEX_ObjectAddHeader(handle,obj,OBEX_HDR_TIME,
+						   hv,strlen(bs),0);
 		}
 	}
 
@@ -105,7 +102,7 @@ int get_check (
 {
 	/* either type or name must be set */
 	if (!transfer->type || strlen(transfer->type) == 0)
-		return (ucs2len(transfer->name) != 0);
+		return (utf16len(transfer->name) != 0);
 
 	if (strncmp(transfer->type, "x-obex/", 7) == 0) {
 		if (strcmp(transfer->type+7, "folder-listing") == 0) {
@@ -115,7 +112,7 @@ int get_check (
 			return 1;
 
 		} else if (strcmp(transfer->type+7, "object-profile") == 0) {
-			return (ucs2len(transfer->name) != 0);
+			return (utf16len(transfer->name) != 0);
 
 		} else {
 			/* unknown x-obex type */
@@ -123,7 +120,7 @@ int get_check (
 		}
 	} else {
 		/* request generic file objects with a specific type is not allowed */
-		return (ucs2len(transfer->name) && strlen(transfer->type));
+		return (utf16len(transfer->name) && strlen(transfer->type));
 	}
 }
 

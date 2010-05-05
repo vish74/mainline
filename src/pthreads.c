@@ -37,7 +37,7 @@ static void* obexpushd_listen_thread (void* arg) {
 
 int obexpushd_start (struct net_data *data, unsigned int count) {
 	unsigned int i;
-	pthread_t *thread = malloc(count *sizeof(*thread));
+	pthread_t *thread = calloc(count, sizeof(*thread));
 
 	if (!thread)
 		return -errno;

@@ -31,9 +31,3 @@ size_t utf16count(const uint16_t* s);
  */
 uint8_t* utf16to8 (const uint16_t* c);
 uint16_t* utf8to16 (const uint8_t* c);
-
-
-#define ucs2len(s) utf16len(s)
-#define ucs2dup(s) utf16dup(s)
-#define ucs2_ntoh(s,l) utf16_ntoh((s),(l));
-#define ucs2_hton(s,l) utf16_hton((s),(l));
