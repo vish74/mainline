@@ -3,7 +3,7 @@ project ( obexpushd NONE )
 
 set ( VERSION_MAJOR 0 )
 set ( VERSION_MINOR 10 )
-set ( VERSION_PATCH 1 )
+set ( VERSION_PATCH 2 )
 set ( VERSION "${VERSION_MAJOR}.${VERSION_MINOR}" )
 if ( VERSION_PATCH GREATER 0 )
   set ( VERSION "${VERSION}.${VERSION_PATCH}" )
