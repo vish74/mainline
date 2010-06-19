@@ -28,6 +28,9 @@
 #include <string.h>
 #include <signal.h>
 #include <utime.h>
+#ifdef USE_XATTR
+#include <attr/xattr.h>
+#endif
 
 #include "io.h"
 #include "utf.h"
@@ -110,6 +113,44 @@ static int io_file_delete (
 	return 0;
 }
 
+static void io_file_set_time (
+	const char *name,
+	time_t time
+)
+{
+	struct utimbuf times;
+					
+	times.actime = time;
+	times.modtime = time;
+	/* setting the time is non-critical */
+	(void)utime(name, &times);
+}
+
+#ifdef USE_XATTR
+static void io_file_set_type (
+	const char *name,
+	const char *type
+)
+{
+	(void)lsetxattr(name, "user.mime_type", type, strlen(type)+1, 0);
+}
+
+static char * io_file_get_type (
+	const char *name
+)
+{	
+	char type[256];
+	ssize_t status = lgetxattr(name, "user.mime_type", type, sizeof(type));
+
+	if (status < 0 ||
+	    strlen(type) != (size_t)status ||
+	    !check_type((uint8_t*)type))
+		return NULL;
+
+	return strdup(type);
+}
+#endif
+
 static int io_file_close (
 	struct io_handler *self,
 	struct io_transfer_data *transfer,
@@ -133,19 +174,20 @@ static int io_file_close (
 			if (!keep) {
 				io_file_delete(self, transfer);
 
-			} else if (transfer->time) {
-				char* name = io_file_get_fullname(data->basedir,
+			} else if (transfer->time || transfer->type) {
+				char *name = io_file_get_fullname(data->basedir,
 								  transfer->path,
 								  transfer->name);
-				if (name) {
-					struct utimbuf times;
-					
-					times.actime = transfer->time;
-					times.modtime = transfer->time;
-					/* setting the time is non-critical */
-					(void)utime(name, &times);
-					free(name);
-				}
+				if (!name)
+					return 0;
+
+				if (transfer->time)
+					io_file_set_time(name, transfer->time);
+#ifdef USE_XATTR
+				if (transfer->type)
+					io_file_set_type(name, transfer->type);
+#endif
+				free(name);
 			}
 		}
 	}
@@ -206,6 +248,9 @@ static int io_file_open (
 			return -errno;
 		transfer->length = s.st_size;
 		transfer->time = s.st_mtime;
+#ifdef USE_XATTR
+		transfer->type = io_file_get_type(name);
+#endif
 		break;
 
 	case IO_TYPE_LISTDIR:

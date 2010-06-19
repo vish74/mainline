@@ -24,11 +24,24 @@ set ( obex-folder-listing_VERSION 1.0.0 )
 set ( obex-folder-listing_SOVERSION 0 )
 set ( obex-folder-listing_PRIVATE_HEADER obex-folder-listing.h )
 
+#
+# Extended Attributes can be used for mime type storage
+#
+find_package( Attr QUIET )
+if (Attr_FOUND)
+  include_directories ( ${Attr_INCLUDE_DIRS} )
+  list ( APPEND obex-folder-listing_COMPILE_DEFINITIONS USE_XATTR )
+  list ( APPEND obex-folder-listing_LIBRARIES ${ATTR_LIBRARIES} )
+endif (Attr_FOUND)
+
 foreach ( lib capability folder-listing )
   add_library ( obex-${lib} ${X_OBEX_BUILD_TYPE}
     obex-${lib}.c
   )
-  foreach ( property VERSION SOVERSION PRIVATE_HEADER )
+  if ( obex-${lib}_LIBRARIES )
+    target_link_libraries ( obex-${lib} ${obex-${lib}_LIBRARIES} )
+  endif ( obex-${lib}_LIBRARIES )
+  foreach ( property VERSION SOVERSION PRIVATE_HEADER COMPILE_DEFINITIONS )
     if ( DEFINED obex-${lib}_${property} )
       set_property ( TARGET obex-${lib} PROPERTY
 	${property} ${obex-${lib}_${property}}

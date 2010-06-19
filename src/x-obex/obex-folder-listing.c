@@ -33,6 +33,11 @@
 #include <windows.h>
 #include <shlwapi.h>
 #define strdup(s) StrDup(s)
+
+#else
+#ifdef USE_XATTR
+#include <attr/xattr.h>
+#endif
 #endif
 
 enum ft {
@@ -82,11 +87,33 @@ enum ft filetype (mode_t m)
 		return FT_OTHER;
 }
 
+#ifdef USE_XATTR
+static int get_mime_type (
+	const char *filename,
+	char *type,
+	size_t size
+)
+{
+	ssize_t status = lgetxattr(filename, "user.mime_type", type, size);
+
+	if (status >= 0)
+		return 0;
+
+	if (strlen(type) != (size_t)status)
+		errno = EINVAL;
+
+	return -errno;
+}
+#endif
+
 static
 void print_filename (FILE* fd, const char* filename, mode_t st_parent, int flags)
 {
 	struct stat s;
-	const char* name;
+	const char *name;
+#ifdef USE_XATTR
+	char type[256];
+#endif
 	char create_time[17];
 	char mod_time[17];
 	char acc_time[17];
@@ -120,6 +147,12 @@ void print_filename (FILE* fd, const char* filename, mode_t st_parent, int flags
 	}
 
 	fprintf(fd," name=\"%s\" size=\"%zd\"",name,s.st_size);
+
+#ifdef USE_XATTR
+	if (!get_mime_type(name,type,sizeof(type))) {
+		fprintf(fd," type=\"%s\"",type);
+	}
+#endif
 
 	if (flags & OFL_FLAG_TIMES) {
 		if (strftime(create_time,15,"%Y%m%dT%H%M%SZ",gmtime(&s.st_ctime)))

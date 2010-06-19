@@ -105,6 +105,16 @@ if ( TcpWrap_FOUND )
 endif ( TcpWrap_FOUND )
 
 #
+# Extended Attributes can be used for mime type storage
+#
+find_package( Attr QUIET )
+if (Attr_FOUND)
+  include_directories ( ${Attr_INCLUDE_DIRS} )
+  list ( APPEND obexpushd_DEFINITIONS USE_XATTR )
+  list ( APPEND obexpushd_LIBRARIES ${ATTR_LIBRARIES} )
+endif (Attr_FOUND)
+
+#
 # Absolute necessary: bluetooth and openobex
 #
 foreach ( i Bluetooth OpenObex )
