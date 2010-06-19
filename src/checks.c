@@ -16,7 +16,7 @@
  */
    
 #include "utf.h"
-#include "obexpushd.h"
+#include "checks.h"
 
 #include <inttypes.h>
 #include <ctype.h>
@@ -25,7 +25,7 @@
 
 static
 int name_check_cb(int c) {
-  return !(c == (int)':' || c == (int)'\\' || c == (int)'/' || iscntrl(c));
+	return !(c == (int)':' || c == (int)'\\' || c == (int)'/' || iscntrl(c));
 }
 
 static
@@ -41,7 +41,7 @@ int check_name (uint8_t *name) {
 }
 
 int check_type (uint8_t *type) {
-  size_t len = strlen((char*)type);
+	size_t len = strlen((char*)type);
 	size_t i = 0;
 
 	for (; i < len; ++i) {

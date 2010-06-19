@@ -40,8 +40,4 @@ void obex_send_response (file_data_t* data, obex_object_t* obj, uint8_t respCode
 extern int debug;
 void dbg_printf (file_data_t *data, const char *format, ...) __attribute__((format(printf,2,3)));
 
-int check_name (uint8_t *name);
-int check_type (uint8_t *type);
-int check_wrap_utf16 (uint16_t *name, int (*func)(uint8_t*));
-
 #endif

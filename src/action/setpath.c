@@ -16,6 +16,7 @@
  */
 
 #include "obexpushd.h"
+#include "checks.h"
 #include "net.h"
 #include "core.h"
 #include "utf.h"

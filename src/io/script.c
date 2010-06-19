@@ -16,6 +16,7 @@
  */
 
 #include "obexpushd.h"
+#include "checks.h"
 
 #include <sys/stat.h>
 #include <sys/wait.h>

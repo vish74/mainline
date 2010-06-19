@@ -1,6 +1,7 @@
 #include "action.h"
 #include "utf.h"
 #include "net.h"
+#include "checks.h"
 #include "obexpushd.h"
 
 #include "core.h"
