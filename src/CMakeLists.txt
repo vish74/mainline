@@ -23,24 +23,29 @@ list ( APPEND SOURCES
   net/irobex.c
 )
 
-add_subdirectory ( x-obex )
-
 set ( OBEXPUSHD_VERSION ${VERSION} )
 configure_file (
   ${CMAKE_CURRENT_SOURCE_DIR}/version.h.in
   ${CMAKE_CURRENT_BINARY_DIR}/version.h
 )
 
-foreach ( i Bluetooth OpenObex )
-  find_package ( ${i} REQUIRED )
-  include_directories ( ${${i}_INCLUDE_DIRS} )
-endforeach ( i )
-
 include_directories (
   ${CMAKE_CURRENT_SOURCE_DIR}
   ${CMAKE_CURRENT_BINARY_DIR}
 )
 
+add_subdirectory ( obex_auth )
+list ( APPEND obexpushd_LIBRARIES obex_auth )
+
+add_subdirectory ( x-obex )
+list ( APPEND obexpushd_LIBRARIES
+  obex-capability
+  obex-folder-listing
+)
+
+#
+# Configure USB gadget support (Linux only)
+#
 set ( ENABLE_USB_GADGET_SUPPORT OFF )
 if ( CMAKE_SYSTEM_NAME STREQUAL "Linux" )
   set ( ENABLE_USB_GADGET_SUPPORT ON )
@@ -50,28 +55,31 @@ if ( ENABLE_USB_GADGET_SUPPORT )
   list ( APPEND SOURCES net/usbgobex.c )  
 endif ( ENABLE_USB_GADGET_SUPPORT )
 
-if ( OpenObex_HAVE_TcpObex )
-  list ( APPEND obexpushd_DEFINITIONS OPENOBEX_TCPOBEX=1 )
-  list ( APPEND SOURCES net/tcpobex.c )
-else ( OpenObex_HAVE_TcpObex )
-  list ( APPEND SOURCES net/inobex.c )
-endif ( OpenObex_HAVE_TcpObex )
-
+#
+# Posix spawn is the preferred way to use the script support
+#
 option ( USE_SPAWN "Use POSIX spawn function instead of fork+exec" ON )
 if ( USE_SPAWN )
   list ( APPEND obexpushd_DEFINITIONS USE_SPAWN )
 endif ( USE_SPAWN )
 
+#
+# Concurrency can be done using threads (preferred) or processes
+#
 option ( USE_THREADS "Use POSIX threads instead of fork (if supported by system)" ON )
 if ( USE_THREADS )
   find_package ( Threads )
-  if ( CMAKE_USE_PTHREADS_INIT )
+  if ( Threads_FOUND AND CMAKE_USE_PTHREADS_INIT )
     list ( APPEND obexpushd_DEFINITIONS USE_THREADS )
-    find_library ( THREAD_LIBRARY pthread )
-    mark_as_advanced ( THREAD_LIBRARY )
-  endif ( CMAKE_USE_PTHREADS_INIT )
+    if ( CMAKE_THREAD_LIBS_INIT )
+      list ( APPEND obexpushd_LIBRARIES ${CMAKE_THREAD_LIBS_INIT} )
+    endif ( CMAKE_THREAD_LIBS_INIT )
+  endif ( Threads_FOUND AND CMAKE_USE_PTHREADS_INIT )
 endif ( USE_THREADS )
 
+#
+# Avahi is currently turned off (there is no official Obex profile for it).
+#
 #option ( ENABLE_AVAHI "Use the avahi-client library to publish the service" OFF )
 #if ( ENABLE_AVAHI )
 #  find_package ( AvahiClient )
@@ -80,8 +88,12 @@ endif ( USE_THREADS )
 #  include_directories ( ${AvahiClient_INCLUDE_DIRS} )
 #  list ( APPEND obexpushd_DEFINITIONS ENABLE_AVAHI )
 #  list ( APPEND SOURCES net/publish/avahi.c )
+#  list ( APPEND obexpushd_LIBRARIES ${AvahiClient_LIBRARIES} )
 #endif ( AvahiClient_FOUND )
 
+#
+# TcpWrapper can be used for access control
+#
 option ( ENABLE_TCPWRAP "Use the tcp wrapper library to check for restrictions on incoming connections" ON )
 if ( ENABLE_TCPWRAP )
   find_package ( TcpWrap )
@@ -89,30 +101,34 @@ endif ( ENABLE_TCPWRAP )
 if ( TcpWrap_FOUND )
   include_directories ( ${TcpWrap_INCLUDE_DIRS} )
   list ( APPEND obexpushd_DEFINITIONS ENABLE_TCPWRAP )
+  list ( APPEND obexpushd_LIBRARIES ${TcpWrap_LIBRARIES} )
 endif ( TcpWrap_FOUND )
 
-add_subdirectory ( obex_auth )
+#
+# Absolute necessary: bluetooth and openobex
+#
+foreach ( i Bluetooth OpenObex )
+  find_package ( ${i} REQUIRED )
+  if ( ${i}_FOUND )
+    include_directories ( ${${i}_INCLUDE_DIRS} )
+    if ( ${i}_LIBRARIES )
+      list ( APPEND obexpushd_LIBRARIES ${${i}_LIBRARIES} )
+    endif ( ${i}_LIBRARIES )
+  endif ( ${i}_FOUND )
+endforeach ( i )
+
+#
+# Check if openobex has TcpObex or the old InObex
+#
+if ( OpenObex_HAVE_TcpObex )
+  list ( APPEND obexpushd_DEFINITIONS OPENOBEX_TCPOBEX=1 )
+  list ( APPEND SOURCES net/tcpobex.c )
+else ( OpenObex_HAVE_TcpObex )
+  list ( APPEND SOURCES net/inobex.c )
+endif ( OpenObex_HAVE_TcpObex )
 
 add_executable ( obexpushd ${SOURCES} )
-target_link_libraries ( obexpushd
-  obex_auth
-  obex-capability
-  obex-folder-listing
-  ${OpenObex_LIBRARIES}
-  ${Bluetooth_LIBRARIES}
-  ${THREAD_LIBRARY}
-)
-#if ( AvahiClient_FOUND )
-#  target_link_libraries ( obexpushd
-#    ${AvahiClient_LIBRARIES}
-#  )
-#endif ( AvahiClient_FOUND )
-if ( TcpWrap_FOUND )
-  target_link_libraries ( obexpushd
-    ${TcpWrap_LIBRARIES}
-  )
-endif ( TcpWrap_FOUND )
-
+target_link_libraries ( obexpushd ${obexpushd_LIBRARIES} )
 set_property ( TARGET obexpushd PROPERTY
   COMPILE_DEFINITIONS ${obexpushd_DEFINITIONS}
 )
