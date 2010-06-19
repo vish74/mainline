@@ -51,7 +51,7 @@ int obex_object_headers (file_data_t* data, obex_object_t* obj) {
 			if (transfer->type)
 				free(transfer->type);
 			len = vsize + 1;
-			transfer->type = calloc(len, sizeof(transfer->type));
+			transfer->type = calloc(len, sizeof(*transfer->type));
 			if (!transfer->type)
 				return 0;
 			memcpy(transfer->type, value.bs, vsize);
