@@ -9,13 +9,120 @@
 #include "time.h"
 #include "compiler.h"
 
+static int obex_obj_hdr_name (file_data_t* data,
+			      obex_headerdata_t *value, uint32_t vsize)
+{
+	struct io_transfer_data *transfer = &data->transfer;
+	int len = (vsize / 2) + 1;
+
+	if (transfer->name)
+		free(transfer->name);
+	transfer->name = calloc(len, sizeof(*transfer->name));
+	if (!transfer->name)
+		return 0;
+
+	memcpy(transfer->name, value->bs, vsize);
+	utf16_ntoh(transfer->name, len);
+	if (debug) {
+		uint8_t* n = utf16to8(transfer->name);
+		dbg_printf(data, "name: \"%s\"\n", (char*)n);
+		free(n);
+	}
+	if (!check_wrap_utf16(transfer->name, check_name)) {
+		dbg_printf(data, "CHECK FAILED: %s\n", "Invalid name string");
+		return 0;
+	}
+	return 1;
+}
+
+static int obex_obj_hdr_type (file_data_t* data,
+			      obex_headerdata_t *value, uint32_t vsize)
+{
+	struct io_transfer_data *transfer = &data->transfer;
+	int len = vsize + 1;
+
+	if (transfer->type)
+		free(transfer->type);
+	transfer->type = calloc(len, sizeof(*transfer->type));
+	if (!transfer->type)
+		return 0;
+
+	memcpy(transfer->type, value->bs, vsize);
+	dbg_printf(data, "type: \"%s\"\n", transfer->type);
+	if (!check_type((uint8_t*)transfer->type)) {
+		dbg_printf(data, "CHECK FAILED: %s\n", "Invalid type string");
+		return 0;
+	}
+	return 1;
+}
+
+static int obex_obj_hdr_time (file_data_t* data,
+			      obex_headerdata_t *value, uint32_t vsize)
+{
+	/* ISO8601 formatted ASCII string */
+	struct io_transfer_data *transfer = &data->transfer;
+	struct tm time;
+	char* tmp = calloc(vsize + 1, sizeof(*tmp));
+	char* ptr;
+
+	if (!tmp)
+		return 0;
+
+	memcpy(tmp, value->bs, vsize);
+	dbg_printf(data, "time: \"%s\"\n", tmp);
+	tzset();
+	ptr = strptime(tmp, "%Y%m%dT%H%M%S", &time);
+	if (ptr != NULL) {
+		time.tm_isdst = -1;
+		transfer->time = mktime(&time);
+		if (*ptr == 'Z')
+			transfer->time -= timezone;
+	}
+	free(tmp);
+	return 1;
+}
+
+static int obex_obj_hdr_time2 (file_data_t* data,
+			       obex_headerdata_t *value)
+{
+	struct io_transfer_data *transfer = &data->transfer;
+
+	/* seconds since Januar 1st, 1970 */
+	transfer->time = value->bq4;
+	if (debug && transfer->time) {
+		struct tm t;
+		char tmp[17];
+
+		memset(tmp, 0, sizeof(tmp));
+		(void)gmtime_r(&transfer->time, &t);
+		if (strftime(tmp, sizeof(tmp), "%Y%m%dT%H%M%SZ", &t) != 0) {
+			dbg_printf(data, "time: \"%s\"\n", tmp);
+		}
+	}
+	return 1;
+}
+
+static int obex_obj_hdr_descr (file_data_t* data,
+			       obex_headerdata_t *value, uint32_t vsize)
+{
+	uint16_t* desc16 = (uint16_t*)value->bs;
+
+	if (desc16[vsize/2] == 0x0000) {
+		uint8_t* desc8 = utf16to8(desc16);
+
+		dbg_printf(data, "description: \"%s\"\n", (char*)desc8);
+		free(desc8);
+	}
+	return 1;
+}
+
 int obex_object_headers (file_data_t* data, obex_object_t* obj) {
 	uint8_t id = 0;
 	obex_headerdata_t value;
 	uint32_t vsize;
 	obex_t* handle = data->net_data->obex;
 	struct io_transfer_data *transfer;
-	int len;
+	int err = 1;
 
 	if (!data)
 		return 0;
@@ -28,38 +135,11 @@ int obex_object_headers (file_data_t* data, obex_object_t* obj) {
 			continue;
 		switch (id) {
 		case OBEX_HDR_NAME:
-			if (transfer->name)
-				free(transfer->name);
-			len = (vsize / 2) + 1;
-			transfer->name = calloc(len, sizeof(*transfer->name));
-			if (!transfer->name)
-				return 0;
-			memcpy(transfer->name, value.bs, vsize);
-			utf16_ntoh(transfer->name, len);
-			if (debug) {
-				uint8_t* n = utf16to8(transfer->name);
-				dbg_printf(data, "name: \"%s\"\n", (char*)n);
-				free(n);
-			}
-			if (!check_wrap_utf16(transfer->name, check_name)) {
-				dbg_printf(data, "CHECK FAILED: %s\n", "Invalid name string");
-				return 0;
-			}
+			err = obex_obj_hdr_name(data, &value, vsize);
 			break;
 
 		case OBEX_HDR_TYPE:
-			if (transfer->type)
-				free(transfer->type);
-			len = vsize + 1;
-			transfer->type = calloc(len, sizeof(*transfer->type));
-			if (!transfer->type)
-				return 0;
-			memcpy(transfer->type, value.bs, vsize);
-			dbg_printf(data, "type: \"%s\"\n", transfer->type);
-			if (!check_type((uint8_t*)transfer->type)) {
-				dbg_printf(data, "CHECK FAILED: %s\n", "Invalid type string");
-				return 0;
-			}
+			err = obex_obj_hdr_type(data, &value, vsize);
 			break;
 
 		case OBEX_HDR_LENGTH:
@@ -68,52 +148,15 @@ int obex_object_headers (file_data_t* data, obex_object_t* obj) {
 			break;
 
 		case OBEX_HDR_TIME:
-			/* ISO8601 formatted ASCII string */
-		        {
-				struct tm time;
-				char* tmp = calloc(vsize+1, sizeof(*tmp));
-				char* ptr;
-
-				if (!tmp)
-					return 0;
-				memcpy(tmp, value.bs, vsize);
-				dbg_printf(data, "time: \"%s\"\n", tmp);
-				tzset();
-				ptr = strptime(tmp, "%Y%m%dT%H%M%S", &time);
-				if (ptr != NULL) {
-					time.tm_isdst = -1;
-					transfer->time = mktime(&time);
-					if (*ptr == 'Z')
-						transfer->time -= timezone;
-				}
-				free(tmp);
-			}
+			err = obex_obj_hdr_time(data, &value, vsize);
 			break;
 
 		case OBEX_HDR_TIME2:
-			/* seconds since Januar 1st, 1970 */
-			transfer->time = value.bq4;
-			if (debug && transfer->time) {
-				struct tm t;
-				char tmp[17];
-
-				memset(tmp, 0, sizeof(tmp));
-				(void)gmtime_r(&transfer->time, &t);
-				if (strftime(tmp, sizeof(tmp), "%Y%m%dT%H%M%SZ", &t) != 0) {
-					dbg_printf(data, "time: \"%s\"\n", tmp);
-				}
-			}
+			err = obex_obj_hdr_time2(data, &value);
 			break;
 
 		case OBEX_HDR_DESCRIPTION:
-		        {
-				uint16_t* desc16 = (uint16_t*)value.bs;
-				if (desc16[vsize/2] == 0x0000) {
-					uint8_t* desc8 = utf16to8(desc16);
-					dbg_printf(data, "description: \"%s\"\n", (char*)desc8);
-					free(desc8);
-				}
-			}
+			err = obex_obj_hdr_descr(data, &value, vsize);
 			break;
 
 		default:
@@ -185,11 +228,16 @@ void obex_action_eventcb (obex_t* handle, obex_object_t* obj,
 	case OBEX_CMD_SETPATH:
 	case OBEX_CMD_ABORT:
 		if (net_security_check(data->net_data)) {
-			if (data->target == OBEX_TARGET_OPP ||
-			    data->target == OBEX_TARGET_FTP)
+			switch (data->target) {
+			case OBEX_TARGET_OPP:
+			case OBEX_TARGET_FTP:
 				opp_ftp_eventcb(data, obj, mode, event, obex_cmd, obex_rsp);
-			else
+				break;
+
+			default:
 				obex_send_response(data, obj, OBEX_RSP_BAD_REQUEST);
+				break;
+			}
 		}
 		break;
 
