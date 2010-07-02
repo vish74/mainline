@@ -18,24 +18,41 @@
 #include "obexpushd.h"
 #include "net.h"
 #include "core.h"
+#include "compiler.h"
+
+static void disconnect_reqhint(file_data_t *data, obex_object_t *obj)
+{
+	/* A new request is coming in */
+	obex_send_response(data, obj, OBEX_RSP_CONTINUE);
+}
+
+static void disconnect_request(file_data_t *data, obex_object_t __unused *obj)
+{
+	data->target = OBEX_TARGET_NONE;
+	if (data->transfer.path) {
+		free(data->transfer.path);
+		data->transfer.path = NULL;
+	}
+}
+
+static void disconnect_done(file_data_t *data, obex_object_t __unused *obj)
+{
+	net_disconnect(data->net_data);
+}
 
 void obex_action_disconnect (file_data_t* data, obex_object_t* obj, int event)
 {
 	switch (event) {
-	case OBEX_EV_REQHINT: /* A new request is coming in */
-		obex_send_response(data, obj, OBEX_RSP_CONTINUE);
+	case OBEX_EV_REQHINT:
+		disconnect_reqhint(data, obj);
 		break;
 
 	case OBEX_EV_REQ:
-		data->target = OBEX_TARGET_NONE;
-		if (data->transfer.path) {
-			free(data->transfer.path);
-			data->transfer.path = NULL;
-		}
+		disconnect_request(data, obj);
 		break;
 
 	case OBEX_EV_REQDONE:
-		net_disconnect(data->net_data);
+		disconnect_done(data, obj);
 		break;
 	}
 }

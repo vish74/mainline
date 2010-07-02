@@ -150,16 +150,21 @@ static int check_setpath_headers (file_data_t* data, obex_object_t* obj)
 	return update_path(data->io, &data->transfer, name, flags);
 }
 
-void obex_action_setpath (file_data_t* data, obex_object_t* obj, int event)
+static void setpath_request(file_data_t* data, obex_object_t* obj)
 {
 	uint8_t respCode = OBEX_RSP_SUCCESS;
 
+	if (check_setpath_headers(data, obj) < 0) {
+		respCode = OBEX_RSP_BAD_REQUEST;
+	}
+	obex_send_response(data, obj, respCode);
+}
+
+void obex_action_setpath (file_data_t* data, obex_object_t* obj, int event)
+{
 	switch (event) {
 	case OBEX_EV_REQ:
-		if (check_setpath_headers(data, obj) < 0) {
-			respCode = OBEX_RSP_BAD_REQUEST;
-		}
-		obex_send_response(data, obj, respCode);
+		setpath_request(data, obj);
 		break;
 	}
 }

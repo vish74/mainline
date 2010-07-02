@@ -43,12 +43,31 @@ static struct {
 };
 #define TARGET_MAP_COUNT (sizeof(obex_target_map)/sizeof(*obex_target_map))
 
+static int check_target_header(file_data_t* data,
+			       obex_headerdata_t value, uint32_t vsize)
+{
+	data->target = OBEX_TARGET_NONE;
 
-static int check_connect_headers (file_data_t* data, obex_object_t* obj) {
+	for (unsigned int i = 0; i < TARGET_MAP_COUNT; ++i) {
+		struct net_data *n = data->net_data;
+
+		if (vsize == obex_target_map[i].uuid.size &&
+		    memcmp(value.bs, obex_target_map[i].uuid.data, vsize) == 0 &&
+		    (n->enabled_protocols & obex_target_map[i].protocol) != 0)
+		{
+			data->target = obex_target_map[i].target;
+			break;
+		}
+	}
+
+	return (data->target != OBEX_TARGET_NONE);
+}
+
+static int check_headers(file_data_t* data, obex_object_t* obj) {
+	obex_t* handle = data->net_data->obex;
 	uint8_t id = 0;
 	obex_headerdata_t value;
 	uint32_t vsize;
-	obex_t* handle = data->net_data->obex;
 	struct io_transfer_data *transfer;
 
 	if (!data)
@@ -66,18 +85,7 @@ static int check_connect_headers (file_data_t* data, obex_object_t* obj) {
 			break;
 
 		case OBEX_HDR_TARGET:
-			data->target = OBEX_TARGET_NONE;
-			for (unsigned int i = 0; i < TARGET_MAP_COUNT; ++i) {
-				struct net_data *n = data->net_data;
-				if (vsize == obex_target_map[i].uuid.size &&
-				    memcmp(value.bs, obex_target_map[i].uuid.data, vsize) == 0 &&
-				    (n->enabled_protocols & obex_target_map[i].protocol) != 0)
-				{
-					data->target = obex_target_map[i].target;
-					break;
-				}
-			}
-			if (data->target == OBEX_TARGET_NONE)
+			if (!check_target_header(data, value, vsize))
 				return 0;
 			break;
 
@@ -96,50 +104,57 @@ static int check_connect_headers (file_data_t* data, obex_object_t* obj) {
 	return 1;
 }
 
-void obex_action_connect (file_data_t* data, obex_object_t* obj, int event) {
-	uint8_t respCode = 0;
+static void connect_request(file_data_t* data, obex_object_t* obj) {
 	obex_t* handle = data->net_data->obex;	
+	uint8_t respCode = 0;
 
-	switch (event) {
-	case OBEX_EV_REQ: /* A new request is coming in */
-		/* Connect must not be used twice by the client */
-		if (!data || data->target != OBEX_TARGET_NONE) {
-			obex_send_response(data, obj, OBEX_RSP_BAD_REQUEST);
-			break;
-		}
-		/* Default to ObjectPush */
-		data->target = OBEX_TARGET_OPP;
+	/* Default to ObjectPush */
+	data->target = OBEX_TARGET_OPP;
 
-		if (!check_connect_headers(data, obj))
-			respCode = OBEX_RSP_BAD_REQUEST;
-		else {
-			if (data->target == OBEX_TARGET_FTP) {
-				obex_headerdata_t hv;
+	if (!check_headers(data, obj))
+		respCode = OBEX_RSP_BAD_REQUEST;
 
-				/* add connection header */
-				hv.bq4 = data->id;
-				OBEX_ObjectAddHeader(handle, obj, OBEX_HDR_CONNECTION, hv, 4,
-						     OBEX_FL_FIT_ONE_PACKET);
+	else {
+		/* we must tell the client that the UUID was recognized */
+		if (data->target != OBEX_TARGET_NONE &&
+		    data->target != OBEX_TARGET_OPP)
+		{
+			obex_headerdata_t hv;
 
-				/* add who header with same content as target header from client */
-				for (unsigned int i = 0; i < TARGET_MAP_COUNT; ++i) {
-					if (data->target == obex_target_map[i].target) {
-						hv.bs = obex_target_map[i].uuid.data;
-						OBEX_ObjectAddHeader(handle, obj, OBEX_HDR_WHO, hv,
-								     obex_target_map[i].uuid.size,
-								     OBEX_FL_FIT_ONE_PACKET);
-					}
+			/* add connection header */
+			hv.bq4 = data->id;
+			OBEX_ObjectAddHeader(handle, obj, OBEX_HDR_CONNECTION, hv, 4,
+					     OBEX_FL_FIT_ONE_PACKET);
+
+			/* add who header with same content as target header from client */
+			for (unsigned int i = 0; i < TARGET_MAP_COUNT; ++i) {
+				if (data->target == obex_target_map[i].target) {
+					hv.bs = obex_target_map[i].uuid.data;
+					OBEX_ObjectAddHeader(handle, obj, OBEX_HDR_WHO, hv,
+							     obex_target_map[i].uuid.size,
+							     OBEX_FL_FIT_ONE_PACKET);
 				}
 			}
-			if (data->transfer.path) {
-				free(data->transfer.path);
-				data->transfer.path = NULL;
-			}
-			respCode = net_security_init(data->net_data, data->auth, obj);
 		}
-		obex_send_response(data, obj, respCode);
-		if (respCode)
-			data->target = OBEX_TARGET_NONE;
+		if (data->transfer.path) {
+			free(data->transfer.path);
+			data->transfer.path = NULL;
+		}
+		respCode = net_security_init(data->net_data, data->auth, obj);
+	}
+
+	obex_send_response(data, obj, respCode);
+	if (respCode)
+		data->target = OBEX_TARGET_NONE;
+}
+
+void obex_action_connect (file_data_t* data, obex_object_t* obj, int event) {
+	switch (event) {
+	case OBEX_EV_REQ: /* A new request is coming in */
+		connect_request(data, obj);
+		break;
+
+	default:
 		break;
 	}
 }
