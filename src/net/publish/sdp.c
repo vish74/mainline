@@ -247,7 +247,7 @@ struct sdp_data* bt_sdp (bdaddr_t* device, uint8_t channel, unsigned long protoc
 	data->session = sdp_connect(device, BDADDR_LOCAL, SDP_RETRY_IF_BUSY);
 	if (!data->session) {
 		free(data);
-		data = NULL;
+		return NULL;
 	}
 
 	if ((protocols & BT_SDP_PROT_OBEX_PUSH) != 0) {
