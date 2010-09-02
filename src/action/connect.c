@@ -53,7 +53,7 @@ static int check_target_header(file_data_t* data,
 
 		if (vsize == obex_target_map[i].uuid.size &&
 		    memcmp(value.bs, obex_target_map[i].uuid.data, vsize) == 0 &&
-		    (n->enabled_protocols & obex_target_map[i].protocol) != 0)
+		    (n->enabled_protocols & (1 << obex_target_map[i].protocol)))
 		{
 			data->target = obex_target_map[i].target;
 			data->target_ops = obex_target_map[i].target_ops;

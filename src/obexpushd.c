@@ -547,9 +547,7 @@ int main (int argc, char** argv) {
 
 		case 't':
 			if (optarg) {
-				if (strcasecmp(optarg, "OPP") == 0)
-					protocols |= (1 << NET_OBEX_PUSH);
-				else if (strcasecmp(optarg, "FTP") == 0)
+				if (strcasecmp(optarg, "FTP") == 0)
 					protocols |= (1 << NET_OBEX_FTP);
 			}
 			break;
@@ -606,8 +604,7 @@ int main (int argc, char** argv) {
 	(void)signal(SIGINT, obexpushd_shutdown);
 	(void)signal(SIGTERM, obexpushd_shutdown);
 
-	if (protocols == 0)
-		protocols = (1 << NET_OBEX_PUSH) | (1 << NET_OBEX_FTP);
+	protocols |= (1 << NET_OBEX_PUSH);
 
 	/* initialize all enabled listeners */
 	for (i = 0; i < NET_INDEX_MAX; ++i) {
