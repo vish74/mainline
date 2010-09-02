@@ -104,15 +104,19 @@ static void put_stream_in(file_data_t *data, obex_object_t *obj)
 
 static void put_request(file_data_t *data, obex_object_t *obj)
 {
-	if (data->target == OBEX_TARGET_FTP &&
-	    !(io_state(data->io) & IO_STATE_OPEN))
-	{
+	obex_send_response(data, obj, data->error);
+}
+
+static void put_request_ftp(file_data_t *data, obex_object_t *obj)
+{
+	/* Support for deleting files */
+	if (!(io_state(data->io) & IO_STATE_OPEN)) {
 		if (!obex_object_headers(data, obj))
 			data->error = OBEX_RSP_BAD_REQUEST;
 		else
 			(void)io_delete(data->io, &data->transfer);;
 	}
-	obex_send_response(data, obj, data->error);
+	put_request(data, obj);
 }
 
 static void put_done(file_data_t *data, obex_object_t __unused *obj)
@@ -138,35 +142,28 @@ static void put_done(file_data_t *data, obex_object_t __unused *obj)
 	transfer->time = 0;
 }
 
-static void put_abort(file_data_t *data, obex_object_t *obj)
+static void put_abort(file_data_t *data, obex_object_t *obj, int __unused event)
 {
 	data->error = 0xFF;
 	put_done(data, obj);
 }
 
-void obex_action_put (file_data_t *data, obex_object_t *obj, int event)
-{
-	switch (event) {
-	case OBEX_EV_REQHINT:
-		put_reqhint(data, obj);
-		break;
+const struct obex_target_event_ops obex_action_put = {
+	.request_hint = put_reqhint,
+	.request = put_request,
+	.request_done = put_done,
 
-	case OBEX_EV_STREAMAVAIL:
-		put_stream_in(data, obj);
-		break;
+	.stream_in = put_stream_in,
 
-	case OBEX_EV_REQ:
-		put_request(data, obj);
-		break;
+	.error = put_abort,
+};
 
-	case OBEX_EV_LINKERR:
-	case OBEX_EV_PARSEERR:
-	case OBEX_EV_ABORT:
-		put_abort(data, obj);
-		break;
+const struct obex_target_event_ops obex_action_ftp_put = {
+	.request_hint = put_reqhint,
+	.request = put_request_ftp,
+	.request_done = put_done,
 
-	case OBEX_EV_REQDONE:
-		put_done(data, obj);
-		break;
-	}
-}
+	.stream_in = put_stream_in,
+
+	.error = put_abort,
+};

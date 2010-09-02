@@ -167,32 +167,85 @@ int obex_object_headers (file_data_t* data, obex_object_t* obj) {
 	return 1;
 }
 
-static
-void opp_ftp_eventcb (file_data_t* data, obex_object_t* obj,
-		      int __unused mode, int event,
-		      int obex_cmd, int __unused obex_rsp)
+static void obex_action (file_data_t *data, obex_object_t *obj,
+			 int event, const struct obex_target_event_ops *ops)
 {
-	switch (obex_cmd) {
-	case OBEX_CMD_PUT:
-		obex_action_put(data, obj, event);
+	if (!ops)
+		return;
+
+	switch (event) {
+	case OBEX_EV_REQHINT:
+		if (ops->request_hint)
+			ops->request_hint(data, obj);
 		break;
 
-	case OBEX_CMD_GET:
-		obex_action_get(data, obj, event);
+	case OBEX_EV_REQCHECK:
+		if (ops->request_check)
+			ops->request_check(data, obj);
 		break;
 
-	case OBEX_CMD_SETPATH:
-		if (data->target == OBEX_TARGET_FTP)
-			obex_action_setpath(data, obj, event);
-		else 
-			obex_send_response(data, obj, OBEX_RSP_BAD_REQUEST);
+	case OBEX_EV_REQ:
+		if (ops->request)
+			ops->request(data, obj);
+		break;
+
+	case OBEX_EV_REQDONE:
+		if (ops->request_done)
+			ops->request_done(data, obj);
+		break;
+
+	case OBEX_EV_STREAMAVAIL:
+		if (ops->stream_in)
+			ops->stream_in(data, obj);
+		break;
+
+	case OBEX_EV_STREAMEMPTY:
+		if (ops->stream_out)
+			ops->stream_out(data, obj);
+		break;
+
+	case OBEX_EV_LINKERR:
+	case OBEX_EV_PARSEERR:
+	case OBEX_EV_ABORT:
+		if (ops->error)
+			ops->error(data, obj, event);
 		break;
 	}
 }
 
+static void obex_action_send_bad_request (file_data_t *data, obex_object_t *obj)
+{
+	obex_send_response(data, obj, OBEX_RSP_BAD_REQUEST);
+}
+
+static const struct obex_target_event_ops obex_invalid_action = {
+	.request_hint = obex_action_send_bad_request,
+};
+
+static void obex_action_send_not_impl (file_data_t *data, obex_object_t *obj)
+{
+	obex_send_response(data, obj, OBEX_RSP_NOT_IMPLEMENTED);
+}
+
+static const struct obex_target_event_ops obex_unknown_action = {
+	.request_hint = obex_action_send_not_impl,
+};
+
+const struct obex_target_ops obex_target_ops_opp = {
+	.put = &obex_action_put,
+	.get = &obex_action_get,
+	.setpath = &obex_invalid_action,
+};
+
+const struct obex_target_ops obex_target_ops_ftp = {
+	.put = &obex_action_ftp_put,
+	.get = &obex_action_get,
+	.setpath = &obex_action_setpath,
+};
+
 void obex_action_eventcb (obex_t* handle, obex_object_t* obj,
-			  int mode, int event,
-			  int obex_cmd, int obex_rsp)
+			  int __unused mode, int event,
+			  int obex_cmd, int __unused obex_rsp)
 {
 	file_data_t* data = OBEX_GetUserData(handle);
 
@@ -214,36 +267,46 @@ void obex_action_eventcb (obex_t* handle, obex_object_t* obj,
 		break;
 	}
 
+	if (obex_cmd == OBEX_CMD_PUT ||
+	    obex_cmd == OBEX_CMD_GET ||
+	    obex_cmd == OBEX_CMD_SETPATH)
+	{
+		if (!net_security_check(data->net_data)) 
+			return;
+	}
+
 	switch (obex_cmd) {
 	case OBEX_CMD_CONNECT:
-		obex_action_connect(data, obj, event);
-		break;
-
-	case OBEX_CMD_DISCONNECT:
-		obex_action_disconnect(data, obj, event);
+		if (data->target_ops)
+			obex_action(data, obj, event, data->target_ops->pre_disconnect);
+		obex_action(data, obj, event, &obex_action_connect);
+		if (data->target_ops)
+			obex_action(data, obj, event, data->target_ops->post_connect);
 		break;
 
 	case OBEX_CMD_PUT:
-	case OBEX_CMD_GET:
-	case OBEX_CMD_SETPATH:
-	case OBEX_CMD_ABORT:
-		if (net_security_check(data->net_data)) {
-			switch (data->target) {
-			case OBEX_TARGET_OPP:
-			case OBEX_TARGET_FTP:
-				opp_ftp_eventcb(data, obj, mode, event, obex_cmd, obex_rsp);
-				break;
+		if (data->target_ops)
+			obex_action(data, obj, event, data->target_ops->put);
+		break;
 
-			default:
-				obex_send_response(data, obj, OBEX_RSP_BAD_REQUEST);
-				break;
-			}
-		}
+	case OBEX_CMD_GET:
+		if (data->target_ops)
+			obex_action(data, obj, event, data->target_ops->get);
+		break;
+
+	case OBEX_CMD_SETPATH:
+		if (data->target_ops)
+			obex_action(data, obj, event, data->target_ops->setpath);
+		break;
+
+	case OBEX_CMD_DISCONNECT:
+		if (data->target_ops)
+			obex_action(data, obj, event, data->target_ops->pre_disconnect);
+		obex_action(data, obj, event, &obex_action_disconnect);
 		break;
 
 	default:
-		if (event == OBEX_EV_REQHINT)
-			obex_send_response(data, obj, OBEX_RSP_NOT_IMPLEMENTED);
+		obex_action(data, obj, event, &obex_unknown_action);
 		break;
 	}
 }

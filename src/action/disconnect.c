@@ -28,7 +28,6 @@ static void disconnect_reqhint(file_data_t *data, obex_object_t *obj)
 
 static void disconnect_request(file_data_t *data, obex_object_t __unused *obj)
 {
-	data->target = OBEX_TARGET_NONE;
 	if (data->transfer.path) {
 		free(data->transfer.path);
 		data->transfer.path = NULL;
@@ -40,19 +39,8 @@ static void disconnect_done(file_data_t *data, obex_object_t __unused *obj)
 	net_disconnect(data->net_data);
 }
 
-void obex_action_disconnect (file_data_t* data, obex_object_t* obj, int event)
-{
-	switch (event) {
-	case OBEX_EV_REQHINT:
-		disconnect_reqhint(data, obj);
-		break;
-
-	case OBEX_EV_REQ:
-		disconnect_request(data, obj);
-		break;
-
-	case OBEX_EV_REQDONE:
-		disconnect_done(data, obj);
-		break;
-	}
-}
+const struct obex_target_event_ops obex_action_disconnect = {
+	.request_hint = disconnect_reqhint,
+	.request = disconnect_request,
+	.request_done = disconnect_done,
+};

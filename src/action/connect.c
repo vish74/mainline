@@ -26,6 +26,7 @@ static uint8_t obex_uuid_ftp[] = {
 
 static struct {
 	enum obex_target target;
+	const struct obex_target_ops *target_ops;
 	enum net_obex_protocol protocol;
 	struct {
 		size_t size;
@@ -34,6 +35,7 @@ static struct {
 } obex_target_map[] = {
 	{
 		.target = OBEX_TARGET_FTP,
+		.target_ops = &obex_target_ops_ftp,
 		.protocol = NET_OBEX_FTP,
 		.uuid =  {
 			.size = sizeof(obex_uuid_ftp),
@@ -46,8 +48,6 @@ static struct {
 static int check_target_header(file_data_t* data,
 			       obex_headerdata_t value, uint32_t vsize)
 {
-	data->target = OBEX_TARGET_NONE;
-
 	for (unsigned int i = 0; i < TARGET_MAP_COUNT; ++i) {
 		struct net_data *n = data->net_data;
 
@@ -56,11 +56,12 @@ static int check_target_header(file_data_t* data,
 		    (n->enabled_protocols & obex_target_map[i].protocol) != 0)
 		{
 			data->target = obex_target_map[i].target;
-			break;
+			data->target_ops = obex_target_map[i].target_ops;
+			return 1;
 		}
 	}
 
-	return (data->target != OBEX_TARGET_NONE);
+	return 0;
 }
 
 static int check_headers(file_data_t* data, obex_object_t* obj) {
@@ -69,6 +70,7 @@ static int check_headers(file_data_t* data, obex_object_t* obj) {
 	obex_headerdata_t value;
 	uint32_t vsize;
 	struct io_transfer_data *transfer;
+	int target_found = 0;
 
 	if (!data)
 		return 0;
@@ -85,8 +87,10 @@ static int check_headers(file_data_t* data, obex_object_t* obj) {
 			break;
 
 		case OBEX_HDR_TARGET:
-			if (!check_target_header(data, value, vsize))
-				return 0;
+			/* only accept the first target */
+			if (!target_found)
+				target_found = check_target_header(data, value,
+								   vsize);
 			break;
 
 		case OBEX_HDR_AUTHCHAL:
@@ -104,37 +108,49 @@ static int check_headers(file_data_t* data, obex_object_t* obj) {
 	return 1;
 }
 
-static void connect_request(file_data_t* data, obex_object_t* obj) {
+static void add_connection_header(obex_t* handle, obex_object_t* obj,
+				  unsigned int id)
+{
+	obex_headerdata_t hv;
+
+	hv.bq4 = id;
+	OBEX_ObjectAddHeader(handle, obj, OBEX_HDR_CONNECTION, hv, 4,
+			     OBEX_FL_FIT_ONE_PACKET);
+}
+
+static void add_who_header(obex_t* handle, obex_object_t* obj,
+			   enum obex_target target)
+{
+	obex_headerdata_t hv;
+
+	/* add who header with same content as target header from client */
+	for (unsigned int i = 0; i < TARGET_MAP_COUNT; ++i) {
+		if (target == obex_target_map[i].target) {
+			hv.bs = obex_target_map[i].uuid.data;
+			OBEX_ObjectAddHeader(handle, obj, OBEX_HDR_WHO, hv,
+					     obex_target_map[i].uuid.size,
+					     OBEX_FL_FIT_ONE_PACKET);
+		}
+	}
+}
+
+static void connect_request(file_data_t* data, obex_object_t* obj)
+{
 	obex_t* handle = data->net_data->obex;	
 	uint8_t respCode = 0;
 
 	/* Default to ObjectPush */
 	data->target = OBEX_TARGET_OPP;
+	data->target_ops = &obex_target_ops_opp;
 
 	if (!check_headers(data, obj))
 		respCode = OBEX_RSP_BAD_REQUEST;
 
 	else {
 		/* we must tell the client that the UUID was recognized */
-		if (data->target != OBEX_TARGET_NONE &&
-		    data->target != OBEX_TARGET_OPP)
-		{
-			obex_headerdata_t hv;
-
-			/* add connection header */
-			hv.bq4 = data->id;
-			OBEX_ObjectAddHeader(handle, obj, OBEX_HDR_CONNECTION, hv, 4,
-					     OBEX_FL_FIT_ONE_PACKET);
-
-			/* add who header with same content as target header from client */
-			for (unsigned int i = 0; i < TARGET_MAP_COUNT; ++i) {
-				if (data->target == obex_target_map[i].target) {
-					hv.bs = obex_target_map[i].uuid.data;
-					OBEX_ObjectAddHeader(handle, obj, OBEX_HDR_WHO, hv,
-							     obex_target_map[i].uuid.size,
-							     OBEX_FL_FIT_ONE_PACKET);
-				}
-			}
+		if (data->target != OBEX_TARGET_OPP) {
+			add_connection_header(handle, obj, data->id);
+			add_who_header(handle, obj, data->target);
 		}
 		if (data->transfer.path) {
 			free(data->transfer.path);
@@ -144,17 +160,8 @@ static void connect_request(file_data_t* data, obex_object_t* obj) {
 	}
 
 	obex_send_response(data, obj, respCode);
-	if (respCode)
-		data->target = OBEX_TARGET_NONE;
 }
 
-void obex_action_connect (file_data_t* data, obex_object_t* obj, int event) {
-	switch (event) {
-	case OBEX_EV_REQ: /* A new request is coming in */
-		connect_request(data, obj);
-		break;
-
-	default:
-		break;
-	}
-}
+const struct obex_target_event_ops obex_action_connect = {
+	.request = connect_request,
+};

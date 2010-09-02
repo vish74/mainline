@@ -142,7 +142,7 @@ static void add_headers(file_data_t *data, obex_object_t *obj)
 	add_data_header(data, obj);
 }
 
-static int get_check(file_data_t *data, struct io_transfer_data *transfer)
+static int get_check(struct io_transfer_data *transfer, enum obex_target target)
 {
 	/* either type or name must be set */
 	if (!transfer->type || strlen(transfer->type) == 0)
@@ -150,7 +150,7 @@ static int get_check(file_data_t *data, struct io_transfer_data *transfer)
 
 	if (strncmp(transfer->type, "x-obex/", 7) == 0) {
 		if (strcmp(transfer->type+7, "folder-listing") == 0) {
-			return (data->target == OBEX_TARGET_FTP);
+			return (target == OBEX_TARGET_FTP);
 
 		} else if (strcmp(transfer->type+7, "capability") == 0) {
 			return 1;
@@ -220,7 +220,7 @@ static void get_request(file_data_t *data, obex_object_t *obj)
 	if (!obex_object_headers(data, obj))
 		data->error = OBEX_RSP_BAD_REQUEST;
 
-	else if (!get_check(data, transfer)) {
+	else if (!get_check(transfer, data->target)) {
 		dbg_printf(data, "%s\n", "Forbidden request");
 		data->error = OBEX_RSP_FORBIDDEN;
 
@@ -289,26 +289,18 @@ static void get_done(file_data_t *data, obex_object_t __unused *obj)
 	transfer->time = 0;
 }
 
-void obex_action_get(file_data_t *data, obex_object_t *obj, int event)
+static void get_abort(file_data_t *data, obex_object_t __unused *obj,
+		      int __unused event)
 {
-	switch (event) {
-	case OBEX_EV_REQHINT:
-		get_reqhint(data, obj);
-		break;
-
-	case OBEX_EV_REQ:
-		get_request(data, obj);
-		break;
-
-	case OBEX_EV_STREAMEMPTY:
-		get_stream_out(data, obj);
-		break;
-
-	case OBEX_EV_LINKERR:
-	case OBEX_EV_PARSEERR:
-	case OBEX_EV_ABORT:
-	case OBEX_EV_REQDONE:
-		get_done(data, obj);
-		break;
-	}
+	get_done(data, obj);
 }
+
+const struct obex_target_event_ops obex_action_get = {
+	.request_hint = get_reqhint,
+	.request = get_request,
+	.request_done = get_done,
+
+	.stream_out = get_stream_out,
+
+	.error = get_abort,
+};

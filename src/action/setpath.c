@@ -160,11 +160,6 @@ static void setpath_request(file_data_t* data, obex_object_t* obj)
 	obex_send_response(data, obj, respCode);
 }
 
-void obex_action_setpath (file_data_t* data, obex_object_t* obj, int event)
-{
-	switch (event) {
-	case OBEX_EV_REQ:
-		setpath_request(data, obj);
-		break;
-	}
-}
+const struct obex_target_event_ops obex_action_setpath = {
+	.request = setpath_request,
+};
