@@ -23,7 +23,7 @@
 static void disconnect_reqhint(file_data_t *data, obex_object_t *obj)
 {
 	/* A new request is coming in */
-	obex_send_response(data, obj, OBEX_RSP_CONTINUE);
+	obex_send_response(data, obj, 0);
 }
 
 static void disconnect_request(file_data_t *data, obex_object_t __unused *obj)

@@ -152,7 +152,7 @@ static int check_setpath_headers (file_data_t* data, obex_object_t* obj)
 
 static void setpath_request(file_data_t* data, obex_object_t* obj)
 {
-	uint8_t respCode = OBEX_RSP_SUCCESS;
+	uint8_t respCode = 0;
 
 	if (check_setpath_headers(data, obj) < 0) {
 		respCode = OBEX_RSP_BAD_REQUEST;

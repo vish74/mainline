@@ -156,6 +156,9 @@ static int get_check(struct io_transfer_data *transfer, enum obex_target target)
 			return 1;
 
 		} else if (strcmp(transfer->type+7, "object-profile") == 0) {
+			/* NAME is the mime-type that the object profile is
+			 * request for
+			 */
 			return (utf16len(transfer->name) != 0);
 
 		} else {
