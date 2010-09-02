@@ -266,7 +266,15 @@ static int io_file_open (
 			if (err)
 				goto out;
 		}
+
+		/* stating dir to get last modification time */
+		if (fstat(err, &s) == -1)
+			return -errno;
+
 		transfer->length = ftell(data->in);
+		transfer->time = s.st_mtime;
+
+		/* rewinding to start of file */
 		(void)fseek(data->in, 0L, SEEK_SET);
 		break;
 
