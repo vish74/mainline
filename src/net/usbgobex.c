@@ -245,10 +245,21 @@ int usb_gadget_get_peer(
 }
 
 static
+int usb_gadget_get_listen_fd (
+	struct net_handler *h
+)
+{
+	struct usb_gadget_args *args = h->args;
+
+	return args->fd;
+}
+
+static
 struct net_handler_ops usb_gadget_ops = {
 	.init = usb_gadget_init,
 	.cleanup = usb_gadget_cleanup,
 	.get_peer = usb_gadget_get_peer,
+	.get_listen_fd = usb_gadget_get_listen_fd,
 };
 
 struct net_handler* usb_gadget_setup(

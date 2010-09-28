@@ -30,7 +30,7 @@ struct net_handler_ops {
 	 */
 	int  (*get_peer)(struct net_handler*, obex_t*, char* buffer, size_t bufsiz);
 
-	void (*disconnect)(struct net_handler*, obex_t*);
+	int (*get_listen_fd)(struct net_handler*);
 };
 
 struct net_handler {
@@ -73,5 +73,6 @@ void net_security_cleanup (struct net_data* data);
 void net_get_peer (struct net_data* data, char* buffer, size_t bufsiz);
 void net_disconnect (struct net_data* data);
 void net_cleanup (struct net_data* data);
+int net_get_listen_fd(struct net_data* data);
 
 #endif /* OBEXPUSHD_NET_H */

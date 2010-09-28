@@ -91,12 +91,7 @@ void net_disconnect (
 	struct net_data* data
 )
 {
-	struct net_handler *h = data->handler;
-
-	if (h && h->ops->disconnect)
-		h->ops->disconnect(h, data->obex);
-	else
-		(void)OBEX_TransportDisconnect(data->obex);
+	(void)OBEX_TransportDisconnect(data->obex);
 }
 
 uint8_t net_security_init (
@@ -148,6 +143,17 @@ void net_get_peer (struct net_data* data, char* buffer, size_t bufsiz)
 
 	if (h && h->ops->get_peer)
 		(void)h->ops->get_peer(h, data->obex, buffer, bufsiz);
+}
+
+int net_get_listen_fd(struct net_data* data)
+{
+	struct net_handler *h = data->handler;
+
+	if (h && h->ops->get_listen_fd)
+		return h->ops->get_listen_fd(h);
+	else
+		return OBEX_GetFD(data->obex);
+	
 }
 
 void net_cleanup (struct net_data* data)

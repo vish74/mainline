@@ -79,7 +79,7 @@ int obexpushd_start (struct net_data *data, unsigned int count) {
 				continue;
 			if (!data[i].obex)
 				continue;
-			fd = OBEX_GetFD(data[i].obex);
+			fd = net_get_listen_fd(&data[i]);
 			if (FD_ISSET(fd,&fds))
 				(void)OBEX_HandleInput(data[i].obex,1);
 		}			
