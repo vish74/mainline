@@ -80,8 +80,14 @@ int obexpushd_start (struct net_data *data, unsigned int count) {
 			if (!data[i].obex)
 				continue;
 			fd = net_get_listen_fd(&data[i]);
-			if (FD_ISSET(fd,&fds))
-				(void)OBEX_HandleInput(data[i].obex,1);
+			if (FD_ISSET(fd,&fds)) {
+				if (OBEX_HandleInput(data[i].obex,1) < 0) {
+					if (net_get_life_status(&data[i]) == LIFE_STATUS_DEAD) {
+						net_cleanup(&data[i]);
+						break;
+					}
+				}
+			}
 		}			
 	} while (1);
 }

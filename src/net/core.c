@@ -156,14 +156,24 @@ int net_get_listen_fd(struct net_data* data)
 	
 }
 
+enum net_life_status net_get_life_status(struct net_data* data)
+{
+	struct net_handler *h = data->handler;
+
+	if (h && h->ops->get_life_status)
+		return h->ops->get_life_status(h);
+	else
+		return LIFE_STATUS_ALIVE;
+}
+
 void net_cleanup (struct net_data* data)
 {
-	if (data->handler) {
-		net_handler_cleanup(data->handler);
-		data->handler = NULL;
-	}
 	if (data->obex) {
 		OBEX_Cleanup(data->obex);
 		data->obex = NULL;
+	}
+	if (data->handler) {
+		net_handler_cleanup(data->handler);
+		data->handler = NULL;
 	}
 }

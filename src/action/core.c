@@ -263,6 +263,8 @@ void obex_action_eventcb (obex_t* handle, obex_object_t* obj,
 
 	case OBEX_EV_STREAMAVAIL:
 	case OBEX_EV_STREAMEMPTY:
+	case OBEX_EV_LINKERR:
+	case OBEX_EV_PARSEERR:
 		obex_cmd = data->command;
 		break;
 	}

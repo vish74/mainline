@@ -255,23 +255,27 @@ void eventcb (obex_t* handle, obex_object_t __unused *obj,
 		}
 
 	} else {
+		file_data_t *data;
+		struct net_data *net;
+
 		/* This handles connections that can only handle one client at a time.
 		 */
 		if (event == OBEX_EV_REQHINT &&
 		    obex_cmd == OBEX_CMD_CONNECT)
 		{
-			struct net_data *net = OBEX_GetUserData(handle);
-			file_data_t *data = create_client(net);
+			net = OBEX_GetUserData(handle);
+			data = create_client(net);
 
 			OBEX_SetUserData(handle, data);
+
+		} else {
+			data = OBEX_GetUserData(handle);
+			net = data->net_data;
 		}
 		obex_action_eventcb(handle, obj, mode, event, obex_cmd, obex_rsp);
 		if (event == OBEX_EV_REQDONE &&
 		    obex_cmd == OBEX_CMD_DISCONNECT)
 		{
-			file_data_t *data = OBEX_GetUserData(handle);
-			struct net_data *net = data->net_data;
-
 			OBEX_SetUserData(handle, net);
 			cleanup_client(data);
 		}
@@ -308,6 +312,7 @@ static void print_help (char* me) {
 #ifdef USB_GADGET_SUPPORT
 	       " -G<device>     listen on an USB gadget device file\n"
 #endif
+	       " -S             handle one connection via stdin/stdout\n"
 	       "\n"
 	       "Options:\n"
 	       " -n             do not detach from terminal\n"
@@ -401,6 +406,7 @@ enum net_index {
 #ifdef USB_GADGET_SUPPORT
 	IDX_GADGET,
 #endif
+	IDX_STDIO,
 	NET_INDEX_MAX
 };
 
@@ -433,7 +439,7 @@ int main (int argc, char** argv) {
 	memset(data, 0, sizeof(data));
 
 	while (c != -1) {
-		c = getopt(argc,argv,"B::I::N::G:Aa:dhnp:r:o:s:t:v");
+		c = getopt(argc,argv,"B::I::N::G:SAa:dhnp:r:o:s:t:v");
 		switch (c) {
 		case -1: /* processed all options, no error */
 			break;
@@ -496,6 +502,7 @@ int main (int argc, char** argv) {
 			}
 			break;
 		}
+
 #ifdef USB_GADGET_SUPPORT
 		case 'G':
 			if (optarg) {
@@ -505,6 +512,13 @@ int main (int argc, char** argv) {
 			}
 			break;
 #endif
+
+		case 'S':
+			if (handle[IDX_STDIO])
+					net_handler_cleanup(handle[IDX_STDIO]);
+			handle[IDX_STDIO] = fdobex_setup(STDIN_FILENO, STDOUT_FILENO, 0);
+			break;
+
 		case 'd':
 			debug = 1;
 			/* no break */
@@ -582,7 +596,7 @@ int main (int argc, char** argv) {
 	}
 
 	/* fork if allowed (detach from terminal) */
-	if (nofork < 1) {
+	if (nofork < 1 && !handle[IDX_STDIO]) {
 		if (daemon(1,0) < 0) {
 			perror("daemon()");
 			exit(EXIT_FAILURE);

@@ -10,6 +10,11 @@ enum net_obex_protocol {
 	NET_OBEX_FTP = 1,
 };
 
+enum net_life_status {
+  LIFE_STATUS_DEAD = 0,
+  LIFE_STATUS_ALIVE = 1,
+};
+
 struct net_handler;
 struct net_handler_ops {
 	obex_t* (*init)(struct net_handler*, obex_event_t);
@@ -31,6 +36,8 @@ struct net_handler_ops {
 	int  (*get_peer)(struct net_handler*, obex_t*, char* buffer, size_t bufsiz);
 
 	int (*get_listen_fd)(struct net_handler*);
+
+	enum net_life_status (*get_life_status)(struct net_handler*);
 };
 
 struct net_handler {
@@ -48,6 +55,7 @@ struct net_handler* tcp_setup(const char*, uint16_t);
 struct net_handler* inet_setup();
 #endif /* OPENOBEX_TCPOBEX */
 struct net_handler* usb_gadget_setup(const char* device, time_t timeout);
+struct net_handler* fdobex_setup(int in, int out, time_t timeout);
 
 struct net_data {
 	obex_t* obex;
@@ -74,5 +82,6 @@ void net_get_peer (struct net_data* data, char* buffer, size_t bufsiz);
 void net_disconnect (struct net_data* data);
 void net_cleanup (struct net_data* data);
 int net_get_listen_fd(struct net_data* data);
+enum net_life_status net_get_life_status(struct net_data* data);
 
 #endif /* OBEXPUSHD_NET_H */

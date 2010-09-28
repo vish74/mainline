@@ -26,9 +26,11 @@ static void* obexpushd_listen_thread (void* arg) {
 	do {
 		if (OBEX_HandleInput(data->obex, 3600) < 0) {
 			/* OpenOBEX sometimes return -1 anyway, must be a bug
-			 * thus the break is commented -> go on anyway
+			 * thus the break is commented -> go on anyway except
+			 * when the transport is dead (e.g. one-shot).
 			 */
-			//break;
+			if (net_get_life_status(data) == LIFE_STATUS_DEAD)
+				break;
 		}
 	} while (1);
 	pthread_cleanup_pop(1);

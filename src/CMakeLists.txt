@@ -21,6 +21,7 @@ list ( APPEND SOURCES
   net/btobex.c
   net/publish/sdp.c
   net/irobex.c
+  net/fdobex.c
 )
 
 set ( OBEXPUSHD_VERSION ${VERSION} )
