@@ -5,6 +5,7 @@ list ( APPEND SOURCES
   obexpushd.c
   checks.c
   utf.c
+  pipe.c
   action/core.c
   action/connect.c
   action/disconnect.c
@@ -14,7 +15,6 @@ list ( APPEND SOURCES
   auth/core.c
   auth/file.c
   io/core.c
-  io/pipe.c
   io/file.c
   io/script.c
   net/core.c

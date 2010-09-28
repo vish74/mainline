@@ -1,12 +1,10 @@
-#include <sys/types.h>
 #include <stdbool.h>
 #include <inttypes.h>
 
 #ifndef OBEXPUSH_IO_H
 #define OBEXPUSH_IO_H
 
-int pipe_open (const char* command, char** args, int client_fds[2], pid_t *pid);
-void pipe_close (int client_fds[2]);
+#include "pipe.h"
 
 enum io_type {
 	IO_TYPE_PUT,   /* storing data */
