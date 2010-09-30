@@ -1,7 +1,7 @@
 #
 # ObexPush server daemon
 #
-list ( APPEND SOURCES
+list ( APPEND obexpushd_SOURCES
   obexpushd.c
   checks.c
   utf.c
@@ -53,7 +53,7 @@ if ( CMAKE_SYSTEM_NAME STREQUAL "Linux" )
 endif ( CMAKE_SYSTEM_NAME STREQUAL "Linux" )
 if ( ENABLE_USB_GADGET_SUPPORT )
   list ( APPEND obexpushd_DEFINITIONS USB_GADGET_SUPPORT )
-  list ( APPEND SOURCES net/usbgobex.c )  
+  list ( APPEND obexpushd_SOURCES net/usbgobex.c )
 endif ( ENABLE_USB_GADGET_SUPPORT )
 
 #
@@ -88,7 +88,7 @@ endif ( USE_THREADS )
 #if ( AvahiClient_FOUND )
 #  include_directories ( ${AvahiClient_INCLUDE_DIRS} )
 #  list ( APPEND obexpushd_DEFINITIONS ENABLE_AVAHI )
-#  list ( APPEND SOURCES net/publish/avahi.c )
+#  list ( APPEND obexpushd_SOURCES net/publish/avahi.c )
 #  list ( APPEND obexpushd_LIBRARIES ${AvahiClient_LIBRARIES} )
 #endif ( AvahiClient_FOUND )
 
@@ -133,16 +133,24 @@ endforeach ( i )
 #
 if ( OpenObex_HAVE_TcpObex )
   list ( APPEND obexpushd_DEFINITIONS OPENOBEX_TCPOBEX=1 )
-  list ( APPEND SOURCES net/tcpobex.c )
+  list ( APPEND obexpushd_SOURCES net/tcpobex.c )
 else ( OpenObex_HAVE_TcpObex )
-  list ( APPEND SOURCES net/inobex.c )
+  list ( APPEND obexpushd_SOURCES net/inobex.c )
 endif ( OpenObex_HAVE_TcpObex )
 
-add_executable ( obexpushd ${SOURCES} )
+#
+# The ObexPushD command line front-end
+#
+add_executable ( obexpushd ${obexpushd_SOURCES} )
 target_link_libraries ( obexpushd ${obexpushd_LIBRARIES} )
 set_property ( TARGET obexpushd PROPERTY
   COMPILE_DEFINITIONS ${obexpushd_DEFINITIONS}
 )
+
+#
+# The wrapper around ObexPushD to handle AT commands
+#
+add_executable (obexpush_atd obexpush_atd.c )
 
 install (
   TARGETS obexpushd
