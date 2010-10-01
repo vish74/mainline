@@ -185,10 +185,10 @@ static int at_me_revision(const char *cmd, size_t cmdlen)
 
 static int start_obex_server(pid_t *p)
 {
-	char *args[] = {"./src/obexpushd", "-S", "-t", "FTP", NULL};
+	char *args[] = {"obexpushd", "-S", "-t", "FTP", NULL};
 
 #if defined(USE_SPAWN)
-	return posix_spawn(p, args[0], NULL, NULL, args, environ);
+	return posix_spawnp(p, args[0], NULL, NULL, args, environ);
 
 #else
 	*p = fork();
@@ -308,20 +308,21 @@ static int handle_input()
 	for (;;) {
 		ssize_t result;
 		char buf[128];
+		bool valid = true;
 		
 		result = read(STDIN_FILENO, buf, sizeof(buf));
-		if (result > 0 && echo)
-			result = write(STDOUT_FILENO, buf, result);
 		if (result < 0) {
 			return -errno;
 		} else 	if (result == 0) {
-			errno = EPIPE;
+			return -EPIPE;
 		}
 
 		for (ssize_t i = 0; i < result; ++i) {
 			if (state == 0) {
 				if (buf[i] == 'A') {
 					state = 1;
+				} else {
+					valid = false;
 				}
 
 			} else if (state == 1) {
@@ -330,10 +331,11 @@ static int handle_input()
 					memset(buffer, 0, buflen);
 					buflen = 0;
 
+				} else 	if (buf[i] == '/') {
+					handle_at_command(buffer);
+					state = 0;
+
 				} else {
-					if (buf[i] == '/') {
-						handle_at_command(buffer);
-					}
 					state = 0;
 				}
 
@@ -343,12 +345,21 @@ static int handle_input()
 					state = 0;
 
 				} else if (buf[i] == s5) {
-					buffer[buflen--] = 0;
+					if (buflen > 0)
+						buffer[buflen--] = 0;
+					else
+						state = 1;
 
 				} else {
-					buffer[buflen++] = buf[i];
+					if (buflen+1 < sizeof(buffer))
+						buffer[buflen++] = buf[i];
+					else
+						valid = false;
 				}
 			}
+
+			if (valid && echo)
+				(void)write(STDOUT_FILENO, &buf[i], 1);
 		}
 	}
 

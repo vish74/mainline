@@ -61,7 +61,7 @@ endif ( ENABLE_USB_GADGET_SUPPORT )
 #
 option ( USE_SPAWN "Use POSIX spawn function instead of fork+exec" ON )
 if ( USE_SPAWN )
-  list ( APPEND obexpushd_DEFINITIONS USE_SPAWN )
+  list ( APPEND DEFINITIONS USE_SPAWN )
 endif ( USE_SPAWN )
 
 #
@@ -143,6 +143,7 @@ endif ( OpenObex_HAVE_TcpObex )
 #
 add_executable ( obexpushd ${obexpushd_SOURCES} )
 target_link_libraries ( obexpushd ${obexpushd_LIBRARIES} )
+list ( APPEND obexpushd_DEFINITIONS DEFINITIONS )
 set_property ( TARGET obexpushd PROPERTY
   COMPILE_DEFINITIONS ${obexpushd_DEFINITIONS}
 )
@@ -151,9 +152,13 @@ set_property ( TARGET obexpushd PROPERTY
 # The wrapper around ObexPushD to handle AT commands
 #
 add_executable (obexpush_atd obexpush_atd.c )
+set_property ( TARGET obexpush_atd PROPERTY
+  COMPILE_DEFINITIONS ${DEFINITIONS}
+)
+add_subdirectory(test)
 
 install (
-  TARGETS obexpushd
+  TARGETS obexpushd obexpush_atd
   RUNTIME DESTINATION bin
   PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE
               GROUP_READ             GROUP_EXECUTE
