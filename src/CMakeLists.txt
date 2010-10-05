@@ -25,6 +25,7 @@ list ( APPEND obexpushd_SOURCES
 )
 
 set ( OBEXPUSHD_VERSION ${VERSION} )
+set ( OBEXPUSH_ATD_VERSION 1.0 )
 configure_file (
   ${CMAKE_CURRENT_SOURCE_DIR}/version.h.in
   ${CMAKE_CURRENT_BINARY_DIR}/version.h

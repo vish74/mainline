@@ -36,10 +36,11 @@
 #endif
 
 #include "compiler.h"
+#include "version.h"
 
 #define VENDOR "Hendrik Sattler"
 #define MODEL  "ObexPushD AT wrapper, use AT+CPROT=1 to CONNECT"
-#define REVISION "1.0"
+#define REVISION OBEXPUSH_ATD_VERSION
 
 enum at_status {
 	AT_STATUS_OK = 0,
@@ -56,6 +57,9 @@ static char s5 = '\b';
 static bool echo = true;
 static bool quiet = false;
 static bool verbose = true;
+
+#define obex_server_args(name, ...) \
+	char *name[] = {"obexpushd", ##__VA_ARGS__, NULL}
 
 #define debug_print(line, ...) fprintf(stderr, line, ##__VA_ARGS__)
 
@@ -201,10 +205,8 @@ static int at_me_revision(const char *cmd, size_t cmdlen)
 		return AT_STATUS_ERROR;
 }
 
-static int start_obex_server(pid_t *p)
+static int start_obex_server(pid_t *p, char **args)
 {
-	char *args[] = {"obexpushd", "-S", "-t", "FTP", NULL};
-
 #if defined(USE_SPAWN)
 	return posix_spawnp(p, args[0], NULL, NULL, args, environ);
 
@@ -225,29 +227,38 @@ static int start_obex_server(pid_t *p)
 #endif		
 }
 
+static int waitfor_obex_server(pid_t p) {
+	int err;
+
+	waitpid(p, &err, 0);
+
+	return err;
+}
+
 static int at_enter_protocol(const char *cmd, size_t cmdlen)
 {
-	const char *args = &cmd[cmdlen];
+	obex_server_args(args, "-S", "-t", "FTP");
 
-	if (strcmp(args, "=?") == 0) {
+	cmd += cmdlen;
+	if (strcmp(cmd, "=?") == 0) {
 		print_line("+CPROT: 0"); /* OBEX */
 		return AT_STATUS_OK;
 
-	} else if (args[0] == '=') {
+	} else if (cmd[0] == '=') {
 		pid_t p;
 		int err;
 		
-		if (args[1] != '0' && args[2] != 0)
+		if (cmd[1] != '0' && cmd[2] != 0)
 			return AT_STATUS_ERROR;
 
-		err = start_obex_server(&p);
+		err = start_obex_server(&p, args);
 		if (err) {
 			print_result_code("NO CARRIER", 3);
 			return AT_STATUS_ERROR;
 
 		} else {
 			print_result_code("CONNECT", 1);
-			waitpid(p, &err, 0);
+			waitfor_obex_server(p);
 			return AT_STATUS_OK;
 		}
 	}
@@ -442,6 +453,15 @@ static void print_help (char* me) {
 	       "See manual page %s(1) for details.\n",me);
 }
 
+static void print_version (char* me) {
+	pid_t p;
+	obex_server_args(args, "-v");
+
+	printf("%s %s\n", me, REVISION);
+	start_obex_server(&p, args);
+	(void)waitfor_obex_server(p);
+}
+
 int main(int argc, char **argv)
 {
 	int c = 0;
@@ -467,7 +487,7 @@ int main(int argc, char **argv)
 			exit(EXIT_SUCCESS);
 
 		case 'v':
-			printf("%s\n", REVISION);
+			print_version("obexpush_atd");
 			exit(EXIT_SUCCESS);
 
 		default:

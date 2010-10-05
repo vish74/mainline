@@ -571,7 +571,7 @@ int main (int argc, char** argv) {
 			exit(EXIT_SUCCESS);
 
 		case 'v':
-			printf("%s\n",OBEXPUSHD_VERSION);
+			printf("%s %s\n", PROGRAM_NAME, OBEXPUSHD_VERSION);
 			exit(EXIT_SUCCESS);
 		}
 	}
