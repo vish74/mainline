@@ -1,3 +1,19 @@
+ /* Copyright (C) 2010 Hendrik Sattler <post@hendrik-sattler.de>
+ *
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
+ */
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -41,9 +57,11 @@ static bool echo = true;
 static bool quiet = false;
 static bool verbose = true;
 
+#define debug_print(line, ...) fprintf(stderr, line, ##__VA_ARGS__)
+
 static void print_line(const char *line)
 {
-	fprintf(stderr, "<- \"%s\"  (verbose=%d)\n", line, verbose);
+	debug_print("<- \"%s\"  (verbose=%d)\n", line, verbose);
 	if (verbose) {
 		printf("%c%c%s%c%c", s3, s4, line, s3, s4);
 	} else {
@@ -53,8 +71,8 @@ static void print_line(const char *line)
 
 static void print_result_code(const char *line, int code)
 {
-	fprintf(stderr, "<- \"%s\" (quiet=%d, verbose=%d)\n",
-		line, quiet, verbose);
+	debug_print("<- \"%s\" (quiet=%d, verbose=%d)\n",
+		    line, quiet, verbose);
 	if (!quiet) {
 		if (verbose) {
 			printf("%c%c%s%c%c", s3, s4, line, s3, s4);
@@ -82,9 +100,9 @@ static int at_reset(const char __unused *cmd, size_t __unused cmdlen)
 
 static int at_set_s(char *s, const char *cmd, size_t cmdlen)
 {
-	if (cmd[0] == '=') {
+	if (cmd[cmdlen] == '=') {
 		char *endptr;
-		long value = strtol(cmd+1, &endptr, 10);
+		long value = strtol(cmd+cmdlen+1, &endptr, 10);
 
 		if (cmd+cmdlen == endptr &&
 		    0 <= value && value <= CHAR_MAX)
@@ -93,7 +111,7 @@ static int at_set_s(char *s, const char *cmd, size_t cmdlen)
 			return AT_STATUS_OK;
 		}
 
-	} else if (cmd[0] == '?') {
+	} else if (cmd[cmdlen] == '?') {
 		char line[4];
 
 		snprintf(line, 4, "%03d", *s);
@@ -271,7 +289,7 @@ static void handle_at_command(const char *cmd)
 	size_t i = 0;
 	size_t cmdlen = 0;
 
-	fprintf(stderr, "-> \"AT%s\"\n", buffer);
+	debug_print("-> \"AT%s\"\n", buffer);
 
 	for (; commands[i].cmd; ++i)
 	{
@@ -404,7 +422,7 @@ static int open_tty_device(const char *device)
 
 static void print_disclaimer () {
 	fprintf(stderr,
-	        "ObePushD AT wrapper " REVISION " Copyright (C) 2010 Hendrik Sattler\n"
+	        "ObexPushD AT wrapper " REVISION " Copyright (C) 2010 Hendrik Sattler\n"
 		"This software comes with ABSOLUTELY NO WARRANTY.\n"
 		"This is free software, and you are welcome to redistribute it\n"
 		"under certain conditions.\n");
@@ -416,7 +434,8 @@ static void print_help (char* me) {
 	printf("Usage: %s [<options>]\n", me);
 	printf("\n"
 	       "Options:\n"
-	       " -d <device>    use device for I/O (default I/O: stdin/stdout)\n"
+	       " -S <device>    use device for I/O (default: stdin/stdout)\n"
+	       " -d             enable debug output\n"
 	       " -h             this help message\n"
 	       " -v             show version\n");
 	printf("\n"
@@ -427,15 +446,20 @@ int main(int argc, char **argv)
 {
 	int c = 0;
 	const char *device = NULL;
+	bool debug = false;
 
 	while (c != -1) {
-		c = getopt(argc, argv, "d:hv");
+		c = getopt(argc, argv, "S:dhv");
 		switch (c) {
 		case -1: /* processed all options, no error */
 			break;
 
-		case 'd': /* any TTY device */
+		case 'S': /* any TTY device */
 			device = optarg;
+			break;
+
+		case 'd':
+			debug = true;
 			break;
 
 		case 'h':
@@ -443,7 +467,7 @@ int main(int argc, char **argv)
 			exit(EXIT_SUCCESS);
 
 		case 'v':
-			fprintf(stderr, "%s\n", REVISION);
+			printf("%s\n", REVISION);
 			exit(EXIT_SUCCESS);
 
 		default:
@@ -451,14 +475,18 @@ int main(int argc, char **argv)
 		}
 	}
 
+	if (!debug)
+		fclose(stderr);
+
+	print_disclaimer();
 	if (device) {
-		fprintf(stderr, "Using device \"%s\"\n", device);
+		debug_print("Using device \"%s\"\n", device);
 		if (open_tty_device(device)) {
 			perror("Opening device failed");
 			return EXIT_FAILURE;
 		}
 	} else {
-		fprintf(stderr, "Using stdin/stdout\n");
+		debug_print("Using %s\n", "stdin/stdout");
 	}
 
 	if (handle_input()) {
