@@ -58,8 +58,15 @@ static bool echo = true;
 static bool quiet = false;
 static bool verbose = true;
 
-#define obex_server_args(name, ...) \
-	char *name[] = {"obexpushd", ##__VA_ARGS__, NULL}
+static struct {
+	const char *cmd;
+	int argc;
+	char **argv;
+} obex_server_def = {
+	.cmd = NULL,
+	.argc = 0,
+	.argv = NULL,
+};
 
 #define debug_print(line, ...) fprintf(stderr, line, ##__VA_ARGS__)
 
@@ -205,16 +212,19 @@ static int at_me_revision(const char *cmd, size_t cmdlen)
 		return AT_STATUS_ERROR;
 }
 
-static int start_obex_server(pid_t *p, char **args)
+static int start_obex_server(pid_t *p)
 {
+	const char *cmd = obex_server_def.cmd;
+	char **args = obex_server_def.argv;
+
 #if defined(USE_SPAWN)
-	return posix_spawnp(p, args[0], NULL, NULL, args, environ);
+	return posix_spawnp(p, cmd, NULL, NULL, args, environ);
 
 #else
 	*p = fork();
 	if (*p == 0) {
 		/* child */
-		execvp(args[0], args);
+		execvp(cmd, args);
 		perror("execvp");
 		exit(EXIT_FAILURE);
 
@@ -227,7 +237,8 @@ static int start_obex_server(pid_t *p, char **args)
 #endif		
 }
 
-static int waitfor_obex_server(pid_t p) {
+static int waitfor_obex_server(pid_t p)
+{
 	int err;
 
 	waitpid(p, &err, 0);
@@ -235,10 +246,38 @@ static int waitfor_obex_server(pid_t p) {
 	return err;
 }
 
+static int init_obex_server_args (char *cmd)
+{
+	obex_server_def.argv = malloc(2*sizeof(char*));
+	if (!obex_server_def.argv)
+		return -errno;
+
+	obex_server_def.cmd = cmd;
+	obex_server_def.argv[obex_server_def.argc++] = cmd;
+	obex_server_def.argv[obex_server_def.argc] = NULL;
+
+	return 0;
+}
+
+static int add_obex_server_arg (char *arg)
+{
+	size_t new_size;
+	void *tmp;
+
+	new_size = (obex_server_def.argc+2)*sizeof(char*);
+	tmp = realloc(obex_server_def.argv, new_size);
+	if (tmp == NULL)
+		return -errno;
+
+	obex_server_def.argv = tmp;
+	obex_server_def.argv[obex_server_def.argc++] = arg;
+	obex_server_def.argv[obex_server_def.argc] = NULL;
+
+	return 0;
+}
+
 static int at_enter_protocol(const char *cmd, size_t cmdlen)
 {
-	obex_server_args(args, "-S", "-t", "FTP");
-
 	cmd += cmdlen;
 	if (strcmp(cmd, "=?") == 0) {
 		print_line("+CPROT: 0"); /* OBEX */
@@ -251,7 +290,7 @@ static int at_enter_protocol(const char *cmd, size_t cmdlen)
 		if (cmd[1] != '0' && cmd[2] != 0)
 			return AT_STATUS_ERROR;
 
-		err = start_obex_server(&p, args);
+		err = start_obex_server(&p);
 		if (err) {
 			print_result_code("NO CARRIER", 3);
 			return AT_STATUS_ERROR;
@@ -447,19 +486,22 @@ static void print_help (char* me) {
 	       "Options:\n"
 	       " -S <device>    use device for I/O (default: stdin/stdout)\n"
 	       " -d             enable debug output\n"
+	       " -X<subopt>     add an extra option for submodes\n"
 	       " -h             this help message\n"
 	       " -v             show version\n");
 	printf("\n"
 	       "See manual page %s(1) for details.\n",me);
 }
 
-static void print_version (char* me) {
-	pid_t p;
-	obex_server_args(args, "-v");
-
+static void print_version (char* me)
+{
 	printf("%s %s\n", me, REVISION);
-	start_obex_server(&p, args);
-	(void)waitfor_obex_server(p);
+	if (!add_obex_server_arg("-v")) {
+		pid_t p;
+
+		start_obex_server(&p);
+		(void)waitfor_obex_server(p);
+	}
 }
 
 int main(int argc, char **argv)
@@ -468,8 +510,11 @@ int main(int argc, char **argv)
 	const char *device = NULL;
 	bool debug = false;
 
+	if (init_obex_server_args("obexpushd"))
+		return EXIT_FAILURE;
+
 	while (c != -1) {
-		c = getopt(argc, argv, "S:dhv");
+		c = getopt(argc, argv, "S:dX:hv");
 		switch (c) {
 		case -1: /* processed all options, no error */
 			break;
@@ -480,6 +525,16 @@ int main(int argc, char **argv)
 
 		case 'd':
 			debug = true;
+			break;
+
+		case 'X':
+			if (optarg &&
+			    strlen(optarg) > 2 &&
+			    optarg[0] == 'o' &&
+			    optarg[1] == ',')
+			{
+				add_obex_server_arg(optarg+2);
+			}
 			break;
 
 		case 'h':
@@ -494,6 +549,9 @@ int main(int argc, char **argv)
 			break;
 		}
 	}
+
+	if (add_obex_server_arg("-S"))
+		return EXIT_FAILURE;
 
 	if (!debug)
 		fclose(stderr);
