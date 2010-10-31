@@ -156,7 +156,6 @@ add_executable (obexpush_atd obexpush_atd.c )
 set_property ( TARGET obexpush_atd PROPERTY
   COMPILE_DEFINITIONS ${DEFINITIONS}
 )
-add_subdirectory(test)
 
 install (
   TARGETS obexpushd obexpush_atd
