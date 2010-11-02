@@ -1,3 +1,10 @@
+0.11 (2010-11-01)
+    - add daemon that can behaves like a modem with AT commands
+    - add stdio transport to let obexpushd be used as backend
+    - add support for filesystem extended attributes to store the mime type
+    - the file browsing service protocol is now disabled by default
+    - add option -t to enable protocols
+
 0.10 (2010-04-10)
     - add USB gadget support
     - add OBEX FTP support including setpath, get and put-delete
