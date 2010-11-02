@@ -2,7 +2,7 @@
 <!DOCTYPE reference PUBLIC "-//OASIS//DTD DocBook XML V4.2//DE" "http://www.oasis-open.org/docbook/xml/4.2/docbookx.dtd">
 <reference>
   <referenceinfo>
-    <date>2010-01-17</date>
+    <date>2010-11-02</date>
     <productname>obexpushd</productname>
     <productnumber>0.10</productnumber>
     <authorgroup>
@@ -15,7 +15,7 @@
       <author>
 	<firstname>Eugeniy</firstname>
 	<surname>Meshcheryakov</surname>
-	<contrib>texted the first version of the manpage</contrib>
+	<contrib>texted the first version of the obexpushd manpage</contrib>
 	<email>eugen@debian.org</email>
       </author>
     </authorgroup>
@@ -318,6 +318,90 @@
 	  <listitem>
 	    <para>
 	      Show version of program.
+	    </para>
+	  </listitem>
+	</varlistentry>
+      </variablelist>
+    </refsect1>
+  </refentry>
+
+  <refentry id="obexpush_atd">
+    <refmeta>
+      <refentrytitle>obexpush_atd</refentrytitle>
+      <manvolnum>1</manvolnum>
+      <refmiscinfo class="manual">User commands</refmiscinfo>
+    </refmeta>
+
+    <refnamediv>
+      <refname>obexpush_atd</refname>
+      <refpurpose>Simulate an AT modem to use obexpushd with serial lines</refpurpose>
+    </refnamediv>
+
+    <refsynopsisdiv>
+      <cmdsynopsis>
+	<command>obexpush_atd</command>
+	<arg choice="opt"><option>-S</option> <replaceable>ttyPort</replaceable></arg>
+	<arg choice="opt"><option>-X</option> <replaceable>subOption</replaceable></arg>
+	<arg choice="opt"><option>-d</option></arg>
+	<arg choice="opt"><option>-v</option></arg>
+	<arg choice="opt"><option>-h</option></arg>
+      </cmdsynopsis>
+    </refsynopsisdiv>
+
+    <refsect1>
+      <title>Description</title>
+      <para>
+	To use obexpushd over simple serial lines, obexpush_atd handles the
+	standard AT command set to let programs switch to OBEX mode
+	transparently.
+      </para>
+    </refsect1>
+
+    <refsect1>
+      <title>Options</title>
+      <variablelist>
+	<varlistentry>
+	  <term><option>-S</option></term>
+	  <listitem>
+	    <para>
+	      Use serial line <replaceable>ttyPort</replaceable> for input and output.
+	    </para>
+	  </listitem>
+	</varlistentry>
+	<varlistentry>
+	  <term><option>-X</option></term>
+	  <listitem>
+	    <para>
+	      Add additional option to submode handlers. The format for <replaceable>subOption</replaceable>
+	      is "<replaceable>mode</replaceable>,<replaceable>option</replaceable>". The only available mode
+	      is currently "o" for the OBEX mode, realized by obexpushd.
+	    </para>
+	    <para>
+	      Example (for enabling FBS): -Xo,-t -Xo,FTP
+	    </para>
+	  </listitem>
+	</varlistentry>
+	<varlistentry>
+	  <term><option>-d</option></term>
+	  <listitem>
+	    <para>
+	      Show debug output.
+	    </para>
+	  </listitem>
+	</varlistentry>
+	<varlistentry>
+	  <term><option>-v</option></term>
+	  <listitem>
+	    <para>
+	      Show versions.
+	    </para>
+	  </listitem>
+	</varlistentry>
+	<varlistentry>
+	  <term><option>-h</option></term>
+	  <listitem>
+	    <para>
+	      Show the help message.
 	    </para>
 	  </listitem>
 	</varlistentry>
