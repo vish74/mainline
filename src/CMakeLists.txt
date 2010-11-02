@@ -80,20 +80,6 @@ if ( USE_THREADS )
 endif ( USE_THREADS )
 
 #
-# Avahi is currently turned off (there is no official Obex profile for it).
-#
-#option ( ENABLE_AVAHI "Use the avahi-client library to publish the service" OFF )
-#if ( ENABLE_AVAHI )
-#  find_package ( AvahiClient )
-#endif ( ENABLE_AVAHI )
-#if ( AvahiClient_FOUND )
-#  include_directories ( ${AvahiClient_INCLUDE_DIRS} )
-#  list ( APPEND obexpushd_DEFINITIONS ENABLE_AVAHI )
-#  list ( APPEND obexpushd_SOURCES net/publish/avahi.c )
-#  list ( APPEND obexpushd_LIBRARIES ${AvahiClient_LIBRARIES} )
-#endif ( AvahiClient_FOUND )
-
-#
 # TcpWrapper can be used for access control
 #
 option ( ENABLE_TCPWRAP "Use the tcp wrapper library to check for restrictions on incoming connections" ON )
