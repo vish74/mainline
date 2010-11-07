@@ -175,6 +175,7 @@ static void obex_action (file_data_t *data, obex_object_t *obj,
 
 	switch (event) {
 	case OBEX_EV_REQHINT:
+		obex_send_response(data, obj, 0);
 		if (ops->request_hint)
 			ops->request_hint(data, obj);
 		break;
