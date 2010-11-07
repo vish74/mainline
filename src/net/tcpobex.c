@@ -1,7 +1,6 @@
 
 #include "net.h"
 #include "compiler.h"
-#include "publish/avahi.h"
 
 #include <inttypes.h>
 #include <stdlib.h>
@@ -20,9 +19,6 @@ struct tcp_args {
 	char* address;
 	uint16_t port;
 	char* intf;
-#ifdef ENABLE_AVAHI
-	void *avahi;
-#endif
 };
 
 static
@@ -83,29 +79,9 @@ obex_t* tcp_init (
 		fprintf(stderr, "Listening on tcp/%s:%d\n",
 			(args->address? args->address: "*"),
 			args->port);
-#ifdef ENABLE_AVAHI
-		args->avahi = obex_avahi_setup(af, args->port, args->intf);
-#endif
-		
 	}
 	return handle;
 }
-
-#ifdef ENABLE_AVAHI
-static
-void tcp_cleanup (
-	struct net_handler *h
-)
-{
-	struct tcp_args* args = h->args;
-
-	if (args->avahi)
-		obex_avahi_cleanup(args->avahi);
-}
-#define TCP_CLEANUP_FUNC tcp_cleanup
-#else
-#define TCP_CLEANUP_FUNC NULL
-#endif
 
 static
 int tcp_security_check(
@@ -183,7 +159,6 @@ int tcp_get_peer(
 static
 struct net_handler_ops tcp_ops = {
 	.init = tcp_init,
-	.cleanup = TCP_CLEANUP_FUNC,
 	.get_peer = tcp_get_peer,
 	.security_check = tcp_security_check,
 };
