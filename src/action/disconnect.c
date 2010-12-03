@@ -20,6 +20,8 @@
 #include "core.h"
 #include "compiler.h"
 
+#include <unistd.h>
+
 static void disconnect_reqhint(file_data_t *data, obex_object_t *obj)
 {
 	/* A new request is coming in */
@@ -36,6 +38,7 @@ static void disconnect_request(file_data_t *data, obex_object_t __unused *obj)
 
 static void disconnect_done(file_data_t *data, obex_object_t __unused *obj)
 {
+	sleep(1);
 	net_disconnect(data->net_data);
 }
 
