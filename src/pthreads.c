@@ -58,5 +58,7 @@ int obexpushd_start (struct net_data *data, unsigned int count) {
 			pthread_join(thread[i], &retval);
 		}
 	}
+
+	free(thread);
 	pthread_exit(NULL);
 }

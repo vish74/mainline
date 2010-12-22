@@ -70,17 +70,20 @@ void auth_destroy (struct auth_handler* h)
 #define RANDOM_FILE "/dev/urandom"
 static int auth_get_nonce (uint8_t nonce[16])
 {
-	int fd = open(RANDOM_FILE, O_RDONLY);
 	int status;
+	int fd = open(RANDOM_FILE, O_RDONLY);
+
 	if (fd < 0)
 		return -errno;
 	status = (int)read(fd, nonce, 16);
+	(void)close(fd);
+
 	if (status < 0)
 		return -errno;
-	if (status != 16)
+	else if (status != 16)
 		return -EIO;
-	(void)close(fd);
-	return 0;
+	else
+		return 0;
 }
 
 int auth_init (struct auth_handler *self, obex_t *handle, obex_object_t *obj)

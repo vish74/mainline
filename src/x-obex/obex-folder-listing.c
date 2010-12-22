@@ -200,6 +200,7 @@ void print_dir (FILE* fd, const char* dir, int flags)
 	mode_t mode;
 	struct dirent* entry = NULL;
 	char* seperator;
+	char *tmp;
   
 	if (dir == NULL)
 		return;
@@ -215,7 +216,11 @@ void print_dir (FILE* fd, const char* dir, int flags)
 		if (strcmp(entry->d_name,".") == 0 ||
 		    strcmp(entry->d_name,"..") == 0)
 			continue;
-		filename = realloc(filename,flen+strlen(entry->d_name));
+		tmp = realloc(filename,flen+strlen(entry->d_name));
+		if (!tmp)
+			break;
+		else
+			filename = tmp;
 		sprintf(filename,"%s%s%s",dir,seperator,entry->d_name);
 		print_filename(fd,filename,mode,flags);
 	}
@@ -257,7 +262,7 @@ int obex_folder_listing (FILE* fd, char* name, int flags)
 	mode_t m = 0;
 	int err = 0;
 	size_t namelen = (name? strlen(name): 0);
-	char* parent = get_parent_folder_name(name);
+	char* parent;
 
 #if _WIN32
 	/* backslash dir seperator must be converted to unix format*/
@@ -282,6 +287,7 @@ int obex_folder_listing (FILE* fd, char* name, int flags)
 		"<!DOCTYPE folder-listing SYSTEM \"obex-folder-listing.dtd\">\n");
 	xml_open(fd,0,"folder-listing version=\"1.0\"");
 
+	parent = get_parent_folder_name(name);
 	if (parent) {
 		if (flags & OFL_FLAG_PARENT)
 			xml_print(fd,1,"parent-folder",NULL,0);
