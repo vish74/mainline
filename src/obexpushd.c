@@ -203,6 +203,7 @@ static void* handle_client (void* arg) {
 			memset(buffer, 0, sizeof(buffer));
 			net_get_peer(data->net_data, buffer, sizeof(buffer));
 			dbg_printf(data, "Connection from \"%s\"\n", buffer);
+			data->transfer.peername = strdup(buffer);
 
 			do {
 				if (OBEX_HandleInput(data->net_data->obex, 10) < 0)
