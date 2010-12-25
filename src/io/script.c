@@ -53,9 +53,9 @@ static int io_script_exit (
 		/* signal 'undo' and give it time to react */
 		kill(child, SIGUSR1);
 		sleep(10);
-		kill(child, SIGKILL);
 	}
 
+	kill(child, SIGKILL);
 	if (waitpid(child, &status, 0) < 0)
 		retval = -errno;
 	else {
@@ -81,6 +81,15 @@ static int io_script_close (
 	struct io_script_data *data = self->private_data;
 	int retval = 0;
 
+	/* kill STDIN first to signal the script that there will be no more
+	 * data */
+	if (data->out) {
+		if (fclose(data->out) == EOF)
+			retval = -errno;
+		else
+			data->out = NULL;
+	}
+
 	if (data->child != (pid_t)-1) {
 		retval = io_script_exit(data->child, keep);
 		data->child = (pid_t)-1;
@@ -91,13 +100,6 @@ static int io_script_close (
 			retval = -errno;
 		else
 			data->in = NULL;
-	}
-
-	if (data->out) {
-		if (fclose(data->out) == EOF)
-			retval = -errno;
-		else
-			data->out = NULL;
 	}
 	self->state = 0;
 
