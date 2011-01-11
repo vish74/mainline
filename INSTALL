@@ -57,7 +57,7 @@ ENABLE_TCPWRAP
     Enable support for the tcp wrapper (see /etc/host.deny and /etc/hosts.allow)
 
 BUILD_HELP_HTML
-    Build the HTML help files. Default off OFF.
+    Build the HTML help files. Default is OFF.
 
 BUILD_HELP_MAN
     Build the manpage files. Default is ON
@@ -70,6 +70,14 @@ DOCBOOK_XSLT_PROCESSOR
     Choose the XSLT processor to use for creating of the help file. Supported
     are xsltproc, saxon-6.5.x and xalan-2.x. The default is set automatically
     from the list of installed ones.
+
+DOCUMENTATION_INSTALL_DIR
+    Choose the location where documentation gets installed (example, html help
+    files, ...). Defaults to share/doc/obexpushd.
+
+MANPAGE_INSTALL_DIR
+    Choose the location where manual pages get installed.
+    Defaults to share/man.
 
 There are lots of other variables that affect the build.
 
@@ -94,7 +102,8 @@ There is also a manpage.
 Specification documents:
 ========================
 
-You can download the spefication document from
-http://www.bluetooth.com/Bluetooth/Learn/Technology/Specifications/
+You can download the spefication document from:
+http://www.bluetooth.com/English/Technology/Building/Pages/Specification.aspx
+
 The OBEX base secification is available seperately from the Infrared Data
 Association.
