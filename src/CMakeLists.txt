@@ -22,6 +22,7 @@ list ( APPEND obexpushd_SOURCES
   net/publish/sdp.c
   net/irobex.c
   net/fdobex.c
+  net/fdobex_ctrans.c
 )
 
 set ( OBEXPUSHD_VERSION ${VERSION} )
@@ -54,7 +55,10 @@ if ( CMAKE_SYSTEM_NAME STREQUAL "Linux" )
 endif ( CMAKE_SYSTEM_NAME STREQUAL "Linux" )
 if ( ENABLE_USB_GADGET_SUPPORT )
   list ( APPEND obexpushd_DEFINITIONS USB_GADGET_SUPPORT )
-  list ( APPEND obexpushd_SOURCES net/usbgobex.c )
+  list ( APPEND obexpushd_SOURCES
+    net/usbgobex.c
+    net/usbgobex_ctrans.c
+  )
 endif ( ENABLE_USB_GADGET_SUPPORT )
 
 #
