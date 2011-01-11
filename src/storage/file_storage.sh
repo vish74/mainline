@@ -14,9 +14,11 @@ ROOT_PATH=""
 MODE="$1"
 FROM=""
 NAME=""
-SUB_PATH="${ROOT_PATH}."
+SUB_PATH="${ROOT_PATH}./"
 LENGTH="0"
+MIMETYPE=""
 while read LINE; do
+	echo "${LINE}" 1>&2
 	if ( test -z "${LINE}" ); then
 		break
 	fi
@@ -27,18 +29,23 @@ while read LINE; do
 	Name)   NAME="${VALUE}";;
 	Path)   SUB_PATH="${ROOT_PATH}${VALUE}/";;
 	Length) LENGTH="${VALUE}";;
+	Type)   MIMETYPE="${VALUE}";;
 	esac
 done
 
 case "${MODE}" in
 put)
-	test "${NAME}" || exit 1
-	test -e "${NAME}" && exit 1
+	FILE="${SUB_PATH}${NAME}"
+	echo "script: testing ${FILE}..." 1>&2
+	test -z "${FILE}" && exit 1
+	echo "script: testing for existence of ${FILE}..." 1>&2
+	test -e "${FILE}" && exit 1
 
 	#tell obexpushd to go on
+	echo "script: asking user for permission..." 1>&2
 	${DIALOG} --title "Obex-Push" \
             --yesno \
-            "Allow receiving the file\n\"${SUB_PATH}${NAME}\"\n(${LENGTH} bytes) from\n${FROM}" \
+            "Allow receiving the file\n\"${FILE}\"\n(${LENGTH} bytes) from\n${FROM}" \
             10 40
 	if ( test "$?" -eq "0" ); then
 		echo "OK"
@@ -47,18 +54,34 @@ put)
 		exit 1
 	fi
 
-	cat > "${SUB_PATH}${NAME}"
+	echo "script: storing file on disk..." 1>&2
+	cat > "${FILE}"
+	echo "script: file saved to disk." 1>&2
+	setfattr -n "user.mime_type" -v "${MIMETYPE}" "${FILE}"
+	sleep 1
+	echo "script: done" 1>&2
 	;;
 
 get)
-	test "${SUB_PATH}${NAME}" || exit 1
-	test -f "${SUB_PATH}${NAME}" || exit 1
+	FILE=${SUB_PATH}${NAME}
+	test -z "${FILE}" && exit 1
+	test -f "${FILE}" || exit 1
 
-	FILE=${NAME}
-	stat --printf="Length: %s\n" ${NAME}
-	stat --format="%y" "${SUB_PATH}${NAME}" | date -u +"Time: %Y%m%dT%H%M%SZ"
+	stat --printf="Length: %s\n" ${FILE}
+	stat --format="%y" "${FILE}" | date -u +"Time: %Y%m%dT%H%M%SZ"
+
+	MIMETYPE=$(getfattr -n "user.mime_type" "${FILE}")
+	if [ "${MIMETYPE}" ]; then
+	    echo "Type: ${MIMETYPE}"
+	fi
+
 	echo ""
-	cat "${SUB_PATH}${NAME}"
+	cat "${FILE}"
+	;;
+
+delete)
+	FILE=${SUB_PATH}${NAME}
+	exec rm -rf "${FILE}"
 	;;
 
 listdir)
@@ -68,6 +91,10 @@ listdir)
 	echo ""
 	cat ${FILE}
 	rm -f ${FILE}
+	;;
+
+createdir)
+	exec mkdir -p ${SUB_PATH}
 	;;
 
 capability)
