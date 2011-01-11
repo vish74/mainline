@@ -48,25 +48,31 @@ static int io_script_exit (
 {
 	int status;
 	int retval = 0;
+	int pid = 0;
 
-	if (!keep) {
-		/* signal 'undo' and give it time to react */
-		kill(child, SIGUSR1);
-		sleep(10);
+	if (!keep)
+		kill(child, SIGUSR1); /* signal 'undo' */
+
+	for (int i = 0; pid == 0 && i < 10; ++i) {
+		pid = waitpid(child, &status, WNOHANG);
+		if (pid == 0)
+			sleep(1);
 	}
 
-	kill(child, SIGKILL);
-	if (waitpid(child, &status, 0) < 0)
-		retval = -errno;
-	else {
-		if (WIFEXITED(status)) {
-			retval = WEXITSTATUS(status);
-			/* fprintf(stderr, "script exited with exit code %d\n", retval); */
+	/* it not dead yet, kill it */
+	if (pid == 0) {
+		kill(child, SIGKILL);
+		pid = waitpid(child, &status, 0);
+	}
 
-		} else if (WIFSIGNALED(status) && keep) {
-			retval = WTERMSIG(status);
-			/* fprintf(stderr, "script got signal %d\n", retval); */
-		}
+	if (pid < 0)
+		retval = -errno;
+	else if (WIFEXITED(status)) {
+		retval = WEXITSTATUS(status);
+		/* fprintf(stderr, "script exited with exit code %d\n", retval); */
+	} else if (WIFSIGNALED(status) && keep) {
+		retval = WTERMSIG(status);
+		/* fprintf(stderr, "script got signal %d\n", retval); */
 	}
 
 	return retval;
