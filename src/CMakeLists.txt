@@ -15,7 +15,10 @@ list ( APPEND obexpushd_SOURCES
   auth/core.c
   auth/file.c
   io/core.c
-  io/file.c
+  io/internal/common.c
+  io/internal/file.c
+  io/internal/dir.c
+  io/internal/caps.c
   io/script.c
   net/core.c
   net/btobex.c
