@@ -31,3 +31,12 @@ size_t utf16count(const uint16_t* s);
  */
 uint8_t* utf16to8 (const uint16_t* c);
 uint16_t* utf8to16 (const uint8_t* c);
+
+/* Sadly, OBEX doesn't use UTF-16 but UCS-2,
+ * these functions convert to/from UTF-8.
+ * UCS-2 values MUST be in host byte order.
+ * returned pointer must be free'd and is
+ *          in host byte order
+ */
+uint8_t* ucs2_to_utf8 (const uint16_t* c);
+uint16_t* utf8_to_ucs2 (const uint8_t* c);

@@ -24,11 +24,11 @@ static int obex_obj_hdr_name (file_data_t* data,
 	memcpy(transfer->name, value->bs, vsize);
 	utf16_ntoh(transfer->name, len);
 	if (debug) {
-		uint8_t* n = utf16to8(transfer->name);
+		uint8_t* n = ucs2_to_utf8(transfer->name);
 		dbg_printf(data, "name: \"%s\"\n", (char*)n);
 		free(n);
 	}
-	if (!check_wrap_utf16(transfer->name, check_name)) {
+	if (!check_wrap_ucs2(transfer->name, check_name)) {
 		dbg_printf(data, "CHECK FAILED: %s\n", "Invalid name string");
 		return 0;
 	}
@@ -108,7 +108,7 @@ static int obex_obj_hdr_descr (file_data_t* data,
 	uint16_t* desc16 = (uint16_t*)value->bs;
 
 	if (desc16[vsize/2] == 0x0000) {
-		uint8_t* desc8 = utf16to8(desc16);
+		uint8_t* desc8 = ucs2_to_utf8(desc16);
 
 		dbg_printf(data, "description: \"%s\"\n", (char*)desc8);
 		free(desc8);

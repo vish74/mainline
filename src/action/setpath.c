@@ -59,7 +59,7 @@ static int update_path(
 
 	} else {
 		/* name is non-empty -> change to directory */
-		uint8_t *n = utf16to8(name);
+		uint8_t *n = ucs2_to_utf8(name);
 
 		if (!n)
 			return -errno;
@@ -136,7 +136,7 @@ static int check_setpath_headers (file_data_t* data, obex_object_t* obj)
 			memcpy(name, value.bs, vsize);
 			utf16_ntoh(name, len);
 			if (debug) {
-				uint8_t* n = utf16to8(name);
+				uint8_t* n = ucs2_to_utf8(name);
 				dbg_printf(data, "name: \"%s\"\n", (char*)n);
 				free(n);
 			}

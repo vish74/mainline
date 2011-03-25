@@ -45,7 +45,7 @@ char* io_internal_get_fullname(const char *basedir, const char *subdir,
 	size_t namesize;
 
 	if (filename) {
-		namebase = utf16to8(filename);
+		namebase = ucs2_to_utf8(filename);
 		if (!namebase)
 			return NULL;
 	}

@@ -128,7 +128,7 @@ static uint16_t* utf16to32 (const uint16_t* in, uint32_t *out)
 	uint32_t onechar = 0;
 
 	/* surrogates */
-	if ((in[0] & 0xD800) == 0xD800)
+	if ((in[0] & 0xDC00) == 0xD800)
 	{
 		if ((in[1] & 0xDC00) == 0xDC00) {
 			onechar |= (*(in++) & 0x03FF) << 10;
@@ -196,9 +196,62 @@ static uint16_t* utf32to16 (uint32_t in, uint16_t* out)
 	return out;
 }
 
+uint8_t* ucs2_to_utf8 (const uint16_t* c)
+{
+	uint8_t *buf;
+
+	if (!c) {
+		errno = EINVAL;
+		return NULL;
+	}
+
+	buf = calloc((3 * utf16len(c)) + 1, sizeof(*buf));
+	if (buf) {
+		size_t sc = utf16len(c);
+		uint8_t *d = buf;
+
+		for (size_t i = 0; i < sc; ++i) {
+			/* UCS-2 directly maps to UTF-32 codepoints... */
+			uint32_t t = (uint32_t)c[i];
+
+			/* ...and then we can use the normal conversion */
+			d = utf32to8(t, d);
+		}
+	}
+	return buf;
+}
+
+uint16_t* utf8_to_ucs2 (const uint8_t* c)
+{
+	uint16_t *buf;
+
+	if (!c) {
+		errno = EINVAL;
+		return NULL;
+	}
+
+	buf = calloc(utf8count(c) + 2, sizeof(*buf));
+	if (buf) {
+		size_t sc = utf8len(c);
+		uint16_t *d = buf;
+		const uint8_t *k = c;
+
+		while (k && d && k < c+sc) {
+			uint32_t t;
+			k = utf8to32(k, &t);
+
+			if (t <= 0xFFFF)
+				*d = (uint16_t)(t & 0xFFFF);
+			else
+				*d = 0xFFFD; /* Unicode replacement character */
+		}
+	}
+
+	return buf;
+}
+
 uint8_t* utf16to8 (const uint16_t* c)
 {
-	size_t sd = (4 * utf16count(c)) + 1;
 	uint8_t *buf;
 
 	if (!c) { 
@@ -206,13 +259,12 @@ uint8_t* utf16to8 (const uint16_t* c)
 		return NULL;
 	}
 
-	buf = malloc(sd);
+	buf = calloc((4 * utf16count(c)) + 1, sizeof(*buf));
 	if (buf) {
 		size_t sc = utf16len(c);
 		uint8_t *d = buf;
 		const uint16_t *k = c;
 
-		memset(d, 0, sd);
 		while (k < c+sc) {
 			uint32_t t;
 
@@ -226,7 +278,6 @@ uint8_t* utf16to8 (const uint16_t* c)
 
 uint16_t* utf8to16 (const uint8_t* c)
 {
-	size_t sd = (2 * utf8count(c)) + 2;
 	uint16_t *buf;
 
 	if (!c) {
@@ -234,13 +285,12 @@ uint16_t* utf8to16 (const uint8_t* c)
 		return NULL;
 	}
 
-	buf = malloc(sd);
+	buf = calloc((2 * utf8count(c)) + 2, sizeof(*buf));
 	if (buf) {
 		size_t sc = utf8len(c);
 		uint16_t *d = buf;
 		const uint8_t *k = c;
 
-		memset(d, 0, sd);
 		while (k && d && k < c+sc) {
 			uint32_t t;
 			k = utf8to32(k, &t);
@@ -285,7 +335,7 @@ static int test_utf16 (uint32_t from, uint32_t to) {
 
 	printf("Testing UTF-16...\n");
 	for (i = from; i <= to; ++i) {
-		if (i == 0xD800 && 0xE000 < to)
+		if (i == 0xD800 && 0xE000 <= to)
 			i = 0xE000;
 		printf("\rTest value: 0x%08x", i);
 		memset(tmp, 0, sizeof(tmp));
@@ -323,16 +373,18 @@ static int test_string () {
 		ret |= (1 << 0);
 	else 
 		free(conv1);
-	if (strcmp((char*)teststr, (char*)conv2) != 0)
-		ret |= (1 << 2);
+
 	if (!conv2)
 		ret |= (1 << 1);
+	else if (strcmp((char*)teststr, (char*)conv2) != 0)
+		ret |= (1 << 2);
 	else
 		free(conv2);
+
 	if (zeroconv1)
-		ret |= (1 << 2);
+		ret |= (1 << 3);
 	if (zeroconv2)
-		ret |= (1 << 2);
+		ret |= (1 << 4);
 
 	return ret;
 }

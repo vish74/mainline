@@ -60,8 +60,8 @@ int check_type (uint8_t *type) {
 	return 1;
 }
 
-int check_wrap_utf16 (uint16_t *name, int (*func)(uint8_t*)) {
-	uint8_t* n = utf16to8(name);
+int check_wrap_ucs2 (uint16_t *name, int (*func)(uint8_t*)) {
+	uint8_t* n = ucs2_to_utf8(name);
 	int result = func(n);
 	free(n);
 	return result;

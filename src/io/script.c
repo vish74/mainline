@@ -175,7 +175,7 @@ int io_script_parse_headers (
 				return -EINVAL;
 			if (transfer->name)
 				free(transfer->name);
-			transfer->name = utf8to16(name);
+			transfer->name = utf8_to_ucs2(name);
 
 		} else if (strncasecmp(buffer,"Length: ",8) == 0) {
 			char* endptr;
@@ -296,7 +296,7 @@ static void io_script_write_headers (
 	}
 
 	if (ht & IO_HT_NAME) {
-		char *str = (char*)utf16to8(transfer->name);
+		char *str = (char*)ucs2_to_utf8(transfer->name);
 		if (str) {
 			str_subst(str, '\n', ' ');
 			fprintf(data->out, "Name: %s\n", str);
