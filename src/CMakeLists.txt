@@ -40,6 +40,17 @@ include_directories (
   ${CMAKE_CURRENT_BINARY_DIR}
 )
 
+option ( USE_LIBGCRYPT "Use gcrypt library" ON )
+if ( USE_LIBGCRYPT )
+  find_package ( LibGcrypt )
+else ( USE_LIBGCRYPT )
+  unset ( LIBGCRYPT_FOUND )
+endif ( USE_LIBGCRYPT )
+if ( LIBGCRYPT_FOUND )
+  add_definitions ( -DUSE_LIBGCRYPT )
+  list ( APPEND obexpushd_LIBRARIES ${LIBGCRYPT_LIBRARIES} )
+endif ( LIBGCRYPT_FOUND )
+
 add_subdirectory ( obex_auth )
 list ( APPEND obexpushd_LIBRARIES obex_auth )
 

@@ -13,6 +13,8 @@ pkg-config (to find libraries more easily)
 xsltproc or saxon-6.5.x or xalan-2.x (to build documentation)
 Docbook XSL files (or the online catalogs will be used)
 TCP-Wrapper (to restrict TCP connections)
+Gcrypt library (for MD5 and NONCE instead of internal code)
+
 
 Building:
 =========
@@ -52,6 +54,9 @@ USE_SPAWN
 USE_THREADS
     Use POSIX threads (instead of fork()) for client connections. The default is
     ON and this is also the suggested value.
+
+USE_LIBGCRYPT
+    Enable usage of the gcrypt library if found. The default is ON.
 
 ENABLE_TCPWRAP
     Enable support for the tcp wrapper (see /etc/host.deny and /etc/hosts.allow)

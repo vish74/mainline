@@ -1,5 +1,9 @@
 #include <signal.h>
 
+#if defined(USE_LIBGCRYPT)
+#include <gcrypt.h>
+#endif
+
 #ifndef SIGCLD
 #define SIGCLD SIGCHLD
 #endif
@@ -37,6 +41,12 @@ static void obexpushd_wait (int sig) {
 int obexpushd_start (struct net_data *data, unsigned int count) {
 	unsigned int i;
 	(void)signal(SIGCHLD, obexpushd_wait);
+
+#if defined(USE_LIBGCRYPT)
+	(void)gcry_check_version(NULL);
+	gcry_control (GCRYCTL_DISABLE_SECMEM, 0);
+	gcry_control(GCRYCTL_INITIALIZATION_FINISHED, 0);
+#endif
 
 	/* initialize all enabled listeners */
 	for (i = 0; i < count; ++i) {

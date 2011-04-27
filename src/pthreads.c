@@ -1,5 +1,10 @@
 #include <pthread.h>
 
+#if defined(USE_LIBGCRYPT)
+#include <gcrypt.h>
+GCRY_THREAD_OPTION_PTHREAD_IMPL;
+#endif
+
 int obexpushd_create_instance (void* (*cb)(void*), void *cbdata) {
 	pthread_t t;
 	pthread_attr_t attr;
@@ -43,6 +48,13 @@ int obexpushd_start (struct net_data *data, unsigned int count) {
 
 	if (!thread)
 		return -errno;
+
+#if defined(USE_LIBGCRYPT)
+	gcry_control(GCRYCTL_SET_THREAD_CBS, &gcry_threads_pthread);
+	(void)gcry_check_version(NULL);
+	gcry_control (GCRYCTL_DISABLE_SECMEM, 0);
+	gcry_control(GCRYCTL_INITIALIZATION_FINISHED, 0);
+#endif
 
 	/* initialize all enabled listeners */
 	for (i = 0; i < count; ++i) {

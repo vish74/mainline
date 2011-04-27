@@ -29,6 +29,10 @@
 #include <unistd.h>
 #include <string.h>
 
+#if defined(USE_LIBGCRYPT)
+#include <gcrypt.h>
+#endif
+
 #include "compiler.h"
 
 struct auth_handler* auth_copy (struct auth_handler *h)
@@ -67,9 +71,14 @@ void auth_destroy (struct auth_handler* h)
 	}
 }
 
-#define RANDOM_FILE "/dev/urandom"
 static int auth_get_nonce (uint8_t nonce[16])
 {
+#if defined(USE_LIBGCRYPT)
+	gcry_create_nonce(nonce, 16);
+	return 0;
+
+#else
+#define RANDOM_FILE "/dev/urandom"
 	int status;
 	int fd = open(RANDOM_FILE, O_RDONLY);
 
@@ -84,6 +93,7 @@ static int auth_get_nonce (uint8_t nonce[16])
 		return -EIO;
 	else
 		return 0;
+#endif
 }
 
 int auth_init (struct auth_handler *self, obex_t *handle, obex_object_t *obj)

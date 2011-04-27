@@ -16,7 +16,11 @@
  */
    
 #include "obex_auth.h"
+#if defined(USE_LIBGCRYPT)
+#include <gcrypt.h>
+#else
 #include "md5.h"
+#endif
 
 #if !defined(_WIN32)
 #include "arpa/inet.h"
@@ -34,6 +38,16 @@ void obex_auth_calc_digest (uint8_t digest[16],
                             const uint8_t* pass,
                             size_t len)
 {
+#if defined(USE_LIBGCRYPT)
+	gcry_md_hd_t handle;
+
+	gcry_md_open(&handle, GCRY_MD_MD5, 0);
+	gcry_md_write(handle, nonce, 16);
+	gcry_md_write(handle, ":", 1);
+	gcry_md_write(handle, pass, len);
+	memcpy(digest, gcry_md_read(handle, GCRY_MD_MD5), 16);
+	gcry_md_close(handle);
+#else
 	struct MD5Context context;
 
 	MD5Init(&context);
@@ -41,6 +55,7 @@ void obex_auth_calc_digest (uint8_t digest[16],
 	MD5Update(&context, (uint8_t*)":", 1);
 	MD5Update(&context, pass, len);
 	MD5Final(digest, &context);
+#endif
 }
 
 /* Function for an OBEX server.
