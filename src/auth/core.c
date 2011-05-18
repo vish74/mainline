@@ -127,7 +127,7 @@ int auth_init (struct auth_handler *self, obex_t *handle, obex_object_t *obj)
 			if (self->ops && self->ops->get_realm_name) {
 				const uint16_t *r = self->ops->get_realm_name(self, i);
 				chal[i].realm.data = r;
-				chal[i].realm.len = utf16len(r) * sizeof(*r);
+				chal[i].realm.len = ucs2len(r) * sizeof(*r);
 				chal[i].realm.charset = 0xFF;
 			}
 			if (self->ops && self->ops->get_realm_opts)

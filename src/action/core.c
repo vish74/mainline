@@ -22,7 +22,7 @@ static int obex_obj_hdr_name (file_data_t* data,
 		return 0;
 
 	memcpy(transfer->name, value->bs, vsize);
-	utf16_ntoh(transfer->name, len);
+	ucs2_ntoh(transfer->name, len);
 	if (debug) {
 		uint8_t* n = ucs2_to_utf8(transfer->name);
 		dbg_printf(data, "name: \"%s\"\n", (char*)n);

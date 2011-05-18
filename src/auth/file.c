@@ -42,7 +42,7 @@ static int get_realm_id (struct auth_handler *self,
 			if (data->realm[i].name == NULL)
 				return i;
 		} else {
-			size_t size = utf16len(data->realm[i].name) * sizeof(*realm);
+			size_t size = ucs2len(data->realm[i].name) * sizeof(*realm);
 			if (memcmp(realm, data->realm[i].name, size) == 0)
 				return i;
 		}
@@ -205,7 +205,7 @@ struct auth_handler* auth_file_init (char* file, uint16_t *realm, uint8_t opts)
 			goto out;
 
 		if (realm) {
-			d->realm[0].name = utf16dup(realm);
+			d->realm[0].name = ucs2dup(realm);
 			if (!d->realm[0].name)
 				goto out;
 		}

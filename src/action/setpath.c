@@ -33,7 +33,7 @@ static int update_path(
 	uint8_t *flags
 )
 {
-	size_t len = utf16len(name);
+	size_t len = ucs2len(name);
 	int err = 0;
 
 	if ((flags[0] & OBEX_FLAG_SETPATH_LEVELUP) && transfer->path) {
@@ -134,7 +134,7 @@ static int check_setpath_headers (file_data_t* data, obex_object_t* obj)
 			if (!name)
 				return -errno;
 			memcpy(name, value.bs, vsize);
-			utf16_ntoh(name, len);
+			ucs2_ntoh(name, len);
 			if (debug) {
 				uint8_t* n = ucs2_to_utf8(name);
 				dbg_printf(data, "name: \"%s\"\n", (char*)n);

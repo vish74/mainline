@@ -40,16 +40,16 @@ static void add_name_header(file_data_t *data, obex_object_t *obj)
 {
 	obex_t *handle = data->net_data->obex;
 	struct io_transfer_data *transfer = &data->transfer;
-	size_t len = utf16len(transfer->name);
+	size_t len = ucs2len(transfer->name);
 
 	if (len) {
-		void *bs = utf16dup(transfer->name);
+		void *bs = ucs2dup(transfer->name);
 
 		if (bs) {
 			size_t size = (len+1)*sizeof(*transfer->name);
 			obex_headerdata_t hv;
 
-			utf16_hton(bs, len);
+			ucs2_hton(bs, len);
 			hv.bs = bs;
 			(void)OBEX_ObjectAddHeader(handle, obj, OBEX_HDR_NAME,
 						   hv, size, 0);
@@ -146,7 +146,7 @@ static int get_check(struct io_transfer_data *transfer, enum obex_target target)
 {
 	/* either type or name must be set */
 	if (!transfer->type || strlen(transfer->type) == 0)
-		return (utf16len(transfer->name) != 0);
+		return (ucs2len(transfer->name) != 0);
 
 	if (strncmp(transfer->type, "x-obex/", 7) == 0) {
 		if (strcmp(transfer->type+7, "folder-listing") == 0) {
@@ -159,7 +159,7 @@ static int get_check(struct io_transfer_data *transfer, enum obex_target target)
 			/* NAME is the mime-type that the object profile is
 			 * request for
 			 */
-			return (utf16len(transfer->name) != 0);
+			return (ucs2len(transfer->name) != 0);
 
 		} else {
 			/* unknown x-obex type */
@@ -167,7 +167,7 @@ static int get_check(struct io_transfer_data *transfer, enum obex_target target)
 		}
 	} else {
 		/* request generic file objects with a specific type is not allowed */
-		return (utf16len(transfer->name) && strlen(transfer->type));
+		return (ucs2len(transfer->name) && strlen(transfer->type));
 	}
 }
 

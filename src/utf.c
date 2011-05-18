@@ -21,7 +21,7 @@
 #include <string.h>
 #include <stdio.h>
 
-size_t utf16len (const uint16_t* s) {
+size_t ucs2len (const uint16_t* s) {
 	size_t n = 0;
 	if (s != 0)
 		while (s[n] != 0x0000) ++n;
@@ -34,8 +34,8 @@ size_t utf8len (const uint8_t* s) {
 	return 0;
 }
 
-uint16_t* utf16dup (const uint16_t* s) {
-	size_t len = utf16len(s) + 1;
+uint16_t* ucs2dup (const uint16_t* s) {
+	size_t len = ucs2len(s) + 1;
 	uint16_t *s2;
 
 	if (!s) {
@@ -49,30 +49,20 @@ uint16_t* utf16dup (const uint16_t* s) {
 	return s2;
 }
 
-void utf16_ntoh (uint16_t* s, size_t len) {
+void ucs2_ntoh (uint16_t* s, size_t len) {
 	size_t i = 0;
 	for (; i < len; ++i)
 		s[i] = ntohs(s[i]);
 }
 
-void utf16_hton (uint16_t* s, size_t len) {
+void ucs2_hton (uint16_t* s, size_t len) {
 	size_t i = 0;
 	for (; i < len; ++i)
 		s[i] = htons(s[i]);
 }
 
-size_t utf16count(const uint16_t* s) {
-	size_t n = 0;
-	size_t i = 0;
-	if (s != NULL)
-		for (; s[i] != 0x0000; ++i) {
-			/* surrogates, 0xD8** is the first word
-			 * so do not count the second one (0xDC**)
-			 */
-			if ((s[i] & 0xDC00) != 0xDC00)
-				++n;
-		}
-	return n;
+size_t ucs2count(const uint16_t* s) {
+	return ucs2len(s);
 }
 
 size_t utf8count(const uint8_t* s) {
@@ -86,6 +76,30 @@ size_t utf8count(const uint8_t* s) {
 	return n;
 }
 
+#if defined(HAVE_ICONV)
+#include <iconv.h>
+static int utf_convert (const void* in, size_t len, const char* fromcode,
+			void* out, size_t size, const char* tocode)
+{
+	char* in_p = (char*)in;
+	char* out_p = out;
+	size_t status = 0;
+	iconv_t cd = iconv_open(tocode,fromcode);
+
+	if (cd == (iconv_t)-1)
+		return -errno;
+
+	status = iconv(cd, &in_p, &len, &out_p, &size);
+	if (status == (size_t)-1)
+		return -errno;
+
+	if (iconv_close(cd))
+		return -errno;
+
+	return 0;
+}
+
+#else // HAVE_ICONV
 static uint8_t* utf8to32 (const uint8_t* in, uint32_t *out)
 {
 	uint32_t onechar = 0;
@@ -123,27 +137,6 @@ static uint8_t* utf8to32 (const uint8_t* in, uint32_t *out)
 	return (uint8_t*)in;
 }
 
-static uint16_t* utf16to32 (const uint16_t* in, uint32_t *out)
-{
-	uint32_t onechar = 0;
-
-	/* surrogates */
-	if ((in[0] & 0xDC00) == 0xD800)
-	{
-		if ((in[1] & 0xDC00) == 0xDC00) {
-			onechar |= (*(in++) & 0x03FF) << 10;
-			onechar |= *(in++) & 0x03FF;
-			onechar += 0x10000;
-		} else {
-			onechar = *(in++);
-		}
-	} else {
-		onechar = *(in++);
-	}
-	*out = onechar;
-	return (uint16_t*)in;
-}
-
 static uint8_t* utf32to8 (uint32_t in, uint8_t* out)
 {
 	if (in <= 0x7F) {
@@ -179,44 +172,43 @@ static uint8_t* utf32to8 (uint32_t in, uint8_t* out)
 
 	return out;
 }
-
-static uint16_t* utf32to16 (uint32_t in, uint16_t* out)
-{
-	if (in <= 0xFFFF) {
-		*(out++) = (in & 0xFFFF);
-	} else if (in <= 0x10FFFF) {
-		in -= 0x10000;
-		*(out++) = 0xD800 | ((in >> 10) & 0x3FF);
-		*(out++) = 0xDC00 | (in & 0x3FF);
-	} else {
-		errno = ERANGE;
-		out = NULL;
-	}
-
-	return out;
-}
+#endif // HAVE_ICONV
 
 uint8_t* ucs2_to_utf8 (const uint16_t* c)
 {
 	uint8_t *buf;
+	size_t buflen;
+	size_t count;
 
 	if (!c) {
 		errno = EINVAL;
 		return NULL;
 	}
 
-	buf = calloc((3 * utf16len(c)) + 1, sizeof(*buf));
+	count = ucs2len(c);
+	buflen = (3 * count) + 1;
+	buf = calloc(buflen, sizeof(*buf));
 	if (buf) {
-		size_t sc = utf16len(c);
+#if defined(HAVE_ICONV)
+		int status = utf_convert(c, 2 * count, "UCS-2",
+					 buf, buflen, "UTF-8");
+		if (status) {
+			errno = -status;
+			free(buf);
+			return NULL;
+		}
+
+#else // HAVE_ICONV
 		uint8_t *d = buf;
 
-		for (size_t i = 0; i < sc; ++i) {
+		for (size_t i = 0; i < count; ++i) {
 			/* UCS-2 directly maps to UTF-32 codepoints... */
 			uint32_t t = (uint32_t)c[i];
 
 			/* ...and then we can use the normal conversion */
 			d = utf32to8(t, d);
 		}
+#endif // HAVE_ICONV
 	}
 	return buf;
 }
@@ -224,19 +216,32 @@ uint8_t* ucs2_to_utf8 (const uint16_t* c)
 uint16_t* utf8_to_ucs2 (const uint8_t* c)
 {
 	uint16_t *buf;
+	size_t buflen;
 
 	if (!c) {
 		errno = EINVAL;
 		return NULL;
 	}
 
-	buf = calloc(utf8count(c) + 2, sizeof(*buf));
+	buflen = utf8count(c) + 2;
+	buf = calloc(buflen, sizeof(*buf));
+	buflen *= sizeof(*buf);
 	if (buf) {
-		size_t sc = utf8len(c);
+		size_t count = utf8len(c);
+#if defined(HAVE_ICONV)
+		int status = utf_convert(c, count, "UTF-8",
+					 buf, buflen, "UCS-2");
+		if (status) {
+			errno = -status;
+			free(buf);
+			return NULL;
+		}
+
+#else // HAVE_ICONV
 		uint16_t *d = buf;
 		const uint8_t *k = c;
 
-		while (k && d && k < c+sc) {
+		while (k && d && k < c+count) {
 			uint32_t t;
 			k = utf8to32(k, &t);
 
@@ -245,168 +250,8 @@ uint16_t* utf8_to_ucs2 (const uint8_t* c)
 			else
 				*d = 0xFFFD; /* Unicode replacement character */
 		}
+#endif // HAVE_ICONV
 	}
 
 	return buf;
 }
-
-uint8_t* utf16to8 (const uint16_t* c)
-{
-	uint8_t *buf;
-
-	if (!c) { 
-		errno = EINVAL;
-		return NULL;
-	}
-
-	buf = calloc((4 * utf16count(c)) + 1, sizeof(*buf));
-	if (buf) {
-		size_t sc = utf16len(c);
-		uint8_t *d = buf;
-		const uint16_t *k = c;
-
-		while (k < c+sc) {
-			uint32_t t;
-
-			k = utf16to32(k, &t);
-			d = utf32to8(t, d);
-		}
-	}
-
-	return buf;
-}
-
-uint16_t* utf8to16 (const uint8_t* c)
-{
-	uint16_t *buf;
-
-	if (!c) {
-		errno = EINVAL;
-		return NULL;
-	}
-
-	buf = calloc((2 * utf8count(c)) + 2, sizeof(*buf));
-	if (buf) {
-		size_t sc = utf8len(c);
-		uint16_t *d = buf;
-		const uint8_t *k = c;
-
-		while (k && d && k < c+sc) {
-			uint32_t t;
-			k = utf8to32(k, &t);
-			if (k)
-				d = utf32to16(t, d);
-		}
-	}
-
-	return buf;
-}
-
-#ifdef TEST
-static int test_utf8 (uint32_t from, uint32_t to) {
-	uint32_t i, k;
-	uint8_t tmp[6];
-	void *status;
-
-	printf("Testing UTF-8...\n");
-	for (i = from; i <= to; ++i) {
-		printf("\rTest value: 0x%08x", i);
-		memset(tmp, 0, sizeof(tmp));
-		status = utf32to8(i, tmp);
-		if (!status) {
-			printf("\nutf32to8() failed");
-			break;
-		}
-		status = utf8to32(tmp, &k);
-		if (!status || i != k) {
-			printf("\nutf8to32() failed");
-			break;
-		}
-	}
-	printf("\n");
-
-	return (i > to);
-}
-
-static int test_utf16 (uint32_t from, uint32_t to) {
-	uint32_t i, k;
-	uint16_t tmp[2];
-	void *status;
-
-	printf("Testing UTF-16...\n");
-	for (i = from; i <= to; ++i) {
-		if (i == 0xD800 && 0xE000 <= to)
-			i = 0xE000;
-		printf("\rTest value: 0x%08x", i);
-		memset(tmp, 0, sizeof(tmp));
-		status = utf32to16(i, tmp);
-		if (!status) {
-			printf("\nutf32to16() failed");
-			break;
-		}
-		status = utf16to32(tmp, &k);
-		if (!status || i != k) {
-			printf("\nutf16to32() failed");
-			break;
-		}
-	}
-	printf("\n");
-
-	return (i > to);
-}
-
-static int test_string () {
-	uint8_t teststr[] = "abcdefghijklmnopqrstuvwxyz0123456789";
-	uint16_t *conv1;
-	uint8_t *conv2;
-	uint16_t *zeroconv1;
-	uint8_t *zeroconv2;
-	int ret = 0;
-
-	printf("Testing with test string...\n");
-	conv1 = utf8to16(teststr);
-	conv2 = utf16to8(conv1);
-	zeroconv1 = utf8to16(NULL);
-	zeroconv2 = utf16to8(NULL);
-
-	if (!conv1)
-		ret |= (1 << 0);
-	else 
-		free(conv1);
-
-	if (!conv2)
-		ret |= (1 << 1);
-	else if (strcmp((char*)teststr, (char*)conv2) != 0)
-		ret |= (1 << 2);
-	else
-		free(conv2);
-
-	if (zeroconv1)
-		ret |= (1 << 3);
-	if (zeroconv2)
-		ret |= (1 << 4);
-
-	return ret;
-}
-
-int main () {
-	int ret;
-
-	if (!test_utf16(0, 0x10FFFF))
-		printf("failed\n");
-	else
-		printf("passed\n");
-
-	if (!test_utf8(0, 0x10FFFF))
-		printf("failed\n");
-	else
-		printf("passed\n");
-
-	ret = test_string();
-	if (ret)
-		printf("failed (0x%x)\n", ret);
-	else
-		printf("passed\n");
-	return 0;
-}
-#endif

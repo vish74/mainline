@@ -51,6 +51,17 @@ if ( LIBGCRYPT_FOUND )
   list ( APPEND obexpushd_LIBRARIES ${LIBGCRYPT_LIBRARIES} )
 endif ( LIBGCRYPT_FOUND )
 
+option ( USE_ICONV "Use iconv functions" OFF )
+if ( USE_ICONV )
+  find_package ( Iconv )
+else ( USE_ICONV )
+  unset ( ICONV_FOUND )
+endif ( USE_ICONV )
+if ( ICONV_FOUND )
+  add_definitions ( -DHAVE_ICONV )
+  list ( APPEND obexpushd_LIBRARIES ${ICONV_LIBRARIES} )
+endif ( ICONV_FOUND )
+
 add_subdirectory ( obex_auth )
 list ( APPEND obexpushd_LIBRARIES obex_auth )
 
