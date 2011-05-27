@@ -14,21 +14,24 @@ static int obex_obj_hdr_name (file_data_t* data,
 {
 	struct io_transfer_data *transfer = &data->transfer;
 	int len = (vsize / 2) + 1;
+	uint16_t *name16 = calloc(len, sizeof(*name16));
+
+	if (!name16)
+		return 0;
+	memcpy(name16, value->bs, vsize);
+	ucs2_ntoh(name16, len);
 
 	if (transfer->name)
 		free(transfer->name);
-	transfer->name = calloc(len, sizeof(*transfer->name));
+	transfer->name = ucs2_to_utf8(name16);
+	free(name16);
 	if (!transfer->name)
 		return 0;
 
-	memcpy(transfer->name, value->bs, vsize);
-	ucs2_ntoh(transfer->name, len);
-	if (debug) {
-		uint8_t* n = ucs2_to_utf8(transfer->name);
-		dbg_printf(data, "name: \"%s\"\n", (char*)n);
-		free(n);
-	}
-	if (!check_wrap_ucs2(transfer->name, check_name)) {
+	if (debug)
+		dbg_printf(data, "name: \"%s\"\n", (char*)transfer->name);
+
+	if (!check_name(transfer->name)) {
 		dbg_printf(data, "CHECK FAILED: %s\n", "Invalid name string");
 		return 0;
 	}
@@ -49,7 +52,7 @@ static int obex_obj_hdr_type (file_data_t* data,
 
 	memcpy(transfer->type, value->bs, vsize);
 	dbg_printf(data, "type: \"%s\"\n", transfer->type);
-	if (!check_type((uint8_t*)transfer->type)) {
+	if (!check_type(transfer->type)) {
 		dbg_printf(data, "CHECK FAILED: %s\n", "Invalid type string");
 		return 0;
 	}

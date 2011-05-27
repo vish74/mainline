@@ -170,12 +170,12 @@ int io_script_parse_headers (
 		 * and ignore unknown ones
 		 */
 		if (strncasecmp(buffer,"Name: ",6) == 0) {
-			uint8_t *name = (uint8_t*)(buffer+6);
-			if (!check_name(name))
+			char *name = buffer + 6;
+			if (!check_name((uint8_t*)name))
 				return -EINVAL;
 			if (transfer->name)
 				free(transfer->name);
-			transfer->name = utf8_to_ucs2(name);
+			transfer->name = (uint8_t*)strdup(name);
 
 		} else if (strncasecmp(buffer,"Length: ",8) == 0) {
 			char* endptr;
@@ -191,7 +191,7 @@ int io_script_parse_headers (
 
 		} else if (strncasecmp(buffer,"Type: ",6) == 0) {
 			char* type = buffer+6;
-			if (!check_type((uint8_t*)type))
+			if (!check_type(type))
 				return -EINVAL;
 			if (transfer->type)
 				free(transfer->type);
@@ -296,7 +296,7 @@ static void io_script_write_headers (
 	}
 
 	if (ht & IO_HT_NAME) {
-		char *str = (char*)ucs2_to_utf8(transfer->name);
+		char *str = strdup((char*)transfer->name);
 		if (str) {
 			str_subst(str, '\n', ' ');
 			fprintf(data->out, "Name: %s\n", str);
@@ -317,7 +317,7 @@ static void io_script_write_headers (
 
 	if (ht & IO_HT_PATH) {
 		if (transfer->path) {
-			char *str = strdup(transfer->path);
+			char *str = strdup((char*)transfer->path);
 			if (str) {
 				str_subst(str, '\n', ' ');
 				fprintf(data->out, "Path: %s\n", str);
@@ -447,13 +447,13 @@ static ssize_t io_script_write(struct io_handler *self, const void *buf, size_t 
 		return status;
 }
 
-static int io_script_create_dir(struct io_handler *self, const char *dir)
+static int io_script_create_dir(struct io_handler *self, const uint8_t *dir)
 {
 	struct io_script_data *data = self->private_data;
 	struct io_transfer_data transfer;
 	int err;
 
-	transfer.path = strdup(dir),
+	transfer.path = (uint8_t*)strdup((char*)dir),
 	err = io_script_prepare_cmd(self, &transfer, "createdir");
 	if (!err) {
 		io_script_write_headers(self, &transfer, IO_HT_FROM | IO_HT_PATH);

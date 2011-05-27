@@ -35,7 +35,7 @@ static char * io_internal_file_get_type (const char *name)
 
 	if (status < 0 ||
 	    strlen(type) != (size_t)status ||
-	    !check_type((uint8_t*)type))
+	    !check_type(type))
 		return NULL;
 
 	return strdup(type);

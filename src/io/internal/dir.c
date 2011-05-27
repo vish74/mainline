@@ -42,7 +42,7 @@ int io_internal_dir_open(struct io_handler *self,
 	return err;
 }
 
-int io_internal_dir_check(struct io_handler *self, const char *dir)
+int io_internal_dir_check(struct io_handler *self, const uint8_t *dir)
 {
 	struct io_internal_data *data = self->private_data;
 	char *fulldir = io_internal_get_fullname(data->basedir, dir, NULL);
@@ -60,7 +60,7 @@ int io_internal_dir_check(struct io_handler *self, const char *dir)
 	return err;
 }
 
-int io_internal_dir_create(struct io_handler *self, const char *dir)
+int io_internal_dir_create(struct io_handler *self, const uint8_t *dir)
 {
 	struct io_internal_data *data = self->private_data;
 	char *fulldir = io_internal_get_fullname(data->basedir, dir, NULL);

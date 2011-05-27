@@ -19,8 +19,8 @@ enum io_type {
 struct io_transfer_data {
 	char *peername;
 
-	uint16_t* name;
-	char* path;
+	uint8_t* name;
+	uint8_t* path;
 	char* type;
 	size_t length;
 	time_t time;
@@ -35,8 +35,8 @@ struct io_handler_ops {
 	void (*cleanup)(struct io_handler *self);
 	ssize_t (*read)(struct io_handler *self, void *buf, size_t bufsize);
 	ssize_t (*write)(struct io_handler *self, const void *buf, size_t len);
-	int (*check_dir)(struct io_handler *self, const char *dir);
-	int (*create_dir)(struct io_handler *self, const char *dir);
+	int (*check_dir)(struct io_handler *self, const uint8_t *dir);
+	int (*create_dir)(struct io_handler *self, const uint8_t *dir);
 };
 
 struct io_handler {
@@ -57,7 +57,7 @@ int io_delete(struct io_handler *self, struct io_transfer_data *transfer);
 ssize_t io_readline(struct io_handler *self, void *buf, size_t bufsize);
 ssize_t io_read(struct io_handler *self, void *buf, size_t bufsize);
 ssize_t io_write(struct io_handler *self, const void *buf, size_t len);
-int io_check_dir(struct io_handler *self, const char *dir);
-int io_create_dir(struct io_handler *self, const char *dir);
+int io_check_dir(struct io_handler *self, const uint8_t *dir);
+int io_create_dir(struct io_handler *self, const uint8_t *dir);
 
 #endif /* OBEXPUSH_IO_H */

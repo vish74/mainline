@@ -36,21 +36,17 @@
 #include "utf.h"
 #include "net.h"
 
-char* io_internal_get_fullname(const char *basedir, const char *subdir,
-			       const uint16_t *filename)
+char* io_internal_get_fullname(const char *basedir, const uint8_t *subdir,
+			       const uint8_t *namebase)
 {
-	uint8_t *namebase = NULL;
 	int err = 0;
 	char *name;
 	size_t namesize;
 
-	if (filename) {
-		namebase = ucs2_to_utf8(filename);
-		if (!namebase)
-			return NULL;
-	}
+	if (!namebase)
+		return NULL;
 
-	namesize = strlen(basedir) + 1 + utf8len((uint8_t*)subdir) + 1 + utf8len(namebase) + 1;
+	namesize = strlen(basedir) + 1 + utf8len(subdir) + 1 + utf8len(namebase) + 1;
 	name = malloc(namesize);
 	if (!name)
 		err = -errno;
@@ -59,10 +55,10 @@ char* io_internal_get_fullname(const char *basedir, const char *subdir,
 		if (strcmp(basedir, ".") != 0) {
 			strcat(name, basedir);
 		}
-		if (utf8len((uint8_t*)subdir)) {
+		if (utf8len(subdir)) {
 			if (utf8len((uint8_t*)name))
 				strcat(name, "/");
-			strcat(name, subdir);
+			strcat(name, (char*)subdir);
 		}
 		if (utf8len(namebase)) {
 			if (utf8len((uint8_t*)name))
@@ -72,7 +68,7 @@ char* io_internal_get_fullname(const char *basedir, const char *subdir,
 		} else if (utf8len((uint8_t*)name) == 0)
 			strcat(name, basedir);
 	}
-	free(namebase);
+
 	if (err)
 		errno = -err;
 	return name;

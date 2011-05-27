@@ -38,7 +38,7 @@ static int update_path(
 
 	if ((flags[0] & OBEX_FLAG_SETPATH_LEVELUP) && transfer->path) {
 		/* go one level up */
-		char* last = strrchr(transfer->path, (int)'/');
+		char* last = strrchr((char*)transfer->path, (int)'/');
 		if (last)
 			*last = '\0';
 		else {
@@ -70,19 +70,19 @@ static int update_path(
 		if (strcmp((char*)n, "..") == 0)
 			return -EINVAL;
 
-		len = utf8len((uint8_t*)transfer->path) + 1 + utf8len(n) + 1;
+		len = utf8len(transfer->path) + 1 + utf8len(n) + 1;
 		if (transfer->path) {
-			char *newpath = realloc(transfer->path, len);
+			uint8_t *newpath = realloc(transfer->path, len);
 			if (!newpath)
 				err = -errno;
 			else {
 				transfer->path = newpath;
-				strcat(transfer->path, "/");
-				strcat(transfer->path, (char*)n);
+				strcat((char*)transfer->path, "/");
+				strcat((char*)transfer->path, (char*)n);
 			}
 			free(n);
 		} else {
-			transfer->path = (char*)n;
+			transfer->path = n;
 		}
 		n = NULL;
 		if (!err) {
@@ -91,7 +91,7 @@ static int update_path(
 				err = io_create_dir(io, transfer->path);
 			}
 			if (err) {
-				char* last = strrchr(transfer->path, (int)'/');
+				char* last = strrchr((char*)transfer->path, (int)'/');
 				if (last)
 					*last = '\0';
 				else {

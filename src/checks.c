@@ -40,8 +40,8 @@ int check_name (uint8_t *name) {
 	return strcheck(name, name_check_cb);
 }
 
-int check_type (uint8_t *type) {
-	size_t len = strlen((char*)type);
+int check_type (char *type) {
+	size_t len = strlen(type);
 	size_t i = 0;
 
 	for (; i < len; ++i) {
@@ -58,11 +58,4 @@ int check_type (uint8_t *type) {
 			return 0;
 	}
 	return 1;
-}
-
-int check_wrap_ucs2 (uint16_t *name, int (*func)(uint8_t*)) {
-	uint8_t* n = ucs2_to_utf8(name);
-	int result = func(n);
-	free(n);
-	return result;
 }

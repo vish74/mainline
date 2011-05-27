@@ -165,7 +165,7 @@ ssize_t io_write(
 
 int io_check_dir(
 	struct io_handler *self,
-	const char *dir
+	const uint8_t *dir
 )
 {
 	if (!self)
@@ -179,7 +179,7 @@ int io_check_dir(
 
 int io_create_dir(
 	struct io_handler *self,
-	const char *dir
+	const uint8_t *dir
 )
 {
 	if (!self)
