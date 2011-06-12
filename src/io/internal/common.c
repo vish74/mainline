@@ -187,7 +187,7 @@ static void io_internal_cleanup (struct io_handler *self)
 	}
 }
 
-static struct io_handler* io_internal_copy(struct io_handler *self)
+static struct io_handler* io_internal_dup(struct io_handler *self)
 {
 	struct io_internal_data *data = self->private_data;
 
@@ -195,7 +195,7 @@ static struct io_handler* io_internal_copy(struct io_handler *self)
 }
 
 static struct io_handler_ops io_file_ops = {
-	.copy = io_internal_copy,
+	.dup = io_internal_dup,
 	.cleanup = io_internal_cleanup,
 
 	.open = io_internal_open,

@@ -21,16 +21,16 @@
 #include <stdlib.h>
 #include <string.h>
 
-struct io_handler * io_copy (
+struct io_handler * io_dup (
 	struct io_handler *h
 )
 {
 	if (!h)
 		return NULL;
 
-	if (h && h->ops && h->ops->copy) {
+	if (h && h->ops && h->ops->dup) {
 		/* deep copy */
-		return h->ops->copy(h);
+		return h->ops->dup(h);
 
 	} else {
 		/* flat copy */

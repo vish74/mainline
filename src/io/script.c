@@ -479,7 +479,7 @@ static int io_script_delete(struct io_handler *self, struct io_transfer_data *tr
 	return err;
 }
 
-static struct io_handler* io_script_copy(struct io_handler *self)
+static struct io_handler* io_script_dup(struct io_handler *self)
 {
 	struct io_script_data *data = self->private_data;
 
@@ -487,13 +487,15 @@ static struct io_handler* io_script_copy(struct io_handler *self)
 }
 
 static struct io_handler_ops io_script_ops = {
+	.dup = io_script_dup,
+	.cleanup = io_script_cleanup,
+
 	.open = io_script_open,
 	.close = io_script_close,
 	.delete = io_script_delete,
-	.copy = io_script_copy,
-	.cleanup = io_script_cleanup,
 	.read = io_script_read,
 	.write = io_script_write,
+
 	.create_dir = io_script_create_dir,
 };
 

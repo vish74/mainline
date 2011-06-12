@@ -148,7 +148,7 @@ file_data_t* create_client (struct net_data *net) {
 		data->id = id++;
 		data->net_data = net;
 		data->auth = auth_copy(auth);
-		data->io = io_copy(io);
+		data->io = io_dup(io);
 	}
 	return data;
 }

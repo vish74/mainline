@@ -28,13 +28,15 @@ struct io_transfer_data {
 
 struct io_handler;
 struct io_handler_ops {
+	struct io_handler* (*dup)(struct io_handler *self);
+	void (*cleanup)(struct io_handler *self);
+
 	int (*open)(struct io_handler *self, struct io_transfer_data *transfer, enum io_type t);
 	int (*close)(struct io_handler *self, struct io_transfer_data *transfer, bool keep);
 	int (*delete)(struct io_handler *self, struct io_transfer_data *transfer);
-	struct io_handler* (*copy)(struct io_handler *self);
-	void (*cleanup)(struct io_handler *self);
 	ssize_t (*read)(struct io_handler *self, void *buf, size_t bufsize);
 	ssize_t (*write)(struct io_handler *self, const void *buf, size_t len);
+
 	int (*check_dir)(struct io_handler *self, const uint8_t *dir);
 	int (*create_dir)(struct io_handler *self, const uint8_t *dir);
 };
@@ -47,7 +49,7 @@ struct io_handler {
 
 struct io_handler* io_script_init(const char *script);
 struct io_handler* io_file_init(const char *basedir);
-struct io_handler* io_copy (struct io_handler *h);
+struct io_handler* io_dup (struct io_handler *h);
 void io_destroy (struct io_handler *h);
 
 unsigned long io_state(struct io_handler *self);
