@@ -29,18 +29,18 @@ int name_check_cb(int c) {
 }
 
 static
-int strcheck (uint8_t *s, int (*check)(int c)) {
+int strcheck (const uint8_t *s, int (*check)(int c)) {
 	for (; *s != 0; ++s)
 		if (check((int)*s))
 			return 1;
 	return 0;
 }
 
-int check_name (uint8_t *name) {
+int check_name (const uint8_t *name) {
 	return strcheck(name, name_check_cb);
 }
 
-int check_type (char *type) {
+int check_type (const char *type) {
 	size_t len = strlen(type);
 	size_t i = 0;
 

@@ -1,5 +1,5 @@
 
 #include <inttypes.h>
 
-int check_name (uint8_t *name);
-int check_type (char *type);
+int check_name (const uint8_t *name);
+int check_type (const char *type);
