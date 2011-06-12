@@ -20,86 +20,93 @@
 #include "net.h"
 #include "core.h"
 #include "utf.h"
+#include "setpath.h"
 
 #include <errno.h>
 
-#define OBEX_FLAG_SETPATH_LEVELUP  (1 << 0)
-#define OBEX_FLAG_SETPATH_NOCREATE (1 << 1)
-
-static int update_path(
-	struct io_handler *io,
-	struct io_transfer_data *transfer,
-	const uint16_t *name,
-	uint8_t *flags
+int update_path(
+	uint8_t **path_ptr,
+	const uint8_t *name
 )
 {
-	size_t len = ucs2len(name);
+	uint8_t *path = *path_ptr;
+	size_t len = utf8len(name);
 	int err = 0;
-
-	if ((flags[0] & OBEX_FLAG_SETPATH_LEVELUP) && transfer->path) {
-		/* go one level up */
-		char* last = strrchr((char*)transfer->path, (int)'/');
-		if (last)
-			*last = '\0';
-		else {
-			free(transfer->path);
-			transfer->path = NULL;
-		}	
-	}
 
 	if (!name) {
 		/* do nothing */
 
 	} else if (len == 0) {
 		/* name is empty -> go back to root path */
-		if (transfer->path) {
-			free(transfer->path);
-			transfer->path = NULL;
-		}		
+		if (path) {
+			free(path);
+			path = NULL;
+		}
+
+	} else if (strcmp((char*)name, "..") == 0 && path) {
+		/* go one level up */
+		char* last = strrchr((char*)path, (int)'/');
+		if (last)
+			*last = '\0';
+		else {
+			free(path);
+			path = NULL;
+		}	
 
 	} else {
 		/* name is non-empty -> change to directory */
-		uint8_t *n = ucs2_to_utf8(name);
-
-		if (!n)
-			return -errno;
-
-		if (!check_name(n))
+		if (!check_name(name))
 			return -EINVAL;
 
-		if (strcmp((char*)n, "..") == 0)
-			return -EINVAL;
-
-		len = utf8len(transfer->path) + 1 + utf8len(n) + 1;
-		if (transfer->path) {
-			uint8_t *newpath = realloc(transfer->path, len);
+		len += utf8len(path) + 2;
+		if (path) {
+			uint8_t *newpath = realloc(path, len);
 			if (!newpath)
 				err = -errno;
 			else {
-				transfer->path = newpath;
-				strcat((char*)transfer->path, "/");
-				strcat((char*)transfer->path, (char*)n);
+				path = newpath;
+				strcat((char*)path, "/");
+				strcat((char*)path, (char*)name);
 			}
-			free(n);
 		} else {
-			transfer->path = n;
+			path = (uint8_t*)strdup((const char*)name);
 		}
-		n = NULL;
-		if (!err) {
-			err = io_check_dir(io, transfer->path);
-			if (err == -ENOENT && !(flags[0] & OBEX_FLAG_SETPATH_NOCREATE)) {
-				err = io_create_dir(io, transfer->path);
-			}
-			if (err) {
-				char* last = strrchr((char*)transfer->path, (int)'/');
-				if (last)
-					*last = '\0';
-				else {
-					free(transfer->path);
-					transfer->path = NULL;
-				}
-			}
-		}
+	}
+
+	*path_ptr = path;
+	return err;
+}
+
+#define OBEX_FLAG_SETPATH_LEVELUP  (1 << 0)
+#define OBEX_FLAG_SETPATH_NOCREATE (1 << 1)
+
+static int update_and_check_path(
+	struct io_handler *io,
+	struct io_transfer_data *transfer,
+	const uint16_t *name16,
+	uint8_t *flags
+)
+{
+	uint8_t *name = ucs2_to_utf8(name16);
+	int create = ((flags[0] & OBEX_FLAG_SETPATH_NOCREATE) == 0);
+	int err = 0;
+	const uint8_t* level_up = (const uint8_t*)"..";
+
+	if (!name)
+		return -errno;
+
+	if ((flags[0] & OBEX_FLAG_SETPATH_LEVELUP) != 0) {
+		(void)update_path(&transfer->path, level_up);
+	}
+
+	err = update_path(&transfer->path, name);
+	if (!err) {
+		err = io_check_dir(io, transfer->path);
+		if (err == -ENOENT && create)
+			err = io_create_dir(io, transfer->path);
+
+		if (err)
+			(void)update_path(&transfer->path, level_up);
 	}
 	return err;
 }
@@ -147,7 +154,7 @@ static int check_setpath_headers (file_data_t* data, obex_object_t* obj)
 		}
 	}
 
-	return update_path(data->io, &data->transfer, name, flags);
+	return update_and_check_path(data->io, &data->transfer, name, flags);
 }
 
 static void setpath_request(file_data_t* data, obex_object_t* obj)
