@@ -138,11 +138,11 @@ int obex_object_headers (file_data_t* data, obex_object_t* obj) {
 			continue;
 		switch (id) {
 		case OBEX_HDR_NAME:
-			err = obex_obj_hdr_name(data, &value, vsize);
+			err &= obex_obj_hdr_name(data, &value, vsize);
 			break;
 
 		case OBEX_HDR_TYPE:
-			err = obex_obj_hdr_type(data, &value, vsize);
+			err &= obex_obj_hdr_type(data, &value, vsize);
 			break;
 
 		case OBEX_HDR_LENGTH:
@@ -151,15 +151,15 @@ int obex_object_headers (file_data_t* data, obex_object_t* obj) {
 			break;
 
 		case OBEX_HDR_TIME:
-			err = obex_obj_hdr_time(data, &value, vsize);
+			err &= obex_obj_hdr_time(data, &value, vsize);
 			break;
 
 		case OBEX_HDR_TIME2:
-			err = obex_obj_hdr_time2(data, &value);
+			err &= obex_obj_hdr_time2(data, &value);
 			break;
 
 		case OBEX_HDR_DESCRIPTION:
-			err = obex_obj_hdr_descr(data, &value, vsize);
+			err &= obex_obj_hdr_descr(data, &value, vsize);
 			break;
 
 		default:
@@ -167,7 +167,7 @@ int obex_object_headers (file_data_t* data, obex_object_t* obj) {
 			break;
 		}
 	}
-	return 1;
+	return err;
 }
 
 static void obex_action (file_data_t *data, obex_object_t *obj,
