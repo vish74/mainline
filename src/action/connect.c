@@ -69,13 +69,11 @@ static int check_headers(file_data_t* data, obex_object_t* obj) {
 	uint8_t id = 0;
 	obex_headerdata_t value;
 	uint32_t vsize;
-	struct io_transfer_data *transfer;
 	int target_found = 0;
 
 	if (!data)
 		return 0;
 
-	transfer = &data->transfer;
 	while (OBEX_ObjectGetNextHeader(handle,obj,&id,&value,&vsize)) {
 		dbg_printf(data, "Got header 0x%02x with value length %u\n",
 			   (unsigned int)id, (unsigned int)vsize);
