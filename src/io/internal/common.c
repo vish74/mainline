@@ -43,15 +43,11 @@ char* io_internal_get_fullname(const char *basedir, const uint8_t *subdir,
 	char *name;
 	size_t namesize;
 
-	if (!namebase)
-		return NULL;
-
 	namesize = strlen(basedir) + 1 + utf8len(subdir) + 1 + utf8len(namebase) + 1;
-	name = malloc(namesize);
+	name = calloc(sizeof(*name), namesize);
 	if (!name)
 		err = -errno;
 	else {
-		memset(name, 0, namesize);
 		if (strcmp(basedir, ".") != 0) {
 			strcat(name, basedir);
 		}

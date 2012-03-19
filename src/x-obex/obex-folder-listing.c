@@ -281,7 +281,7 @@ int obex_folder_listing (FILE* fd, char* name, int flags)
 	}
 
 	fprintf(fd,
-		"<?xml version=\"1.0\" charset=\"%s\"?>\n",
+		"<?xml version=\"1.0\" encoding=\"%s\"?>\n",
 		get_system_charset());
 	fprintf(fd,
 		"<!DOCTYPE folder-listing SYSTEM \"obex-folder-listing.dtd\">\n");

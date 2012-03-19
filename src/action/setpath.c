@@ -87,26 +87,28 @@ static int update_and_check_path(
 	uint8_t *flags
 )
 {
-	uint8_t *name = ucs2_to_utf8(name16);
 	int create = ((flags[0] & OBEX_FLAG_SETPATH_NOCREATE) == 0);
 	int err = 0;
 	const uint8_t* level_up = (const uint8_t*)"..";
-
-	if (!name)
-		return -errno;
 
 	if ((flags[0] & OBEX_FLAG_SETPATH_LEVELUP) != 0) {
 		(void)update_path(&transfer->path, level_up);
 	}
 
-	err = update_path(&transfer->path, name);
-	if (!err) {
-		err = io_check_dir(io, transfer->path);
-		if (err == -ENOENT && create)
-			err = io_create_dir(io, transfer->path);
+	if (name16) {
+		uint8_t *name = ucs2_to_utf8(name16);
+		if (!name)
+			return -errno;
 
-		if (err)
-			(void)update_path(&transfer->path, level_up);
+		err = update_path(&transfer->path, name);
+		if (!err) {
+			err = io_check_dir(io, transfer->path);
+			if (err == -ENOENT && create)
+				err = io_create_dir(io, transfer->path);
+
+			if (err)
+				(void)update_path(&transfer->path, level_up);
+		}
 	}
 	return err;
 }
