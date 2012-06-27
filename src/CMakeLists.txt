@@ -134,8 +134,17 @@ endif (Attr_FOUND)
 #
 # Absolute necessary: bluetooth and openobex
 #
+find_package ( OpenObex ${OpenObex_FORCE_VERSION} QUIET NO_MODULE)
+if ( OpenObex_FOUND)
+  # When OpenObex is found using cmake config mode, it surely uses TcpOBEX
+  # but it does not use this property.
+  set ( OpenObex_HAVE_TcpObex 1 )
+endif ( OpenObex_FOUND)
+
 foreach ( i Bluetooth OpenObex )
-  find_package ( ${i} REQUIRED )
+  if ( NOT ${i}_FOUND )
+    find_package ( ${i} ${${i}_FORCE_VERSION} REQUIRED )
+  endif ( NOT ${i}_FOUND )
   if ( ${i}_FOUND )
     include_directories ( ${${i}_INCLUDE_DIRS} )
     if ( ${i}_LIBRARIES )

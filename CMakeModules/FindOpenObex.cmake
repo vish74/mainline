@@ -5,6 +5,7 @@
 # is defined, it will be used as base path.
 # The following standard variables get defined:
 #  OpenObex_FOUND:        true if OpenObex was found
+#  OpenObex_VERSION_STRING: the version of OpenObex, if any
 #  OpenObex_INCLUDE_DIRS: the directory that contains the include file
 #  OpenObex_LIBRARIES:    full path to the libraries
 #  OpenObex_HAVE_TcpObex  true if OpenObex has new TcpObex_* functions
@@ -15,11 +16,16 @@ include ( CheckFunctionExists )
 
 find_package ( PkgConfig )
 if ( PKG_CONFIG_FOUND )
-  pkg_check_modules ( PKGCONFIG_OPENOBEX openobex )
+  if ( OpenObex_FIND_VERSION )
+    pkg_check_modules ( PKGCONFIG_OPENOBEX openobex=${OpenObex_FIND_VERSION} )
+  else ( OpenObex_FIND_VERSION )
+    pkg_check_modules ( PKGCONFIG_OPENOBEX openobex )
+  endif ( OpenObex_FIND_VERSION )    
 endif ( PKG_CONFIG_FOUND )
 
 if ( PKGCONFIG_OPENOBEX_FOUND )
   set ( OpenObex_FOUND ${PKGCONFIG_OPENOBEX_FOUND} )
+  set ( OpenObex_VERSION_STRING ${PKGCONFIG_OPENOBEX_VERSION} )
   set ( OpenObex_INCLUDE_DIRS ${PKGCONFIG_OPENOBEX_INCLUDE_DIRS} )
   foreach ( i ${PKGCONFIG_OPENOBEX_LIBRARIES} )
     find_library ( ${i}_LIBRARY
