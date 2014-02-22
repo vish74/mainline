@@ -1,6 +1,7 @@
 #include <string.h>
 #include <stdarg.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 #ifndef XML_SIMPLE_H
 #define XML_SIMPLE_H
@@ -32,6 +33,50 @@
 #define xml_close(fd,level,attr) {\
 	xml_indent(fd,level);\
 	fprintf(fd,"</%s>\n",attr);\
+}
+
+/* Handle XML escape sequences */
+static inline char * xml_esc_string(const char *str)
+{
+	char *esc_str = calloc(1, (6 * strlen(str)) + 1);
+	int i = 0;
+	int k = 0;
+	for (; str[i] != 0; ++i)
+	{
+		switch (str[i])
+		{
+		case '&':
+			strncpy(esc_str + k, "&amp;", 5);
+			k += 5;
+			break;
+
+		case '"':
+			strncpy(esc_str + k, "&quot;", 6);
+			k += 6;
+			break;
+
+		case '\'':
+			strncpy(esc_str + k, "&apos;", 6);
+			k += 6;
+			break;
+
+		case '<':
+			strncpy(esc_str + k, "&lt;", 4);
+			k += 4;
+			break;
+
+		case '>':
+			strncpy(esc_str + k, "&gt;", 4);
+			k += 4;
+			break;
+
+		default:
+			esc_str[k] = str[i];
+			++k;
+			break;
+		}
+	}
+	return esc_str;
 }
 
 #define xml_print(fd,level,attr,format,...) {\

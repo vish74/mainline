@@ -108,6 +108,7 @@ void print_filename (FILE* fd, const char* filename, mode_t st_parent, int flags
 {
 	struct stat s;
 	const char *name;
+	char *esc_name;
 #ifdef USE_XATTR
 	char type[256];
 #endif
@@ -143,7 +144,9 @@ void print_filename (FILE* fd, const char* filename, mode_t st_parent, int flags
 		return;
 	}
 
-	fprintf(fd," name=\"%s\" size=\"%zd\"",name,s.st_size);
+	esc_name = xml_esc_string(name);
+	fprintf(fd," name=\"%s\" size=\"%zd\"",esc_name,s.st_size);
+	free(esc_name);
 
 #ifdef USE_XATTR
 	if (!get_mime_type(name,type,sizeof(type))) {
