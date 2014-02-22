@@ -22,18 +22,19 @@
 #include <ctype.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdbool.h>
 
 static
-int name_check_cb(int c) {
+bool name_check_cb(int c) {
 	return !(c == (int)':' || c == (int)'\\' || c == (int)'/' || iscntrl(c));
 }
 
 static
-int strcheck (const uint8_t *s, int (*check)(int c)) {
+bool strcheck (const uint8_t *s, bool (*check)(int c)) {
 	for (; *s != 0; ++s)
 		if (check((int)*s))
-			return 1;
-	return 0;
+			return false;
+	return true;
 }
 
 int check_name (const uint8_t *name) {
