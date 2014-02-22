@@ -96,13 +96,10 @@ static int get_mime_type (
 {
 	ssize_t status = lgetxattr(filename, "user.mime_type", type, size);
 
-	if (status >= 0)
-		return 0;
+	if (status == -1)
+		return -errno;
 
-	if (strlen(type) != (size_t)status)
-		errno = EINVAL;
-
-	return -errno;
+	return 0;
 }
 #endif
 
