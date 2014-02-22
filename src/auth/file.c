@@ -171,7 +171,7 @@ static void auth_file_cleanup (struct auth_handler *self)
 		if (data->realm[i].name)
 			free(data->realm[i].name);
 	}
-	memset(data, 0, sizeof(data));
+	memset(data, 0, sizeof(*data));
 	free(data);
 	self->private_data = NULL;
 }
