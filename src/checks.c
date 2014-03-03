@@ -32,7 +32,7 @@ bool name_check_cb(int c) {
 static
 bool strcheck (const uint8_t *s, bool (*check)(int c)) {
 	for (; *s != 0; ++s)
-		if (check((int)*s))
+		if (!check((int)*s))
 			return false;
 	return true;
 }
