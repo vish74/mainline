@@ -52,13 +52,15 @@ char* io_internal_get_fullname(const char *basedir, const uint8_t *subdir,
 			strcat(name, basedir);
 		}
 		if (utf8len(subdir)) {
-			if (utf8len((uint8_t*)name))
-				strcat(name, "/");
+			size_t len = utf8len((uint8_t*)name);
+			if (name[len-1] != '/')
+				name[len] = '/';
 			strcat(name, (char*)subdir);
 		}
 		if (utf8len(namebase)) {
-			if (utf8len((uint8_t*)name))
-				strcat(name, "/");
+			size_t len = utf8len((uint8_t*)name);
+			if (name[len-1] != '/')
+				name[len] = '/';
 			strcat(name, (char*)namebase);
 
 		} else if (utf8len((uint8_t*)name) == 0)
@@ -157,7 +159,7 @@ static int io_internal_open (struct io_handler *self,
 		break;
 
 	case IO_TYPE_CAPS:
-		err = io_internal_caps_open(self, transfer);
+		err = io_internal_caps_open(self, transfer, name);
 		break;
 
 	default:
