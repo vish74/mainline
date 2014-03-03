@@ -89,7 +89,7 @@ struct obex_caps_uuid {
 	{ 0xF9, 0xEC, 0x7B, 0xC4, 0x95, 0x3C, 0x11, 0xD2, \
 	0x98, 0x4E, 0x52, 0x54, 0x00, 0xDC, 0x9E, 0x09 }
 #define OBEX_UUID_IRMC \
-	{ 'I', 'R', 'M', 'C', '-', 'S', 'Y', 'N', 'C' }
+	{ 'I', 'R', 'M', 'C', '-', 'S', 'Y', 'N', 'C', '\0' }
 
 struct obex_caps_service {
 	/* name or uuid must be defined */
