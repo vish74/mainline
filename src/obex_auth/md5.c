@@ -238,7 +238,7 @@ void MD5Final(uint8_t digest[16], struct MD5Context *ctx)
 
 	byteSwap(ctx->buf, 4);
 	memcpy(digest, ctx->buf, 16);
-	memset(ctx,0,sizeof(ctx));
+	memset(ctx,0,sizeof(*ctx));
 }
 
 void MD5(uint8_t* dest, uint8_t const *orig, size_t len)

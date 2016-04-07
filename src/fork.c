@@ -26,12 +26,12 @@ int obexpushd_create_instance (void* (*cb)(void*), void *cbdata) {
 }
 
 static void obexpushd_wait (int sig) {
-	pid_t pidOfChild;
+	/* pid_t pidOfChild; */
 	int status;
 	if (sig != SIGCLD)
 		return;
 
-	pidOfChild = wait(&status);
+	/* pidOfChild = */wait(&status);
 	if (WIFEXITED(status))
 		fprintf(stderr, "child exited with exit code %d\n", WEXITSTATUS(status));
 	else if (WIFSIGNALED(status))

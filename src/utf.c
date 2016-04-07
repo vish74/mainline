@@ -123,6 +123,7 @@ static uint8_t* utf8to32 (const uint8_t* in, uint32_t *out)
 		if (count > 6 ||
 		    (in[0] & mask[count - 1]) != prefix[count - 1]) {
 			errno = EILSEQ;
+			*out = UINT32_MAX;
 			return NULL;
 		}
 
@@ -244,11 +245,12 @@ uint16_t* utf8_to_ucs2 (const uint8_t* c)
 		while (k && d && k < c+count) {
 			uint32_t t;
 			k = utf8to32(k, &t);
-
-			if (t <= 0xFFFF)
-				*d = (uint16_t)(t & 0xFFFF);
-			else
-				*d = 0xFFFD; /* Unicode replacement character */
+			if (k) {
+				if (t <= 0xFFFF)
+					*d = (uint16_t)(t & 0xFFFF);
+				else
+					*d = 0xFFFD; /* Unicode replacement character */
+			}
 		}
 #endif // HAVE_ICONV
 	}
