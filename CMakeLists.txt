@@ -1,32 +1,16 @@
-cmake_minimum_required ( VERSION 2.6.3 FATAL_ERROR )
-project ( obexpushd NONE )
-
-set ( VERSION_MAJOR 0 )
-set ( VERSION_MINOR 11 )
-set ( VERSION_PATCH 2 )
-set ( VERSION "${VERSION_MAJOR}.${VERSION_MINOR}" )
-if ( VERSION_PATCH GREATER 0 )
-  set ( VERSION "${VERSION}.${VERSION_PATCH}" )
-endif ( VERSION_PATCH GREATER 0 )
+cmake_minimum_required ( VERSION 3.1 FATAL_ERROR )
+cmake_policy ( VERSION 3.1 )
+project ( obexpushd
+  VERSION 0.11.2
+  LANGUAGES C )
 
 list ( APPEND CMAKE_MODULE_PATH
   ${CMAKE_CURRENT_SOURCE_DIR}/CMakeModules
 )
 
-enable_language ( C )
 include ( MaintainerMode )
-if ( CMAKE_COMPILER_IS_GNUCC )
-  set ( C_COMPILER_FLAGS
-    std=c99
-  )
-  foreach ( flag ${C_COMPILER_FLAGS} )
-    set ( cflag "-${flag}" )
-    set ( CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${cflag}" )
-    foreach ( type DEBUG RELEASE MINSIZEREL RELWITHDEBINFO )
-      set ( CMAKE_C_FLAGS_${type} "${CMAKE_C_FLAGS_${type}} ${cflag}" )
-    endforeach ( type )
-  endforeach ( flag )
-endif ( CMAKE_COMPILER_IS_GNUCC )
+set ( CMAKE_C_STANDARD 99 )
+set ( CMAKE_C_STANDARD_REQUIRED TRUE )
 add_definitions ( -D_GNU_SOURCE )
 
 if ( NOT CMAKE_BUILD_TYPE )
@@ -66,10 +50,10 @@ set ( CPACK_RESOURCE_FILE_LICENSE "${CMAKE_CURRENT_SOURCE_DIR}/LICENSE" )
 set ( CPACK_RESOURCE_FILE_README  "${CMAKE_CURRENT_SOURCE_DIR}/README" )
 
 #setting only CPACK_PACKAGE_VERSION does not work (cmake-2.4.5)
-set ( CPACK_PACKAGE_VERSION_MAJOR "${VERSION_MAJOR}" )
-set ( CPACK_PACKAGE_VERSION_MINOR "${VERSION_MINOR}" )
-set ( CPACK_PACKAGE_VERSION_PATCH "${VERSION_PATCH}" )
-set ( CPACK_PACKAGE_VERSION       "${VERSION}" )
+set ( CPACK_PACKAGE_VERSION_MAJOR "${obexpushd_VERSION_MAJOR}" )
+set ( CPACK_PACKAGE_VERSION_MINOR "${obexpushd_VERSION_MINOR}" )
+set ( CPACK_PACKAGE_VERSION_PATCH "${obexpushd_VERSION_PATCH}" )
+set ( CPACK_PACKAGE_VERSION       "${obexpushd_VERSION}" )
 
 #the compiler may have a better idea of what the target is
 if ( CMAKE_COMPILER_IS_GNUCC )
